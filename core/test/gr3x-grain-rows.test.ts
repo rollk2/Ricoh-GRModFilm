@@ -8,6 +8,7 @@ import { planGr3xMenu } from '../src/fw/gr3x/geometry';
 import { buildGr3xTestFirmware } from '../src/fw/gr3x/research-package';
 import { GR3X_GRAIN_SIZE_NAMES } from '../src/fw/gr3x/image-control';
 import { GR3X_FILMS_MODULE, GR3X_FILMS_MODULE_GRAIN } from '../src/fw/gr3x/films-native';
+import { gr3xGrainTag } from '../src/fw/gr3x/datestamp';
 import type { Gr3xLookOptions } from '../src/fw/gr3x/image-control';
 
 const input = process.env.GRMOD_GR3_FIRMWARE;
@@ -28,6 +29,9 @@ describe('grain rows: names and module', () => {
       for (const k of ['sp_grain', 'sp_grain_put', 'sp_size', 'sp_size_put', 'sp_grain_text', 'sp_size_text']) expect(grain.exports).toHaveProperty(k);
     }
   });
+  it('names the grain tag of each Grain / Size nibble', () => {
+    expect([0, 3, 4, 7, 11].map(gr3xGrainTag)).toEqual(['G0 M', 'G3 M', 'G0 S', 'G3 S', 'G3 L']);
+  });
 });
 
 describe.skipIf(!input)('GR III grain rows', () => {
@@ -44,5 +48,12 @@ describe.skipIf(!input)('GR III grain rows', () => {
   it('needs the film mode', async () => {
     const { filmMode: _, dateHidden: __, ...noFilm } = film;
     await expect(buildGr3xTestFirmware(raw, [], looks, menu, { ...noFilm, grain: true })).rejects.toThrow(/grain/);
+  }, 600000);
+  it('test builds: the grain tag changes the date imprint stage only, and needs the grain', async () => {
+    const grain = await buildGr3xTestFirmware(raw, [], looks, menu, { ...film, grain: true });
+    const tag = await buildGr3xTestFirmware(raw, [], looks, menu, { ...film, grain: true, grainTag: true } as typeof film);
+    expect(tag.manifest.sites.map(s => s.address)).toEqual(grain.manifest.sites.map(s => s.address));
+    expect((tag.manifest as unknown as { grainTag?: boolean }).grainTag).toBe(true);
+    await expect(buildGr3xTestFirmware(raw, [], looks, menu, { ...film, grainTag: true } as typeof film)).rejects.toThrow(/grain tag/);
   }, 600000);
 });

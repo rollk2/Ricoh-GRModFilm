@@ -63,6 +63,12 @@ struct ctx {
    * (0..63) its name as glyphs: {count, glyph...} (u16), or 0. */
   const volatile u32 *frame_look;
   const u16 *const *names;
+#ifdef GRAIN_TAG
+  /* GR Mod Film test builds (GR III round 10, grain): per Grain / Size nibble of the look word
+   * (bits 20..23: grain 0..3, size code 0 M, 1 S, 2 L) the setting as glyphs, {count, glyph...},
+   * or 0. Printed after the name for a film; with the date off, printed alone. */
+  const u16 *const *grain_tags;
+#endif
 #ifdef DFDIAG
   /* Test builds only: the RAM word holding the Direct Flash planner's diagnostic buffer (see
    * tools/directflash/directflash.c, DIAG), printed on the 720x480 picture. */
@@ -714,8 +720,12 @@ void datestamp(const struct ctx *k, u32 *config) {
 #ifdef SETTING_RECORD
   {
     const u8 *r = *k->record;
+#ifdef GRAIN_TAG
+    setting = (!ram(r) || k->offset >= 0x1000u) ? 0u : r[k->offset];
+#else
     if (!ram(r) || k->offset >= 0x1000u) return;
     setting = r[k->offset];
+#endif
   }
 #else
   setting = *k->setting;
@@ -723,10 +733,20 @@ void datestamp(const struct ctx *k, u32 *config) {
 #ifdef DFDIAG
   if (ram(config)) df_diag(k, k->cache(), config);
 #endif
+#ifdef GRAIN_TAG
+  /* The date off: the grain's tag alone. */
+  if (setting > SETTING_MAX || !(setting & SETTING_ON)) setting = 0;
+  if (!ram(config)) return;
+#else
   if (setting > SETTING_MAX || !(setting & SETTING_ON) || !ram(config)) return;
+#endif
 #ifdef DIAG
   diag(k, k->cache(), config);
 #endif
+#ifdef GRAIN_TAG
+  if (setting)
+#endif
+  {
   for (i = 0; i < 16; i++) time[i] = 0;
   platform = k->platform();
   if (!platform) return;
@@ -755,6 +775,7 @@ void datestamp(const struct ctx *k, u32 *config) {
       n += two_digits(day, glyphs + n);
     }
   }
+  }
   nd = n;
   /* The look's name: the look of the picture being made (left at the start of the exposure, or in
    * RAW development), else the look the development step last saw. */
@@ -771,6 +792,21 @@ void datestamp(const struct ctx *k, u32 *config) {
       }
     }
   }
+#ifdef GRAIN_TAG
+  /* The grain's setting, as the grain module (run just before) read it from the look word. */
+  if (k->grain_tags && k->look) {
+    u32 v = *k->look;
+    if ((v & LOOK_VALID) && (v & 0xffu) >= 32u && (v & 0xffu) < 64u) {
+      const u16 *t = k->grain_tags[(v >> 20) & 15u];
+      if (ram(t) && t[0] > 0 && t[0] <= 8u) {
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+        for (i = 0; i < t[0]; i++) glyphs[n++] = t[1 + i];
+        nn = n - nd;
+      }
+    }
+  }
+  if (!nd && !nn) return;
+#endif
   cache = k->cache();
   /* The pictures, one per buffer. The first one is the main picture the encoder compresses: for
    * sizes below L the camera has already scaled the photo down into the top left of the sensor

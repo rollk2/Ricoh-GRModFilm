@@ -2823,3 +2823,25 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   environ 7,3 G instructions pour 24 Mpx et ses aperçus, quelques secondes de traitement en plus
   par photo avec du grain (à mesurer sur le boîtier ; NEON non utilisé, piste d'accélération).
 - L'application envoie `grain` avec le mode pellicule (Grain off par défaut sur chaque film).
+
+## Grain : mesures de la série T-GRAIN5 et étiquette de diagnostic (2026-11-08, T-GRAIN5T)
+
+- Série de 8 photos en pleine résolution (R0017259 à R0017266, ISO 100, f/2.8, même mur),
+  prises dans l'ordre du protocole (confirmé par l'utilisateur) : Off, 1 M, 2 M, 3 M, 3 S, 3 L,
+  Off, plus une photo. Écart type du passe haut de la luminance (rayon 1 / rayon 3) : Off 0,36 /
+  0,94 ; 1 M 0,42 / 1,0 ; 2 M 0,6 / 1,5 ; 3 M 0,86 / 2,1 ; **3 S 0,41 / 1,0 (comme Off)** ;
+  3 L 1,7 / 3,4 ; Off 0,42 / 1,0. Chroma en 3 L : 2,4 / 2,45, presque autant que la luminance :
+  la part colorée du grain est trop forte (impression de bruit numérique).
+- La référence PC (`tools/develop/host/grain_ref.c`, gris uniforme 6000 px, niveau 3) donne en S
+  autant de grain qu'en M (écart type 3,81 contre 3,82, plus fin) : le module, identique au PC au
+  bit près, aurait dû marquer la photo 3 S. **Le défaut est en amont** (valeur de taille gardée ou
+  transmise), cause non trouvée en émulateur : les positions de l'écran, l'octet et le mot du look
+  y sont justes.
+- Diagnostic : option de test `grainTag`. Le module de la date (`datestamp.c -DGRAIN_TAG`,
+  `GR3X_DATESTAMP_R10_GRAIN_CODE`) imprime, pour un film, le réglage tel que le module de grain l'a
+  lu dans le mot du look (« G3 S » : Grain 0 à 3, Taille M / S / L), après le nom du film, ou seul
+  en bas à droite si la date est éteinte ou masquée (dateHidden). Rien pour un look de l'appareil
+  ou un mot sans bit de validité. Les autres modules de date restent identiques à l'octet.
+  Vérifié : `tools/gr3x/grain_tag_probe.py` (table des 16 étiquettes, 36 cas film dessinés en bas
+  à droite de l'image et de l'aperçu, vignette intacte, image différente pour chaque réglage,
+  6 cas sans rien, registres gardés ; build avec date : date plus étiquette).

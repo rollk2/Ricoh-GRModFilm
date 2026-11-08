@@ -134,6 +134,8 @@ export interface Gr3xAdjFeatures {
   grainTest?: readonly number[];
   /** Film mode, round 10: Grain and Size rows on a film's Image Control parameter screen (halation-rows.ts, films.c -DGRAIN). */
   grain?: boolean;
+  /** GR Mod Film test builds: the grain's setting printed on the photo by the date imprint ("G3 S"). */
+  grainTag?: boolean;
   filmRoll?: boolean | 'film' | 'folders' | 'folders-diag' | 'menu' | 'keys' | 'fn' | 'fn2' | 'fn3' | 'fn4' | 'fn5' | 'rt1' | 'fn6' | 'fn7' | 'dir1' | 'dir2' | 'dir3' | 'dg1' | 'dg2' | 'dg3' | 'dir4' | 'dir5' | 'dir6' | 'dir7' | 'dir8' | 'dir9' | 'dir10' | 'dir11' | 'dir12' | 'dir13' | 'dir14' | 'end1' | 'end2' | 'end3' | 'clo1' | 'clo2' | 'clo3' | 'clo4' | 'msg1' | 'rwd1' | 'hide1' | 'card1' | 'card2' | 'card3' | 'vid1' | 'vid2' | 'vid3' | 'vid4' | 'tab1' | 'name1' | 'name2';
   /** Round 8: the Image Control order and hidden looks (look-layout.ts; the camera's order with
    * nothing hidden is the same as none). */
@@ -236,6 +238,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   if (wbButton && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx WB button: only with the film mode');
   const macroButton = features.macroButton === true;
   if (features.grain && !features.filmMode) fail('IIIx grain rows: only with the film mode');
+  if (features.grainTag && !(features.grain && dateImprint)) fail('IIIx grain tag: only with the grain and the date imprint stage');
   if (macroButton && !wbButton) fail('IIIx Macro button: with the WB button');
   if (filmRoll && (!(round10 && dateImprint) || filmProbe)) fail('IIIx film roll: round 10 with the date imprint, without the film probe');
   if (features.lookLayout && !round8) fail('IIIx look layout: round 8');
@@ -562,7 +565,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
         ...(filmRewind ? { rewind: { id: GR3X_FILM_REWIND_ID, text: filmText + 3, visible: roll.entries.filmRewindVisible, dialog: GR3X_FOLDER_DIALOG_ID, mode: GR3X_REWIND_MODE, menu: GR3X_MENU_IDS } } : {}),
         ...(filmTab ? { tab: { entry: GR3X_MOVIE_ENTRY_IMAGE, movie: GR3X_MOVIE_TAB, visible: roll.entries.filmMenuVisible, title: filmText + 5, icons: [filmIcon, filmIcon + 1, filmIcon + 2] as const } } : {}) } } : {}), ...(wb ? { fnLines: wb.lines } : {}) }),
     ...(dateImprint ? installGr3xDateImprintStage({ code, append, patch, word, read },
-      round7 ? { stash: GR3X_HALATION_STASH, monoFilms: layer.monoFilms ?? [], ...(lookNames ? { names: lookNames } : {}), ...(round10 ? { r10: true } : {}) } : undefined,
+      round7 ? { stash: GR3X_HALATION_STASH, monoFilms: layer.monoFilms ?? [], ...(lookNames ? { names: lookNames } : {}), ...(round10 ? { r10: true } : {}), ...(features.grainTag ? { grainTags: true } : {}) } : undefined,
       probeEntries?.filmProbeTime ?? (messageEntries as Record<string, number>).filmProbeTime, probe?.exposure ?? (roll && (features.filmRoll === 'end2' || features.filmRoll === 'end3' || features.filmRoll === 'clo1' || features.filmRoll === 'clo2' || features.filmRoll === 'clo3' || features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film')) ? GR3X_MESSAGE_CLEAR + GR3X_REVIEW_ARM_CLEAR + GR3X_ADVANCE_ONCE_CLEAR + roll.exposure : roll && features.filmRoll === 'fn6' ? GR3X_CANCEL_CLEAR + roll.exposure : roll && (features.filmRoll === 'dir3' || features.filmRoll === 'dg1' || features.filmRoll === 'dg2' || features.filmRoll === 'dg3' || features.filmRoll === 'dir4' || features.filmRoll === 'dir5' || features.filmRoll === 'dir6' || features.filmRoll === 'dir7' || features.filmRoll === 'dir8' || features.filmRoll === 'dir9' || features.filmRoll === 'dir10' || features.filmRoll === 'dir11' || features.filmRoll === 'dir12' || features.filmRoll === 'dir13' || features.filmRoll === 'dir14' || features.filmRoll === 'end1') ? GR3X_REVIEW_ARM_CLEAR + GR3X_ADVANCE_ONCE_CLEAR + roll.exposure : roll && (features.filmRoll === 'fn7' || features.filmRoll === 'dir1' || features.filmRoll === 'dir2') ? GR3X_REVIEW_ARM_CLEAR + roll.exposure : roll?.exposure), dateHidden) : {}),
     ...(pictureCount ? installGr3xPictureStage({ code, append, patch, word, read }, pictureCount, { pick: !pictureSub }) : {}) } : {};
   // Round 7 without films: the look word for the date imprint (the image-control layer's
@@ -606,7 +609,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainTag ? { grainTag: true } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

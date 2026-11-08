@@ -67,7 +67,7 @@ import { GR3X_JPEG_EXECUTE } from './jpeg-stage';
 import { GR3X_PICTURE_MENU_ID, installGr3xEndScreenSetup, installGr3xPictureList, installGr3xPictureSetupLine } from './shutdown';
 import { GR3X_END_SCREEN_ID as END_SCREEN_ID, GR3X_PICTURE_LIST_ID, GR3X_PICTURE_MODE } from './endscreen';
 import { GR3X_FRAME_LOOK, GR3X_GAP, GR3X_HEAP_BASE, GR3X_ORIENT_BYTE, GR3X_ZERO_FILL_END } from './look-addresses';
-import { GR3X_DATESTAMP_R10_CODE } from './picture-modules-r10';
+import { GR3X_DATESTAMP_R10_CODE, GR3X_DATESTAMP_R10_GRAIN_CODE } from './picture-modules-r10';
 import { GR3X_R10 } from './round10';
 import type { Gr3xPictureIds } from './shutdown';
 
@@ -184,6 +184,13 @@ export function gr3xDateModule(round: 6 | 7 | 8 | 10 = 8): Uint8Array {
   return raw;
 }
 
+/** Round 10 with the grain's tag (-DGRAIN_TAG). */
+export function gr3xDateGrainModule(): Uint8Array {
+  const raw = Uint8Array.from(atob(GR3X_DATESTAMP_R10_GRAIN_CODE), c => c.charCodeAt(0));
+  if (raw.length % 4) fail('date imprint module length');
+  return raw;
+}
+
 /** GR III's black-and-white looks: Monotone, Soft Monotone, Hard Monotone, Hi-Contrast B&W (as GR IV's 13..16). */
 export const GR3X_MONO_LOOKS = [13, 14, 15, 16] as const;
 /** Films in the look word the development step leaves (look 64 + k as 32 + k: the modules' tables have 64 entries). */
@@ -199,6 +206,26 @@ export interface Gr3xDateLook {
   names?: Readonly<Record<number, string>>;
   /** Round 10: GR IV's words for the orientation and the frame look (round10.ts's RAM words). */
   r10?: boolean;
+  /** GR Mod Film test builds (round 10, grain): the grain's setting as the grain module read it
+   * ("G3 S": Grain 0..3, Size S / M / L) after a film's name, or alone with the date off. */
+  grainTags?: boolean;
+}
+
+/** The grain's tag of each Grain / Size nibble of the look word (bits 20..23: grain, then the size
+ * code 0 M, 1 S, 2 L). */
+export function gr3xGrainTag(nibble: number): string {
+  return `G${nibble & 3} ${'MSLX'[(nibble >> 2) & 3]}`;
+}
+
+function gr3xGrainTagTable(p: Gr3xDateProgram): number {
+  const table: number[] = [];
+  for (let n = 0; n < 16; n++) {
+    const g = lookNameGlyphs(gr3xGrainTag(n));
+    const b = new Uint8Array(2 + g.length * 2), v = new DataView(b.buffer);
+    v.setUint16(0, g.length, true); g.forEach((x, i) => v.setUint16(2 + i * 2, x, true));
+    table.push(p.append(b));
+  }
+  return p.append(u32(table));
 }
 
 /** The camera's English names of its looks (GR III 2.10's texts 4, 268..278 through the name
@@ -329,10 +356,13 @@ export function installGr3xDateImprintStage(p: Gr3xDateProgram, look?: Gr3xDateL
   const lookWords = look ? [look.stash, p.append(gr3xMonoTable(look.monoFilms)), p.code('mov r0,#0;bx lr;')] : [];
   const r10 = !!look?.r10;
   const r8Words = round8 ? [r10 ? GR3X_R10.orientWord : GR3X_ORIENT_BYTE, r10 ? GR3X_R10.frameLook : GR3X_FRAME_LOOK, gr3xLookNameTable(p, look!.names!)] : [];
+  const tags = !!look?.grainTags;
+  if (tags && !r10) fail('IIIx date imprint: the grain tag needs round 10');
+  if (tags) r8Words.push(gr3xGrainTagTable(p));
   const ctx = p.append(u32([CACHE, CACHE_FLUSH_FOR_READ, CACHE_CLEAN, PLATFORM, getTime, GR3X_DATE_SETTINGS_POINTER, off ? GR3X_DATE_OFF : GR3X_DATE_OFFSET, ...lookWords, ...r8Words]));
   if (r10 && !round8) fail('IIIx date imprint: round 10 builds on round 8');
   const exposure = round8 ? installGr3xExposureOrientation(p, look!.stash, r10, exposurePrefix) : {};
-  const module = p.append(gr3xDateModule(r10 ? 10 : round8 ? 8 : look ? 7 : 6));
+  const module = p.append(tags ? gr3xDateGrainModule() : gr3xDateModule(r10 ? 10 : round8 ? 8 : look ? 7 : 6));
   const stub = p.code(`push {r0-r3,ip,lr};ldr r1,[r1,#8];movw r0,#${lo(ctx)};movt r0,#${hi(ctx)};bl #${module};pop {r0-r3,ip,lr};
     mov ip,sp;b #${GR3X_JPEG_EXECUTE + 4};`);
   p.patch(GR3X_JPEG_EXECUTE, 0xe1a0c00d, branchWord(GR3X_JPEG_EXECUTE, stub), 'date imprint: JPEG encode step');
