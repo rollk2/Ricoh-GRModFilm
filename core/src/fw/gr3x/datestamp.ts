@@ -67,7 +67,7 @@ import { GR3X_JPEG_EXECUTE } from './jpeg-stage';
 import { GR3X_PICTURE_MENU_ID, installGr3xEndScreenSetup, installGr3xPictureList, installGr3xPictureSetupLine } from './shutdown';
 import { GR3X_END_SCREEN_ID as END_SCREEN_ID, GR3X_PICTURE_LIST_ID, GR3X_PICTURE_MODE } from './endscreen';
 import { GR3X_FRAME_LOOK, GR3X_GAP, GR3X_HEAP_BASE, GR3X_ORIENT_BYTE, GR3X_ZERO_FILL_END } from './look-addresses';
-import { GR3X_DATESTAMP_R10_CODE, GR3X_DATESTAMP_R10_GRAIN_CODE, GR3X_DATESTAMP_R10_GRAIN_DIAG_CODE } from './picture-modules-r10';
+import { GR3X_DATESTAMP_R10_CODE, GR3X_DATESTAMP_R10_GRAIN_CODE, GR3X_DATESTAMP_R10_GRAIN_DIAG_CODE, GR3X_DATESTAMP_R10_GRAIN_FIND_CODE } from './picture-modules-r10';
 import { GR3X_R10 } from './round10';
 import type { Gr3xPictureIds } from './shutdown';
 
@@ -185,8 +185,8 @@ export function gr3xDateModule(round: 6 | 7 | 8 | 10 = 8): Uint8Array {
 }
 
 /** Round 10 with the grain's tag (-DGRAIN_TAG). */
-export function gr3xDateGrainModule(diag = false): Uint8Array {
-  const raw = Uint8Array.from(atob(diag ? GR3X_DATESTAMP_R10_GRAIN_DIAG_CODE : GR3X_DATESTAMP_R10_GRAIN_CODE), c => c.charCodeAt(0));
+export function gr3xDateGrainModule(diag: boolean | 'find' = false): Uint8Array {
+  const raw = Uint8Array.from(atob(diag === 'find' ? GR3X_DATESTAMP_R10_GRAIN_FIND_CODE : diag ? GR3X_DATESTAMP_R10_GRAIN_DIAG_CODE : GR3X_DATESTAMP_R10_GRAIN_CODE), c => c.charCodeAt(0));
   if (raw.length % 4) fail('date imprint module length');
   return raw;
 }
@@ -208,7 +208,7 @@ export interface Gr3xDateLook {
   r10?: boolean;
   /** GR Mod Film test builds (round 10, grain): the grain's setting as the grain module read it
    * ("G3 S": Grain 0..3, Size S / M / L) after a film's name, or alone with the date off. */
-  grainTags?: boolean | 'diag';
+  grainTags?: boolean | 'diag' | 'find';
 }
 
 /** Diagnostic (T-GRAIN6D): the grain's queue in round 10's zero-filled words (free in every build:
@@ -378,8 +378,9 @@ export function installGr3xDateImprintStage(p: Gr3xDateProgram, look?: Gr3xDateL
   const ctx = p.append(u32([CACHE, CACHE_FLUSH_FOR_READ, CACHE_CLEAN, PLATFORM, getTime, GR3X_DATE_SETTINGS_POINTER, off ? GR3X_DATE_OFF : GR3X_DATE_OFFSET, ...lookWords, ...r8Words]));
   if (r10 && !round8) fail('IIIx date imprint: round 10 builds on round 8');
   const exposure = round8 ? installGr3xExposureOrientation(p, look!.stash, r10, (diag ? gr3xGrainQueuePush(look!.stash) : '') + exposurePrefix) : {};
-  const module = p.append(diag ? gr3xDateGrainModule(true) : tags ? gr3xDateGrainModule() : gr3xDateModule(r10 ? 10 : round8 ? 8 : look ? 7 : 6));
-  const stub = p.code(`push {r0-r3,ip,lr};ldr r1,[r1,#8];movw r0,#${lo(ctx)};movt r0,#${hi(ctx)};bl #${module};pop {r0-r3,ip,lr};
+  const find = look?.grainTags === 'find';
+  const module = p.append(find ? gr3xDateGrainModule('find') : diag ? gr3xDateGrainModule(true) : tags ? gr3xDateGrainModule() : gr3xDateModule(r10 ? 10 : round8 ? 8 : look ? 7 : 6));
+  const stub = p.code(`push {r0-r3,ip,lr};${find ? 'mov r2,r0;mov r3,r1;' : ''}ldr r1,[r1,#8];movw r0,#${lo(ctx)};movt r0,#${hi(ctx)};bl #${module};pop {r0-r3,ip,lr};
     mov ip,sp;b #${GR3X_JPEG_EXECUTE + 4};`);
   p.patch(GR3X_JPEG_EXECUTE, 0xe1a0c00d, branchWord(GR3X_JPEG_EXECUTE, stub), 'date imprint: JPEG encode step');
   return { dateStage: stub, dateModule: module, dateContext: ctx, ...exposure };

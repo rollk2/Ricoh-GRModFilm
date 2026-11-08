@@ -2909,3 +2909,25 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   l'écrivain de la note constructeur lit pendant l'encodage (`r1`, octets `+0x77c` look et
   `+0x786` Toning, voir `films-r10.ts`, TONING_WRITER). À trouver : comment l'atteindre depuis
   `JpegEncodeMacroProcess::Execute` (`0x535047d4`).
+
+## Grain : la copie des réglages propre à chaque photo (2026-11-08, recherche T-GRAIN6F)
+
+- La note constructeur est écrite par `PentaxMakernoteEntryDataSetter` (vtable `0x53d31360`,
+  typeinfo `0x53d3134c`). Sa méthode 8 (`0x53603f18`) prend l'enregistrement de la photo dans un
+  objet source S (`[this+4]`) : octet 0 un index, puis un tableau de pointeurs
+  (`0x535fc2f8` : `S[idx + 2]`), gardé en `[this+0x18]`. Le Toning de la note (`0x535c5e34`,
+  appelé par `0x535c81c8` et `0x5362715c`) lit `+0x77c` et `+0x786` de cet enregistrement :
+  c'est la copie des réglages de la photo, avec le quartet du grain.
+- Cet enregistrement est celui de `SetShootingInfoResultBeforeExpose` (`0x534322d8`, `r2`) :
+  l'année en `+0x944`, le mois et le jour en `+0x946` / `+0x947` (chaînes « ShootingInfo Buffer
+  NULL / Over » : un tampon d'enregistrements, un par vue).
+- Le constructeur EXIF (`0x535faa50`, appelé par `0x535cb48c` et `0x535fb720`) donne S aux
+  setters. Le lien statique entre `JpegEncodeMacroProcess::Execute` et S n'est pas trouvé.
+- Recherche sur le boîtier (option `grainTag: 'find'`, module `-DGRAIN_FIND`) : à l'encodage, le
+  module de la date cherche, à deux pointeurs au plus du processus (`r0` d'Execute), de son
+  argument (`r1`) et de la configuration (`[r1+8]`), un enregistrement daté du jour avec un look
+  en `+0x77c` (pointeurs lus seulement entre `0x55000000` et `0x5fff0000`). Il imprime « r.ii.jj
+  gs » : racine (0 processus, 1 argument, 2 configuration), mot ii de la racine, mot jj de ce qu'il
+  désigne (99 : le mot de la racine est l'enregistrement), Grain et code de taille trouvés.
+  Vérifié : `grain_tag_probe.py` (enregistrement direct et à un pointeur, image qui suit son
+  Toning), `grain_stage_probe.py`.

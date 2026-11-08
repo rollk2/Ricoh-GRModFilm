@@ -24,7 +24,7 @@ import datestamp_probe as dp
 import datestamp8_probe as d8
 
 def verify(data,manifest):
-    assert manifest.get('grainTag') in (True,'diag') and manifest.get('round10')
+    assert manifest.get('grainTag') in (True,'diag','find') and manifest.get('round10')
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc
     mapped=lambda a:any(s<=a<=e for s,e,_ in c.mem_regions())
     for at in range(0x63000000,0x63100000,0x1000):
@@ -50,10 +50,12 @@ def verify(data,manifest):
     # 2. The pictures.
     pics=dp.pictures();base=[b for _,b in pics['memory']]
     f=d8.FastDate(p,dp.CLOCK);f.plat=dp.PLAT;u=f.uc
-    def run(stash,setting=0):
+    def run(stash,setting=0,cfg_word=None):
         for a,b in pics['memory']:u.mem_write(a,b)
         for i,d in enumerate(pics['descriptors']):u.mem_write(dp.DESC+i*0x20,d)
-        cfg=bytearray(0x60);struct.pack_into('<4I',cfg,0x3c,*(dp.DESC+i*0x20 for i in range(4)));u.mem_write(dp.CFG,bytes(cfg))
+        cfg=bytearray(0x60);struct.pack_into('<4I',cfg,0x3c,*(dp.DESC+i*0x20 for i in range(4)))
+        if cfg_word:struct.pack_into('<I',cfg,cfg_word[0]*4,cfg_word[1])
+        u.mem_write(dp.CFG,bytes(cfg))
         u.mem_write(dp.ARG,struct.pack('<3I',0,0,dp.CFG));u.mem_write(dp.PLAT,struct.pack('<2I',0,dp.PLAT+0x80))
         u.mem_write(dp.REC,bytes(0xb28));u.mem_write(dp.REC+dp.OFFSET,bytes([setting]));u.mem_write(dp.PTR,struct.pack('<I',dp.REC))
         u.mem_write(d8.STASH,struct.pack('<I',stash));u.mem_write(d8.MODE,b'\x01\xa5\xa5\xa5');u.mem_write(d8.ORIENT_WORD,struct.pack('<2I',0,0))
@@ -85,9 +87,28 @@ def verify(data,manifest):
         a=changed(run(0x10000|32|3<<20|1<<22,setting=1));b=changed(run(0x10000|11|3<<20|1<<22,setting=1))
         assert a[0]>b[0]>0 and a[2]>b[2]>0,(a,b);cases['with the date']=2
     return dict(cases=cases,date_offered=not hidden,tags=['G%d %s'%(n&3,'MSLX'[n>>2]) for n in range(12)],
-        **({'queue':queue(p,e,u,run,changed)} if diag else {}),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
+        **({'queue':queue(p,e,u,run,changed)} if diag else {}),**({'find':find(u,run)} if manifest.get('grainTag')=='find' else {}),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 QUEUE=0x55804398
+def find(u,run):
+    """Research builds: a shooting record (today's date at +0x944, a film at +0x77c, Grain / Size in
+    the Toning byte) reached from the configuration's word 5, directly or one pointer further."""
+    REC=0x558c2000;HOP=0x558c1000
+    def record(toning):
+        b=bytearray(0x950);b[0x77c]=64;b[0x786]=toning
+        struct.pack_into('<HBB',b,0x944,dp.CLOCK[0],dp.CLOCK[1],dp.CLOCK[2]);u.mem_write(REC,bytes(b))
+    film=0x10000|32|3<<20
+    record(0x70);base=run(film)[0]          # nothing points at it
+    out={}
+    for name,word,hop in (('direct',REC,None),('one pointer',HOP,REC)):
+        imgs=[]
+        for toning in (0x70,0xb0):
+            record(toning)
+            if hop:u.mem_write(HOP+4*7,struct.pack('<I',hop))
+            imgs.append(run(film,cfg_word=(5,word))[0])
+        assert imgs[0]!=base and imgs[1]!=base and imgs[0]!=imgs[1],name
+        out[name]=True
+    return out
 def queue(p,e,u,run,changed):
     def expose(stash):
         u.mem_write(d8.STASH,struct.pack('<I',stash))

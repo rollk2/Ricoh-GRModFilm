@@ -717,8 +717,55 @@ static u32 two_digits(u32 v, glyph *out) {
   return 2;
 }
 
+#ifdef GRAIN_FIND
+/* Research (T-GRAIN6F): the shooting record of the picture being encoded (SetShootingInfoResult-
+ * BeforeExpose's record: the frame's year at +0x944, month and day at +0x946, a copy of the user
+ * settings with the look at +0x77c and the Toning byte at +0x786), looked for two pointers deep
+ * from the encoder's own words. Only pointers into 0x55000000..0x5fff0000 are read. */
+static int find_ptr(u32 a) { return a >= 0x55000000u && a < 0x5fff0000u && (a & 3) == 0; }
+static int is_record(u32 a, u32 year, u32 month, u32 day) {
+  const u8 *q = (const u8 *)a;
+  return find_ptr(a) && *(const u16 *)(q + 0x944) == year && q[0x946] == month && q[0x947] == day && q[0x77c] >= 11u && q[0x77c] < 100u;
+}
+/* Appends "  r.ii.jj gs" per record found (root 0 the process, 1 its argument, 2 the configuration;
+ * word ii of the root, then word jj of what it points at, 99 when the root's word is the record;
+ * g s the record's Grain and size code), at most three. */
+static u32 find_records(const struct ctx *k, u32 *roots[3], glyph *out) {
+  u8 time[16];
+  u32 n = 0, found = 0, r, i, j, year, month, day;
+  void *platform;
+  for (i = 0; i < 16; i++) time[i] = 0;
+  platform = k->platform();
+  if (!platform) return 0;
+  k->get_time(((void **)platform)[1], time);
+  year = time[0] | (u32)time[1] << 8; month = time[2]; day = time[3];
+  for (r = 0; r < 3 && found < 3; r++) {
+    u32 *root = roots[r];
+    if (!find_ptr((u32)root)) continue;
+    for (i = 0; i < 64 && found < 3; i++) {
+      u32 a = root[i];
+      if (!find_ptr(a)) continue;
+      if (is_record(a, year, month, day)) j = 99;
+      else {
+        for (j = 0; j < 64; j++) if (is_record(((u32 *)a)[j], year, month, day)) { a = ((u32 *)a)[j]; break; }
+        if (j == 64) continue;
+      }
+      out[n++] = G_SPACE; out[n++] = G_SPACE; out[n++] = (glyph)r; out[n++] = G_DOT;
+      n += two_digits(i, out + n); out[n++] = G_DOT; n += two_digits(j, out + n);
+      out[n++] = G_SPACE; out[n++] = (glyph)((((const u8 *)a)[0x786] >> 4) & 3u); out[n++] = (glyph)(((const u8 *)a)[0x786] >> 6);
+      found++;
+    }
+  }
+  return n;
+}
+#endif
+
 /* Entry: k = context, config = JpegEncodeMacroProcess configuration. */
+#ifdef GRAIN_FIND
+void datestamp(const struct ctx *k, u32 *config, u32 *process, u32 *arg) {
+#else
 void datestamp(const struct ctx *k, u32 *config) {
+#endif
   u8 time[16];
   glyph glyphs[MAXGLYPH];
   u32 n = 0, nd, nn = 0, i, j, setting;
@@ -819,6 +866,13 @@ void datestamp(const struct ctx *k, u32 *config) {
       if (ram(t) && t[0] > 0 && t[0] <= 8u) {
         glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
         for (i = 0; i < t[0]; i++) glyphs[n++] = t[1 + i];
+#ifdef GRAIN_FIND
+        {
+          u32 *roots[3];
+          roots[0] = process; roots[1] = arg; roots[2] = config;
+          n += find_records(k, roots, glyphs + n);
+        }
+#endif
 #ifdef GRAIN_DIAG
         /* "  E3 M" (the queued setting; "E" alone when the queue was empty or the word not valid),
          * then "  ww.rr" the exposures and encodes counted before this one. */
