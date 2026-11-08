@@ -3036,3 +3036,7 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   « mm.pp » pour l'aiguillage, et remet la table à zéro : chaque photo montre les gestes faits
   depuis la précédente. Vérifié : `dial_probe.py` (19 cas, registres et drapeaux gardés),
   `grain_tag_probe.py` (impression et remise à zéro).
+- Première série T-DIAL1 (R0017321 à R0017329) prise avec T-GRAIN9 encore flashé : aucune
+  impression, à refaire. Précision de l'utilisateur : la molette est défaillante (elle saute,
+  revient en arrière) ; c'est la raison de la demande. Les deux sens peuvent donc apparaître
+  mêlés pour un même geste. Choix pour Snap : la distance réglée par un bouton.
