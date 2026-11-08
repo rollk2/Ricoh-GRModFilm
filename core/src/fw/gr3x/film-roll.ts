@@ -508,6 +508,13 @@ const keyClear = `push {r0};movw ip,#${lo(KEY_LAST)};movt ip,#${hi(KEY_LAST)};mo
  * the button functions run by GetEventCustomize (Fn, ISO, Drive: 0x5329bcc8(this, out, f, ...)) and
  * GetEventSwitchWlan (Movie/Wireless, Hold: function in r6 at 0x5329a0a0, `cmp r6,#0x29`). */
 export const GR3X_FN_TABLE = 0x53b4eb7c, GR3X_FN_COUNT = 36, GR3X_FN_LOOP_LOW = 0x531be684, GR3X_FN_LOOP_END = 0x531be698;
+/** The two shorter tables of the Movie/Wireless lists (the controller's vectors + 0x1bc and + 0x1b0,
+ * builders 0x531be5f8 and 0x531be700): the camera's functions without Enable AF, AF+AE Lock, AE
+ * Lock and One Push AE in M Mode (5, 6, 7, 29), with Wireless LAN Setting and Preview (32, 33). */
+export const GR3X_FN_WLAN_TABLES = [
+  { table: 0x53b4ebcc, count: 34, low: 0x531be600, end: 0x531be614, end_word: 0xe2846022 },
+  { table: 0x53b4ebf4, count: 32, low: 0x531be708, end: 0x531be71c, end_word: 0xe2846020 },
+] as const;
 export const GR3X_FN_TEXT = 0x53292ed0, GR3X_FN_ICON = 0x53293e6c, GR3X_FN_CUSTOM = 0x5329bcc8, GR3X_FN_WLAN = 0x5329a0a0;
 /** Film Advance's function number (the camera's are 0..41; 0 is Off). */
 export const GR3X_FILM_ADVANCE = 42;
@@ -571,6 +578,18 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
   p.patch(GR3X_FN_LOOP_LOW, movWord(4, lo(GR3X_FN_TABLE)), movWord(4, lo(table)), 'film advance: the functions table with Film Advance, low half');
   p.patch(GR3X_FN_LOOP_LOW + 4, movWord(4, hi(GR3X_FN_TABLE), true), movWord(4, hi(table), true), 'film advance: the functions table with Film Advance, high half');
   p.patch(GR3X_FN_LOOP_END, 0xe2846024, 0xe2846024 + added.length, `film advance: the functions table has ${GR3X_FN_COUNT + added.length} entries`);
+  // With the WB button (release builds): the Movie/Wireless lists get GR Mod Film's functions too
+  // (Film Advance, White Balance, Macro Mode, Snap DOF): GetEventSwitchWlan already runs them.
+  if (wb) GR3X_FN_WLAN_TABLES.forEach(({ table: at, count, low, end, end_word }, k) => {
+    const own = p.read(at, count);
+    if ([...own].some(f => added.includes(f)) || own[0] !== 0 || p.u32(low) !== movWord(4, lo(at)) || p.u32(low + 4) !== movWord(4, hi(at), true) || p.u32(end) !== end_word) fail(`wireless list ${k}`);
+    for (const a of [low, low + 4, end]) free(a);
+    const t = p.append(Uint8Array.from([...own, ...added]));
+    entries[`filmFnWlanTable${k}`] = t;
+    p.patch(low, movWord(4, lo(at)), movWord(4, lo(t)), 'film advance: the Wireless list with GR Mod Film\'s functions, low half');
+    p.patch(low + 4, movWord(4, hi(at), true), movWord(4, hi(t), true), 'film advance: the Wireless list with GR Mod Film\'s functions, high half');
+    p.patch(end, end_word, end_word + added.length, `film advance: the Wireless list has ${count + added.length} entries`);
+  });
   const retakeText = retake ? `cmp r1,#${GR3X_FILM_RETAKE};movweq r0,#${GR3X_RETAKE_TEXT};bxeq lr;` : '';
   const M = wb?.macro, N = wb?.snap;
   const wbText = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.text};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.text};bxeq lr;` : ''}${N ? `cmp r1,#${N.function};movweq r0,#${N.text};bxeq lr;` : ''}` : '';

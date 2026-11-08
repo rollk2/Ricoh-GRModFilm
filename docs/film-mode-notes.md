@@ -3121,3 +3121,18 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   code 25 et le comportement en bout de liste. Vérifié : `snap_dof_probe.py` (table, texte en 21
   lignes, icône, objet gardé, cran envoyé ou non, aiguillages), `wb_button_probe.py`,
   `dial_probe.py`.
+- **Résultat T-DOF1 (2026-11-08)** : « Snap DOF » absent des listes de Wireless Button et Hold
+  Wireless Btn. (listes réduites d'origine) ; assigné à la touche gauche, avec Snap Distance
+  Priority en DOF3 : pas de retour à DOF1 (code 25 vers le haut et borné, ou sans effet).
+- Listes Wireless (statique) : deux tables propres, `0x53b4ebcc` (34, vecteur `+0x1bc`, bâtisseur
+  `0x531be5f8`) et `0x53b4ebf4` (32, vecteur `+0x1b0`, bâtisseur `0x531be700`) : les fonctions du
+  boîtier sans Enable AF, AF+AE Lock, AE Lock, One Push AE in M Mode (5, 6, 7, 29), avec Wireless
+  LAN Setting et Preview (32, 33), et aucune fonction de GR Mod Film. Demande : lever la limite
+  (note de version). Fait (T-DOF2) : avec le bouton WB, les deux tables reçoivent 42, 44, 45 et 46
+  (GetEventSwitchWlan les exécute déjà) ; 5, 6, 7, 29 restent exclues (liées au déclencheur à
+  mi-course ; risque d'assertion dans l'aiguillage).
+- T-DOF2 : le cran de Snap DOF en code 24, pour connaître l'autre sens. Vérifié :
+  `snap_dof_probe.py` (listes Wireless comprises), `wb_button_probe.py`, `dial_probe.py`, tests.
+- **Note de version à prévoir** : Wireless Button et Hold Wireless Btn. proposent désormais les
+  fonctions de GR Mod Film (Film Advance, White Balance, Macro Mode, Snap DOF) : une limite du
+  boîtier levée.

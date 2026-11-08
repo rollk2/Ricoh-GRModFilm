@@ -10,7 +10,7 @@ dial-probe.ts, `snapDof`, T-DOF1), in the emulator.
     handled at once, other keys on);
   - the press (`snapStep`), the app and settings getters replaced, the Snap Distance Priority getter
     (+0x110) executed natively, the filter's way around (`rearDialBypass`) replaced by a recorder:
-    priority on and a model in RAM: one notch, (model, 25); priority off, or no model: nothing;
+    priority on and a model in RAM: one notch, (model, code: 24 in T-DOF2); priority off, or no model: nothing;
     every register kept;
   - GetEventCustomize's entry with 46 pressed (r3 = 0): the press once, then as Off; held or
     released: nothing, as Off; GetEventSwitchWlan's switch with 46: the press once, then as Off.
@@ -32,6 +32,13 @@ def verify(data,manifest):
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc;cases={}
     table=e['filmFnTable'];vals=bytes(c.mem_read(table,40))
     assert list(vals[36:40])==[42,44,45,46],list(vals[36:40])
+    # The Movie/Wireless lists (builders 0x531be5f8 / 0x531be700): the camera's 34 / 32, then ours.
+    u=lambda a:struct.unpack('<I',bytes(c.mem_read(a,4)))[0]
+    movw=lambda w:((w>>4)&0xf000)|(w&0xfff)
+    for low,end,count,orig in ((0x531be600,0x531be614,34,0x53b4ebcc),(0x531be708,0x531be71c,32,0x53b4ebf4)):
+        t=movw(u(low))|movw(u(low+4))<<16
+        assert u(end)&0xfff==count+4 and bytes(c.mem_read(t,count))==data[orig-0x53000000:orig-0x53000000+count]
+        assert list(c.mem_read(t+count,4))==[42,44,45,46];cases['wireless lists']=cases.get('wireless lists',0)+1
     def call(at,*args):
         for i,v in enumerate(args):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),v)
         c.reg_write(reg.UC_ARM_REG_SP,STACK);c.reg_write(reg.UC_ARM_REG_LR,0x5a5a5a5a)
@@ -71,7 +78,8 @@ def verify(data,manifest):
         c.emu_start(e['snapStep'],0x5a5a5a5a,count=100000)
         assert [c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]==regs[:12] and c.reg_read(reg.UC_ARM_REG_SP)==STACK
         return list(log)
-    for pr in (1,2):assert press(pr,AM)==[(AM,25)];cases['notch']=cases.get('notch',0)+1
+    CODE=manifest.get('dofCode',24)
+    for pr in (1,2):assert press(pr,AM)==[(AM,CODE)];cases['notch']=cases.get('notch',0)+1
     for pr,m in ((0,AM),(1,0),(1,0x30000000),(1,AM+2),(0,0)):
         assert press(pr,m)==[],(pr,hex(m));cases['nothing']=cases.get('nothing',0)+1
     def custom(fn,phase):
@@ -82,12 +90,12 @@ def verify(data,manifest):
         c.emu_start(CUSTOM,CUSTOM+4,count=100000)
         assert c.reg_read(reg.UC_ARM_REG_PC)==CUSTOM+4 and c.reg_read(reg.UC_ARM_REG_R2)==0
         return list(log)
-    assert custom(46,0)==[(AM,25)] and custom(46,1)==[] and custom(46,2)==[];cases['GetEventCustomize']=3
+    assert custom(46,0)==[(AM,CODE)] and custom(46,1)==[] and custom(46,2)==[];cases['GetEventCustomize']=3
     log.clear()
     for i in range(13):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),0x1000+i)
     c.reg_write(reg.UC_ARM_REG_R6,46);c.reg_write(reg.UC_ARM_REG_SP,STACK)
     c.emu_start(WLAN,WLAN+4,count=100000)
-    assert c.reg_read(reg.UC_ARM_REG_PC)==WLAN+4 and c.reg_read(reg.UC_ARM_REG_R6)==0 and log==[(AM,25)],log;cases['GetEventSwitchWlan']=1
+    assert c.reg_read(reg.UC_ARM_REG_PC)==WLAN+4 and c.reg_read(reg.UC_ARM_REG_R6)==0 and log==[(AM,CODE)],log;cases['GetEventSwitchWlan']=1
     return dict(cases=cases,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':

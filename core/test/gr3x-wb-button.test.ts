@@ -48,8 +48,10 @@ describe.skipIf(!input)('GR III WB button', () => {
     expect(wb).toMatchObject({ wbButton: true });
     expect(plain).not.toHaveProperty('wbButton');
     const added = wb.sites.filter(s => !plain.sites.some(t => t.address === s.address));
-    expect(added.every(s => /^WB button/.test(s.reason))).toBe(true);
-    expect(added.length).toBe(14);
+    // The WB button's 14 sites, and the Movie/Wireless lists with GR Mod Film's functions (2 x 3).
+    expect(added.filter(s => /^WB button/.test(s.reason)).length).toBe(14);
+    expect(added.filter(s => /Wireless list/.test(s.reason)).length).toBe(6);
+    expect(added.length).toBe(20);
     expect(wb.sites.find(s => s.address === GR3X_WB_KEY_HANDLER)!).toMatchObject({ expected: '0dc0a0e1' });
     expect(wb.sites.find(s => s.address === GR3X_WB_KEY_EVENT)!).toMatchObject({ expected: '007098e5' });
     // The sites both builds patch keep their place; only the appended code differs.
