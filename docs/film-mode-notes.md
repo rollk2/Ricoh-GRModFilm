@@ -3060,3 +3060,9 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   note toutes les touches avant le filtre. Vérifié : `dial_probe.py` (17 touches : 24 et 25
   traitées, les 15 autres continuent, registres gardés, anneau complet ; contre-épreuve sur T-DIAL2
   détectée), `grain_tag_probe.py`. Snap : un bouton à prévoir pour la distance.
+- **Résultat T-DIAL3 sur le boîtier (2026-11-08)** : photo « G0 M 24 24 24 25 05 07 08 06 » : la
+  rotation arrive toujours (24, 25 notés par la sonde) et l'utilisateur valide (« Super »).
+  Suite validée : la case « Désactiver la molette arrière » dans l'application. Question de
+  l'utilisateur : des fonctions « Hold » (appui long) pour Fn et les autres touches, comme
+  « Hold Wireless Btn. » (champ `0x92a`) ; à étudier (les touches du pavé ont des codes espacés de
+  3, 26 / 29 / 32 / 35 : peut-être appui, appui long, relâchement).
