@@ -35,7 +35,8 @@ def verify(data,manifest):
     ctx=e['dateContext'];words=struct.unpack('<16I',bytes(c.mem_read(ctx,64)))
     if diag:assert words[15]==QUEUE
     hidden=words[6]==0xffff
-    assert words[5]==dp.PTR and words[6] in (dp.OFFSET,0xffff) and words[7]==d8.STASH and words[10:12]==(d8.ORIENT_WORD,d8.FRAME_WORD)
+    assert words[5]==dp.PTR and words[6] in (dp.OFFSET,0xffff) and (words[7],words[11]) in ((d8.STASH,d8.FRAME_WORD),(PHOTO,PHOTO)) and words[10]==d8.ORIENT_WORD
+    LOOK=words[7]   # the stash, or (grain builds, T-GRAIN7) the picture look word
     # 1. The tag table.
     runs=[]
     for n in range(16):
@@ -58,7 +59,8 @@ def verify(data,manifest):
         u.mem_write(dp.CFG,bytes(cfg))
         u.mem_write(dp.ARG,struct.pack('<3I',0,0,dp.CFG));u.mem_write(dp.PLAT,struct.pack('<2I',0,dp.PLAT+0x80))
         u.mem_write(dp.REC,bytes(0xb28));u.mem_write(dp.REC+dp.OFFSET,bytes([setting]));u.mem_write(dp.PTR,struct.pack('<I',dp.REC))
-        u.mem_write(d8.STASH,struct.pack('<I',stash));u.mem_write(d8.MODE,b'\x01\xa5\xa5\xa5');u.mem_write(d8.ORIENT_WORD,struct.pack('<2I',0,0))
+        u.mem_write(LOOK,struct.pack('<I',stash));u.mem_write(d8.MODE,b'\x01\xa5\xa5\xa5');u.mem_write(d8.ORIENT_WORD,struct.pack('<I',0))
+        if LOOK!=PHOTO:u.mem_write(d8.FRAME_WORD,struct.pack('<I',0))
         regs=[0x62e00000+i*0x100 for i in range(13)];regs[1]=dp.ARG
         for i,v in enumerate(regs):u.reg_write(getattr(reg,'UC_ARM_REG_R'+str(i)),v)
         u.reg_write(reg.UC_ARM_REG_SP,STACK);u.reg_write(reg.UC_ARM_REG_LR,STOP);u.reg_write(reg.UC_ARM_REG_CPSR,0x13)
@@ -90,6 +92,7 @@ def verify(data,manifest):
         **({'queue':queue(p,e,u,run,changed)} if diag else {}),**({'find':find(u,run)} if manifest.get('grainTag')=='find' else {}),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 QUEUE=0x55804398
+PHOTO=0x558043a4   # image-control.ts GR3X_PHOTO_WORD
 def find(u,run):
     """Research builds: a shooting record (today's date at +0x944, a film at +0x77c, Grain / Size in
     the Toning byte) reached from the configuration's word 5, directly or one pointer further."""

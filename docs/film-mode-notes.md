@@ -2931,3 +2931,25 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   désigne (99 : le mot de la racine est l'enregistrement), Grain et code de taille trouvés.
   Vérifié : `grain_tag_probe.py` (enregistrement direct et à un pointeur, image qui suit son
   Toning), `grain_stage_probe.py`.
+- **Résultat T-GRAIN6F sur le boîtier (2026-11-08, R0017297 à R0017300, 4 vues rapides sans
+  viewer : 3 M, Off, 3 L, 1 S).** Étiquettes G (mot du look global) : G3 L, G1 S, G1 S, G1 S
+  (fausses). Enregistrements trouvés, sur chaque photo : « 1.02.13 », « 1.05.18 », « 1.14.13 »,
+  avec Grain / Size 3 0, 0 1, 3 2, 1 1 : **exactement le protocole**. « 1.02.13 » = mot 2 de
+  l'argument d'Execute (la configuration, `[r1+8]`), puis son mot 13 : **l'enregistrement de prise
+  de vue de la photo est en configuration + 0x34** (certitude forte : 4 photos sur 4).
+
+## Grain : le mot du look de la photo (2026-11-08, T-GRAIN7, correctif)
+
+- Premier maillon de la chaîne JPEG (avant la halation) : `gr3xPhotoLookAsm` (image-control.ts)
+  lit l'enregistrement en configuration + 0x34 (pointeur en RAM aligné, année `+0x944` entre 2000
+  et 2099) et fabrique le mot comme l'adaptateur du développement (film 64 + k en 32 + k, Grain /
+  Size en bits 20 à 23, niveau et blanc de la halation ; looks de l'appareil tels quels), sinon il
+  recopie le mot du look global. Il le range en `0x558043a4` (`GR3X_PHOTO_WORD`, remis à zéro au
+  démarrage), qui n'est écrit que par la chaîne d'encodage.
+- La halation, le grain et la date (look, nom du film, étiquette) lisent ce mot au lieu du mot
+  global `0x55804378` (qui reste celui du développement et du crochet d'exposition).
+- Vérifié : `grain_stage_probe.py` (chaîne Execute, mot de la photo, halation, grain, date ;
+  54 cas du mot : 7 looks × 7 Toning, 5 replis ; registres et drapeaux gardés),
+  `grain_tag_probe.py` ; `npm test` (hors données privées du GR IV).
+- Reste ouvert : l'orientation de l'empreinte vient toujours du crochet d'exposition (mot global),
+  sujette au même décalage si le boîtier tourne entre deux vues rapides.

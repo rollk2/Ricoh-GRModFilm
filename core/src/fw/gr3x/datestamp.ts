@@ -209,6 +209,10 @@ export interface Gr3xDateLook {
   /** GR Mod Film test builds (round 10, grain): the grain's setting as the grain module read it
    * ("G3 S": Grain 0..3, Size S / M / L) after a film's name, or alone with the date off. */
   grainTags?: boolean | 'diag' | 'find';
+  /** Round 10 with the grain: the picture's own look word (image-control.ts GR3X_PHOTO_WORD, made
+   * at the start of the JPEG chain from the picture's shooting record), read for the look and the
+   * name instead of the stash and the exposure's frame look. */
+  photo?: number;
 }
 
 /** Diagnostic (T-GRAIN6D): the grain's queue in round 10's zero-filled words (free in every build:
@@ -367,9 +371,10 @@ export function installGr3xDateImprintStage(p: Gr3xDateProgram, look?: Gr3xDateL
   // Round 7: the look word, the table of black-and-white looks and the model check (GR III has no
   // Monochrome model: always 0). Round 8: the orientation byte, the frame look and the names.
   const round8 = !!look?.names;
-  const lookWords = look ? [look.stash, p.append(gr3xMonoTable(look.monoFilms)), p.code('mov r0,#0;bx lr;')] : [];
+  const lookWords = look ? [look.photo ?? look.stash, p.append(gr3xMonoTable(look.monoFilms)), p.code('mov r0,#0;bx lr;')] : [];
   const r10 = !!look?.r10;
-  const r8Words = round8 ? [r10 ? GR3X_R10.orientWord : GR3X_ORIENT_BYTE, r10 ? GR3X_R10.frameLook : GR3X_FRAME_LOOK, gr3xLookNameTable(p, look!.names!)] : [];
+  if (look?.photo !== undefined && !r10) fail('IIIx date imprint: the picture look word needs round 10');
+  const r8Words = round8 ? [r10 ? GR3X_R10.orientWord : GR3X_ORIENT_BYTE, r10 ? look!.photo ?? GR3X_R10.frameLook : GR3X_FRAME_LOOK, gr3xLookNameTable(p, look!.names!)] : [];
   const tags = !!look?.grainTags;
   if (tags && !r10) fail('IIIx date imprint: the grain tag needs round 10');
   const diag = look?.grainTags === 'diag';

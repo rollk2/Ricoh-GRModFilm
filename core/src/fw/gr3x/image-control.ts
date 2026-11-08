@@ -89,6 +89,23 @@ export const GR3X_MAX_FILMS = 20;
 const hex = (b: Uint8Array) => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
 const unhex = (s: string) => Uint8Array.from(s.match(/../g) ?? [], x => parseInt(x, 16));
 const addr = (r: number, a: number) => `movw r${r},#${a & 65535};movt r${r},#${a >>> 16};`;
+
+/** The picture's own look word (round 10 with the grain; jpeg-stage.ts `photo`). */
+export const GR3X_PHOTO_WORD = 0x558043a4;
+const recordCheck = (r: string, fb: string) => `cmp ${r},#0x40000000;blo ${fb};cmp ${r},#0xc0000000;bhs ${fb};tst ${r},#3;bne ${fb};`;
+/** The word, as the development step's stash adapter makes it (round 10, grain), from the shooting
+ * record at Execute's configuration + 0x34 (its year at +0x944 in 2000..2099), else the stash; every
+ * register and the flags kept. */
+export function gr3xPhotoLookAsm(capacity: number): string {
+  return `push {r0-r5,ip,lr};mrs r4,cpsr;ldr r3,[r1,#8];${recordCheck('r3', 'pfb')}ldr r3,[r3,#0x34];${recordCheck('r3', 'pfb')}
+    add r2,r3,#0x900;ldrh r2,[r2,#0x44];sub r2,r2,#2000;cmp r2,#99;bhi pfb;
+    ldrb r2,[r3,#0x77c];mov r0,#0;sub ip,r2,#${GR3X_FIRST_FILM};cmp ip,#${capacity - 1};bhi pnolevel;
+    ldrb r5,[r3,#0x786];and r5,r5,#0xf0;orr r0,r0,r5,lsl #16;ldrb r1,[r3,#0x786];and r1,r1,#15;cmp r1,#7;movhs r1,#0;cmp r1,#4;subhs r1,r1,#3;orrhs r0,r0,#0x20000;bhs plevel;
+    cmp r1,#3;moveq r1,#2;beq plevel;cmp r1,#2;moveq r1,#3;plevel:orr r0,r0,r1,lsl #8;
+    pnolevel:cmp r2,#${GR3X_FIRST_FILM};subhs ip,r2,#${GR3X_FIRST_FILM - GR3X_STASH_FILM};movlo ip,r2;orr ip,ip,r0;orr ip,ip,#0x10000;b pstore;
+    pfb:${addr(1, GR3X_HALATION_STASH)}ldr ip,[r1];
+    pstore:${addr(1, GR3X_PHOTO_WORD)}str ip,[r1];msr cpsr_f,r4;pop {r0-r5,ip,lr};`;
+}
 const DEFAULTS = [
   [0x532c34e8, 0x77d], [0x532c3b54, 0x77e], [0x532c41c0, 0x77f],
   [0x532c494c, 0x780], [0x532c50d8, 0x781], [0x532c5864, 0x782],
@@ -557,6 +574,12 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     diagnostics: options.jpegDiagnostics === true,
     // The grain on the JPEG (jpeg_grain.c): the black-and-white films take the black-and-white profile.
     ...(grain ? { grain: { mono: gr3xMonoTable(monoFilms ?? []) } } : {}),
+    // The picture's own look word (T-GRAIN7): the JPEG is encoded after later shots may have been
+    // developed, and the stash then holds their look. Execute's configuration + 0x34 is the shooting
+    // record of the picture (SetShootingInfoResultBeforeExpose's, its date at +0x944, the settings
+    // copy the maker note reads: look +0x77c, Toning +0x786); the word is made from it as the stash
+    // adapter does, else (no record, a year outside 2000..2099) the stash is copied.
+    ...(grain ? { photo: { address: GR3X_PHOTO_WORD, asm: gr3xPhotoLookAsm(capacity) } } : {}),
   });
   // Round 10: the film's record comes from the descriptor's own table (films-r10.ts).
   const descriptor = round10 ? undefined : code(`push {r1-r3,ip};ldrb r2,[r7,#0x77c];` +

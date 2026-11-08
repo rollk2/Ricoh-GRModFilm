@@ -88,6 +88,10 @@ export interface Gr3xJpegOptions {
   /** Round 10 with the grain: the grain module (tools/develop/jpeg_grain.c) after the halation,
    * before the date; `mono` by style (64 entries: a film 64 + k at 32 + k), 1 black and white. */
   grain?: { mono: Uint8Array };
+  /** Round 10 with the grain: the picture's own look word, made first in the chain from the shooting
+   * record of the picture being encoded (`asm`, which ends having stored it at `address`, every
+   * register and the flags kept); the halation and the grain read it instead of the stash. */
+  photo?: { address: number; asm: string };
   /** The date imprint's stub, already at Execute's entry: the chain ends there instead (halation
    * first, then the date, as on GR IV). */
   after?: number;
@@ -141,12 +145,13 @@ export function installGr3xJpegStage(p: Gr3xJpegProgram, o: Gr3xJpegOptions) {
     if (o.diagnostics) entries.halationStatus = GR3X_HALATION_STATUS;
     tail = `b #${stub};`; first = stub;
   }
+  const lookWord = o.photo ? o.photo.address : GR3X_HALATION_STASH;
   if (o.grain) {
     // The grain (after the halation, before the date): its context (jpeg_grain.c, struct gctx).
     if (!o.halation7 || o.grain.mono.length !== 64) throw new FirmwareError('internal', 'IIIx grain: round 7 halation and a look map');
     const bytes = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const recipes = p.append(bytes(GR3X_GRAIN_RECIPES)), profiles = p.append(bytes(GR3X_GRAIN_PROFILES)), mono = p.append(o.grain.mono);
-    const ctx = p.append(u32le([CACHE, CACHE_FLUSH_FOR_READ, CACHE_CLEAN, HEAP_ALLOC, HEAP_FREE, GR3X_HALATION_STASH, recipes, profiles, mono, GRAIN_MAGIC]));
+    const ctx = p.append(u32le([CACHE, CACHE_FLUSH_FOR_READ, CACHE_CLEAN, HEAP_ALLOC, HEAP_FREE, lookWord, recipes, profiles, mono, GRAIN_MAGIC]));
     const module = p.append(bytes(GR3X_GRAIN_CODE));
     const stub = p.code(`push {r0-r3,ip,lr};ldr r1,[r1,#8];${addr('r0', ctx)}bl #${module + GR3X_GRAIN_ENTRY};pop {r0-r3,ip,lr};${tail}`);
     Object.assign(entries, { grain: stub, grainModule: module, grainContext: ctx });
@@ -163,7 +168,7 @@ export function installGr3xJpegStage(p: Gr3xJpegProgram, o: Gr3xJpegOptions) {
     const map = new Uint8Array(64);
     light.forEach((_, k) => { map[GR3X_HALATION_FILM_STYLE + k] = k + 1; });
     const ctx = p.append(new Uint8Array([
-      ...u32le([CACHE, CACHE_FLUSH_FOR_READ, CACHE_CLEAN, HEAP_ALLOC, HEAP_FREE, GR3X_HALATION_STASH, lut, entries, light.length, 0]),
+      ...u32le([CACHE, CACHE_FLUSH_FOR_READ, CACHE_CLEAN, HEAP_ALLOC, HEAP_FREE, lookWord, lut, entries, light.length, 0]),
       ...paramBytes(), ...u32le([HALATION_MAGIC_R7]), ...map,
     ]));
     const module = p.append(halationModule());
@@ -172,6 +177,12 @@ export function installGr3xJpegStage(p: Gr3xJpegProgram, o: Gr3xJpegOptions) {
     tail = `b #${stub};`; first = stub;
   }
   Object.assign(entries, entries7);
+  if (o.photo) {
+    if (!o.grain) throw new FirmwareError('internal', 'IIIx picture look word: with the grain');
+    const stub = p.code(`${o.photo.asm}${tail}`);
+    Object.assign(entries, { photoLook: stub, photoWord: o.photo.address });
+    first = stub;
+  }
   if (o.after !== undefined) p.retarget!(GR3X_JPEG_EXECUTE, branchWord(GR3X_JPEG_EXECUTE, first), 'JPEG encode step: halation, then the date imprint');
   else p.patch(GR3X_JPEG_EXECUTE, 0xe1a0c00d, branchWord(GR3X_JPEG_EXECUTE, first), 'JPEG encode step: GR Mod picture modules');
   return entries;
