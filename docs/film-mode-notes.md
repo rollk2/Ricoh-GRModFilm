@@ -2872,3 +2872,23 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   4,13 avec T-GRAIN6 (G3 L 4,47).
 - Vérifié : `jpeg_grain_probe.py` (module de 9 160 octets identique au PC au bit près, 32 cas,
   même coût), `grain_stage_probe.py`, `grain_tag_probe.py` sur le build T-GRAIN6 (avec étiquette).
+
+## Grain : le réglage appliqué à l'encodage et non au déclenchement (2026-11-08, T-GRAIN6D)
+
+- Constat de l'utilisateur (mode libre, Affichage immédiat Off) : deux photos prises l'une après
+  l'autre avec deux réglages de grain différents reçoivent toutes les deux le dernier réglage,
+  sauf si chaque photo est ouverte dans le viewer avant de changer le réglage. C'est la cause de
+  la photo 3 S sans grain de la série T-GRAIN5.
+- Hypothèse : le JPEG est encodé en différé, alors que les modules de la chaîne JPEG (halation,
+  grain, étiquette, nom du film) lisent le mot du look `0x55804378`. Ce mot est réécrit par chaque
+  passage du développement, visée et aperçu de l'écran Image Control compris. À l'encodage, il
+  porte donc le réglage en cours, plus celui de la photo.
+- Diagnostic (option `grainTag: 'diag'`) : file de réglages dans les mots remis à zéro au
+  démarrage, `0x55804398` (octet 0 les expositions, octet 1 les encodages, octets 4 à 11 les huit
+  dernières expositions : quartet Grain / Size, | 0x80 si le mot était valide). Le crochet
+  d'exposition (`0x534322d8`) y dépose le quartet du mot du look, et chaque encodage reprend le
+  plus ancien (module de la date `-DGRAIN_DIAG`). L'étiquette devient « G0 M  E3 S  05.04 » : le
+  réglage lu à l'encodage, celui mis en file au déclenchement, puis les compteurs d'expositions et
+  d'encodages avant cette photo. Le grain lui-même suit encore le mot du look (inchangé).
+- Vérifié : `grain_tag_probe.py` (10 expositions en file, registres gardés, 4 encodages dont un
+  sur file vide, image qui suit la valeur en file).

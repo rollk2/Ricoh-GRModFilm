@@ -68,6 +68,13 @@ struct ctx {
    * (bits 20..23: grain 0..3, size code 0 M, 1 S, 2 L) the setting as glyphs, {count, glyph...},
    * or 0. Printed after the name for a film; with the date off, printed alone. */
   const u16 *const *grain_tags;
+#ifdef GRAIN_DIAG
+  /* Diagnostic (T-GRAIN6D): the same glyphs with E for the setting queued at the exposure, and the
+   * queue: byte 0 the exposures (written by the exposure hook), byte 1 the encodes (this module),
+   * bytes 4..11 the last eight exposures' Grain / Size nibble (| 0x80: the look word was valid). */
+  const u16 *const *exposure_tags;
+  volatile u8 *queue;
+#endif
 #endif
 #ifdef DFDIAG
   /* Test builds only: the RAM word holding the Direct Flash planner's diagnostic buffer (see
@@ -715,6 +722,9 @@ void datestamp(const struct ctx *k, u32 *config) {
   u8 time[16];
   glyph glyphs[MAXGLYPH];
   u32 n = 0, nd, nn = 0, i, j, setting;
+#ifdef GRAIN_DIAG
+  u32 queued = 0, seen_w = 0, seen_r = 0;
+#endif
   struct picture *seen[4];
   void *cache, *platform;
 #ifdef SETTING_RECORD
@@ -737,6 +747,14 @@ void datestamp(const struct ctx *k, u32 *config) {
   /* The date off: the grain's tag alone. */
   if (setting > SETTING_MAX || !(setting & SETTING_ON)) setting = 0;
   if (!ram(config)) return;
+#ifdef GRAIN_DIAG
+  {
+    u32 w = k->queue[0], r = k->queue[1];
+    queued = r != w ? k->queue[4 + (r & 7u)] : 0u;
+    seen_w = w; seen_r = r;
+    if (r != w) k->queue[1] = (u8)(r + 1u);
+  }
+#endif
 #else
   if (setting > SETTING_MAX || !(setting & SETTING_ON) || !ram(config)) return;
 #endif
@@ -801,6 +819,16 @@ void datestamp(const struct ctx *k, u32 *config) {
       if (ram(t) && t[0] > 0 && t[0] <= 8u) {
         glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
         for (i = 0; i < t[0]; i++) glyphs[n++] = t[1 + i];
+#ifdef GRAIN_DIAG
+        /* "  E3 M" (the queued setting; "E" alone when the queue was empty or the word not valid),
+         * then "  ww.rr" the exposures and encodes counted before this one. */
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+        t = k->exposure_tags[queued & 15u];
+        if ((queued & 0x80u) && ram(t) && t[0] > 0 && t[0] <= 8u) for (i = 0; i < t[0]; i++) glyphs[n++] = t[1 + i];
+        else glyphs[n++] = k->exposure_tags[0] && ram(k->exposure_tags[0]) ? k->exposure_tags[0][1] : G_SPACE;
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+        n += two_digits(seen_w, glyphs + n); glyphs[n++] = G_DOT; n += two_digits(seen_r, glyphs + n);
+#endif
         nn = n - nd;
       }
     }

@@ -9,7 +9,11 @@ tools/datestamp/datestamp.c -DGRAIN_TAG), in the emulator.
     look word (32 + k, valid) the tag alone, drawn bottom right of the main picture and the
     screennail, the thumbnail untouched; a different picture for every Grain / Size; nothing for a
     camera look, a look word without its valid bit, a look beyond 63; every register kept;
-  - a build that offers the date: the date with its tag draws more than without it (a camera look).
+  - a build that offers the date: the date with its tag draws more than without it (a camera look);
+  - diagnostic builds (grainTag 'diag', T-GRAIN6D): the exposure hook queues the look word's Grain /
+    Size nibble (| 0x80 valid) at 0x55804398 + 4 + (count & 7), counts the exposures in byte 0 and
+    keeps every register; each encode takes the oldest (byte 1 + 1), none when the queue is empty;
+    the picture depends on the queued setting.
 """
 import argparse,hashlib,json,struct
 from pathlib import Path
@@ -20,14 +24,16 @@ import datestamp_probe as dp
 import datestamp8_probe as d8
 
 def verify(data,manifest):
-    assert manifest.get('grainTag')==True and manifest.get('round10')
+    assert manifest.get('grainTag') in (True,'diag') and manifest.get('round10')
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc
     mapped=lambda a:any(s<=a<=e for s,e,_ in c.mem_regions())
     for at in range(0x63000000,0x63100000,0x1000):
         if not mapped(at):c.mem_map(at,0x1000)
     for base,size in ((0x63100000,0xf00000),(dp.LOW,0x800000)):
         if not mapped(base):c.mem_map(base,size)
-    ctx=e['dateContext'];words=struct.unpack('<14I',bytes(c.mem_read(ctx,56)))
+    diag=manifest.get('grainTag')=='diag'
+    ctx=e['dateContext'];words=struct.unpack('<16I',bytes(c.mem_read(ctx,64)))
+    if diag:assert words[15]==QUEUE
     hidden=words[6]==0xffff
     assert words[5]==dp.PTR and words[6] in (dp.OFFSET,0xffff) and words[7]==d8.STASH and words[10:12]==(d8.ORIENT_WORD,d8.FRAME_WORD)
     # 1. The tag table.
@@ -79,7 +85,31 @@ def verify(data,manifest):
         a=changed(run(0x10000|32|3<<20|1<<22,setting=1));b=changed(run(0x10000|11|3<<20|1<<22,setting=1))
         assert a[0]>b[0]>0 and a[2]>b[2]>0,(a,b);cases['with the date']=2
     return dict(cases=cases,date_offered=not hidden,tags=['G%d %s'%(n&3,'MSLX'[n>>2]) for n in range(12)],
-        rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
+        **({'queue':queue(p,e,u,run,changed)} if diag else {}),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
+
+QUEUE=0x55804398
+def queue(p,e,u,run,changed):
+    def expose(stash):
+        u.mem_write(d8.STASH,struct.pack('<I',stash))
+        regs=[0x62e00000+i*0x100 for i in range(13)]
+        for i,v in enumerate(regs):u.reg_write(getattr(reg,'UC_ARM_REG_R'+str(i)),v)
+        u.reg_write(reg.UC_ARM_REG_SP,STACK);u.reg_write(reg.UC_ARM_REG_LR,STOP);u.reg_write(reg.UC_ARM_REG_CPSR,0x13)
+        u.emu_start(e['exposureOrientation'],d8.BEFORE+4,count=100000)
+        assert [u.reg_read(getattr(reg,'UC_ARM_REG_R'+str(i))) for i in range(11)]==regs[:11] and u.reg_read(reg.UC_ARM_REG_SP)==STACK
+    q=lambda:bytes(u.mem_read(QUEUE,12))
+    u.mem_write(QUEUE,bytes(12))
+    film=lambda n:0x10000|32|n<<20
+    for k in range(10):expose(film(k%12) if k!=3 else (k%12)<<20|32)
+    b=q();assert b[0]==10 and b[1]==0,b.hex()
+    want=[(k%12)|(0 if k==3 else 0x80) for k in range(10)]
+    assert all(b[4+(k&7)]==want[k] for k in range(2,10)),b.hex()
+    # Encodes: the live word says G0 M; each takes the oldest of the last eight (counts as bytes).
+    u.mem_write(QUEUE,bytes([3,0,0,0])+bytes([0x87,0x8b,0x80,0,0,0,0,0]))
+    pics=[]
+    for k in range(3):pics.append(run(film(0)));assert q()[1]==k+1
+    assert len({x[0] for x in pics})==3,'the picture follows the queued setting'
+    empty=run(film(0));assert q()[:2]==bytes([3,3])
+    return {'exposures':10,'encodes':4,'registers_kept':True}
 
 if __name__=='__main__':
     a=argparse.ArgumentParser(description=__doc__)

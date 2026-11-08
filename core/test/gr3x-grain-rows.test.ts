@@ -30,7 +30,8 @@ describe('grain rows: names and module', () => {
     }
   });
   it('names the grain tag of each Grain / Size nibble', () => {
-    expect([0, 3, 4, 7, 11].map(gr3xGrainTag)).toEqual(['G0 M', 'G3 M', 'G0 S', 'G3 S', 'G3 L']);
+    expect([0, 3, 4, 7, 11].map(n => gr3xGrainTag(n))).toEqual(['G0 M', 'G3 M', 'G0 S', 'G3 S', 'G3 L']);
+    expect(gr3xGrainTag(7, 'E')).toBe('E3 S');
   });
 });
 
