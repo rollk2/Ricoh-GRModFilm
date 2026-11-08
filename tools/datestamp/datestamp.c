@@ -69,7 +69,8 @@ struct ctx {
    * or 0. Printed after the name for a film; with the date off, printed alone. */
   const u16 *const *grain_tags;
 #ifdef KEY_DIAG
-  /* Research (T-DIAL2): the last eleven keys seen (a ring, bytes 0..10, byte 11 the next slot). */
+  /* Research (T-DIAL2, T-DOF): a ring of seven bytes (bytes 0..6, byte 7 the next slot): the last
+   * keys seen, or the bytes noted at the exposure. */
   volatile u8 *keys;
 #endif
 #ifdef GRAIN_DIAG
@@ -892,16 +893,16 @@ void datestamp(const struct ctx *k, u32 *config) {
     }
   }
 #ifdef KEY_DIAG
-  /* T-DIAL2: the last eleven keys in the order they came ("  kk" each, oldest first; bytes 0..10 a
-   * ring, byte 11 the next slot), written by the key hook only (no clearing from here). */
+  /* The ring in order ("  kk" each, oldest first, zeros left out; bytes 0..6, byte 7 the next slot),
+   * written by its hook only (no clearing from here). */
   {
     volatile u8 *t = k->keys;
     if (ram((const void *)t)) {
-      u32 at = t[11] < 11u ? t[11] : 0u;
+      u32 at = t[7] < 7u ? t[7] : 0u;
       if (!nn) { glyphs[n++] = G_SPACE; }
-      for (i = 0; i < 11; i++) {
+      for (i = 0; i < 7; i++) {
         u32 c = t[at];
-        at = at + 1u == 11u ? 0u : at + 1u;
+        at = at + 1u == 7u ? 0u : at + 1u;
         if (!c) continue;
         glyphs[n++] = G_SPACE;
         n += two_digits(c, glyphs + n);

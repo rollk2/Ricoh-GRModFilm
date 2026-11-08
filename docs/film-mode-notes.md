@@ -3150,3 +3150,20 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   octets `+0xc6, +0x110, +0x46e, +0x798, +0x79a, +0x799, +0x797` de l'enregistrement en cours,
   plus 10, sont imprimés sur la photo dans cet ordre. Vérifié en émulateur (valeurs, registres,
   drapeaux) et `grain_tag_probe.py`.
+- **Résultat T-DOF3 (2026-11-08)** : photos en DOF2, DOF3, DOF1 : mêmes valeurs « 23 01 01 11 10 10 »
+  (priorité coupée : « 23 01 11 10 »). Mode de mise au point `+0xc6` = 13 (Snap Distance Priority
+  est un mode de mise au point). **Relevé faussé** : l'anneau (`0x55804398`) recouvrait les
+  indicateurs du rouleau (`film-roll.ts`, KEY_LAST + 8 à + 14 : annulation, aperçu armé, avance
+  unique, vue en attente, message, rembobinage), et le crochet d'exposition du rouleau efface
+  + 9 à + 11 : les cases de `+0x110`, `+0x46e`, `+0x798` ne sont pas lisibles. Les sondes de
+  touches T-DIAL1 à T-DIAL3 et le diagnostic T-GRAIN6D écrivaient aussi sur ces indicateurs (tests
+  seulement ; la version de la molette coupée n'y écrit pas). Le mot du look de la photo
+  (`0x558043a4`) n'est effacé que par des formes de test du rouleau (REVIEW_LOG, 'dg2' / 'dg3') :
+  T-GRAIN9 n'est pas concerné.
+- Correctifs : anneau de recherche déplacé en `0x558043a8` (7 octets et l'indice, octets libres) ;
+  module de date `-DKEY_DIAG` à 7 cases ; contournement du filtre (objet gardé) retiré ; Snap DOF
+  bloqué à la construction tant que le champ n'est pas établi.
+- T-DOF4 (diagnostic) : à l'exposition, `+0xc6, +0x110, +0x46e, +0x798, +0x79a` de
+  l'enregistrement de la photo (r2 de SetShootingInfoResultBeforeExpose), puis `+0x46e, +0x798` de
+  l'enregistrement des réglages, chacun + 10. Vérifié en émulateur avec le banc complet du rouleau
+  (anneau intact, registres gardés), `dial_probe.py`, `grain_tag_probe.py`, `wb_button_probe.py`.

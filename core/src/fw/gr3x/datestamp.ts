@@ -220,19 +220,25 @@ export interface Gr3xDateLook {
  * the WB key uses 0x55804390 and 0x55804394, the roll's folder name 0x558043b0): byte 0 the
  * exposures, byte 1 the encodes, bytes 4..11 the last eight exposures' Grain / Size nibble of the
  * look word (| 0x80 when the word was valid). */
+// Warning (2026-11-08): these words are the film roll's flags (film-roll.ts, KEY_LAST + 8 ..): this
+// old diagnostic must not be built with the film roll again; the research ring moved to 0x558043a8.
 export const GR3X_GRAIN_QUEUE = 0x55804398;
 
-/** Diagnostic (T-DOF3): at each exposure, bytes of the settings record in use (*0x55063f34) copied
- * + 10 into the key ring (dial-probe.ts, printed by the date module's -DKEY_DIAG build in order):
- * the focus mode +0xc6, +0x110, +0x46e, +0x798, +0x79a, +0x799, +0x797, the ring's next slot then 7.
- * Every register kept. */
-export const GR3X_SETTINGS_SNAPSHOT = [0xc6, 0x110, 0x46e, 0x798, 0x79a, 0x799, 0x797] as const;
+/** Diagnostic (T-DOF3, T-DOF4): at each exposure, bytes copied + 10 into the key ring (dial-probe.ts,
+ * printed by the date module's -DKEY_DIAG build in order; a byte of 246 prints nothing, 90 and more
+ * print modulo 100). T-DOF3 (settings record in use, *0x55063f34: +0xc6, +0x110, +0x46e, +0x798,
+ * +0x79a, +0x799, +0x797): the same values for DOF1, DOF2 and DOF3. T-DOF4: the frame's shooting
+ * record (SetShootingInfoResultBeforeExpose's r2: +0xc6, +0x110, +0x46e, +0x798, +0x79a), then the
+ * settings record's +0x46e and +0x798. Every register kept. */
+export const GR3X_FRAME_SNAPSHOT = [0xc6, 0x110, 0x46e, 0x798, 0x79a] as const, GR3X_SETTINGS_SNAPSHOT = [0x46e, 0x798] as const;
 function gr3xSettingsSnapshot(): string {
   const T = GR3X_DIAL_TABLE;
-  return `push {r0,r1,r2};mrs r2,cpsr;push {r2};movw r0,#${lo(GR3X_DATE_SETTINGS_POINTER)};movt r0,#${hi(GR3X_DATE_SETTINGS_POINTER)};ldr r0,[r0];
-    cmp r0,#0x40000000;blo snapdone;cmp r0,#0xc0000000;bhs snapdone;movw r1,#${lo(T)};movt r1,#${hi(T)};` +
-    GR3X_SETTINGS_SNAPSHOT.map((o, k) => `add r2,r0,#${o & 0xf00};ldrb r2,[r2,#${o & 0xff}];add r2,r2,#10;strb r2,[r1,#${k}];`).join('') +
-    `mov r2,#0;${[7, 8, 9, 10].map(k => `strb r2,[r1,#${k}];`).join('')}mov r2,#7;strb r2,[r1,#11];snapdone:pop {r2};msr cpsr_f,r2;pop {r0,r1,r2};`;
+  const copy = (base: string, offsets: readonly number[], first: number) => offsets.map((o, k) => `add r3,${base},#${o & 0xf00};ldrb r3,[r3,#${o & 0xff}];add r3,r3,#10;strb r3,[r1,#${first + k}];`).join('');
+  return `push {r0,r1,r2,r3};mrs r3,cpsr;push {r3};movw r1,#${lo(T)};movt r1,#${hi(T)};mov r3,#0;${Array.from({ length: 7 }, (_, k) => `strb r3,[r1,#${k}];`).join('')}
+    cmp r2,#0x40000000;blo snapset;cmp r2,#0xc0000000;bhs snapset;tst r2,#3;bne snapset;${copy('r2', GR3X_FRAME_SNAPSHOT, 0)}
+    snapset:movw r0,#${lo(GR3X_DATE_SETTINGS_POINTER)};movt r0,#${hi(GR3X_DATE_SETTINGS_POINTER)};ldr r0,[r0];
+    cmp r0,#0x40000000;blo snapdone;cmp r0,#0xc0000000;bhs snapdone;${copy('r0', GR3X_SETTINGS_SNAPSHOT, GR3X_FRAME_SNAPSHOT.length)}
+    snapdone:mov r3,#0;strb r3,[r1,#7];pop {r3};msr cpsr_f,r3;pop {r0,r1,r2,r3};`;
 }
 
 /** The exposure hook's code that queues the look word's Grain / Size nibble (keeps every register). */

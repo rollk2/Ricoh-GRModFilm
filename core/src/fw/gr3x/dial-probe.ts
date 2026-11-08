@@ -3,8 +3,8 @@
  * GR III 2.10 / IIIx 1.60, T-DIAL2 (test builds only, `dialProbe`): which key codes the rear dial's
  * rotation gives, before neutralising it (the build option to come).
  *
- *  - ActionModel::OnEvent (0x53221a1c, key code in r1, 1..0x40, every controller): the last eleven
- *    keys in a ring at GR3X_DIAL_TABLE (bytes 0..10, byte 11 the next slot), written here only.
+ *  - ActionModel::OnEvent (0x53221a1c, key code in r1, 1..0x40, every controller): the last seven
+ *    keys in a ring at GR3X_DIAL_TABLE (bytes 0..6, byte 7 the next slot), written here only.
  *  - The date imprint's research module (datestamp.c -DKEY_DIAG) prints them in order after the
  *    grain's tag. T-DIAL1's table of counts, cleared by the encode, lost counts (the hook and the
  *    encode share the words badly) and the capture-ready rear dial router (0x53295da0) turned out
@@ -15,8 +15,11 @@ import { branchWord } from '../aspect/arm';
 import { FirmwareError } from '../types';
 import type { Gr3xSite } from './round10';
 
-/** Round 10's zero-filled words (free: the WB key uses 0x55804390 and 0x55804394, the picture look word 0x558043a4). */
-export const GR3X_DIAL_TABLE = 0x55804398;
+/** The research ring: 8 bytes of round 10's zero-filled words that nothing else uses (0x55804390..
+ * 0x558043a3 hold the WB key's words and the film roll's flags, 0x558043a4 the picture look word,
+ * 0x558043b0 on the roll's folder name and states). Up to T-DOF3 it was at 0x55804398, over the
+ * film roll's flags (test builds only). */
+export const GR3X_DIAL_TABLE = 0x558043a8, GR3X_DIAL_RING = 7;
 export const GR3X_KEY_EVENT_ENTRY = 0x53221a1c;
 const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 
@@ -39,23 +42,17 @@ export const GR3X_REAR_DIAL_KEYS = [24, 25] as const;
  * other key goes on (the function's own first instruction, then + 4). With the probe (T-DIAL3)
  * the key is noted in the ring first, then filtered.
  */
-/** The ActionModel the last key came with (round 10's zero-filled words), for Snap DOF's notch. */
-export const GR3X_KEY_MODEL = 0x558043a8;
-export function installGr3xRearDialOff(p: Gr3xDialProgram, probe = false, keepModel = false) {
+export function installGr3xRearDialOff(p: Gr3xDialProgram, probe = false) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx rear dial off: ${m}`); };
   const at = GR3X_KEY_EVENT_ENTRY;
   if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
   if (p.sites.some(s => s.address === at)) fail('key entry already patched');
   const T = `movw ip,#${lo(GR3X_DIAL_TABLE)};movt ip,#${hi(GR3X_DIAL_TABLE)};`;
-  const ring = probe ? `push {r0,r2};${T}ldrb r0,[ip,#11];cmp r0,#11;movhs r0,#0;strb r1,[ip,r0];add r0,r0,#1;cmp r0,#11;moveq r0,#0;strb r0,[ip,#11];pop {r0,r2};` : '';
+  const ring = probe ? `push {r0,r2};${T}ldrb r0,[ip,#7];cmp r0,#7;movhs r0,#0;strb r1,[ip,r0];add r0,r0,#1;cmp r0,#7;moveq r0,#0;strb r0,[ip,#7];pop {r0,r2};` : '';
   const [a, b] = GR3X_REAR_DIAL_KEYS;
-  // keepModel (Snap DOF): every key's model kept, so a function can send a notch itself.
-  const keep = keepModel ? `movw ip,#${lo(GR3X_KEY_MODEL)};movt ip,#${hi(GR3X_KEY_MODEL)};str r0,[ip];` : '';
-  const filter = p.code(`${ring}${keep}cmp r1,#${a};cmpne r1,#${b};moveq r0,#1;bxeq lr;mov ip,sp;b #${at + 4};`);
+  const filter = p.code(`${ring}cmp r1,#${a};cmpne r1,#${b};moveq r0,#1;bxeq lr;mov ip,sp;b #${at + 4};`);
   p.patch(at, 0xe1a0c00d, branchWord(at, filter), 'rear dial off: its rotation ignored');
-  // The way around the filter: OnEvent's own body (r0 the model, r1 the key), as a function.
-  const bypass = keepModel ? p.code(`mov ip,sp;b #${at + 4};`) : 0;
-  return { rearDialFilter: filter, ...(probe ? { dialTable: GR3X_DIAL_TABLE } : {}), ...(keepModel ? { rearDialBypass: bypass, keyModel: GR3X_KEY_MODEL } : {}) };
+  return { rearDialFilter: filter, ...(probe ? { dialTable: GR3X_DIAL_TABLE } : {}) };
 }
 
 export function installGr3xDialProbe(p: Gr3xDialProgram) {
@@ -64,7 +61,7 @@ export function installGr3xDialProbe(p: Gr3xDialProgram) {
   if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
   if (p.sites.some(s => s.address === at)) fail('key entry already patched');
   const T = `movw ip,#${lo(GR3X_DIAL_TABLE)};movt ip,#${hi(GR3X_DIAL_TABLE)};`;
-  const key = p.code(`push {r0,r2};mrs r2,cpsr;push {r2};${T}ldrb r0,[ip,#11];cmp r0,#11;movhs r0,#0;strb r1,[ip,r0];add r0,r0,#1;cmp r0,#11;moveq r0,#0;strb r0,[ip,#11];
+  const key = p.code(`push {r0,r2};mrs r2,cpsr;push {r2};${T}ldrb r0,[ip,#7];cmp r0,#7;movhs r0,#0;strb r1,[ip,r0];add r0,r0,#1;cmp r0,#7;moveq r0,#0;strb r0,[ip,#7];
     pop {r2};msr cpsr_f,r2;pop {r0,r2};mov ip,sp;b #${at + 4};`);
   p.patch(at, 0xe1a0c00d, branchWord(at, key), 'dial probe: the last keys');
   return { dialKey: key, dialTable: GR3X_DIAL_TABLE };

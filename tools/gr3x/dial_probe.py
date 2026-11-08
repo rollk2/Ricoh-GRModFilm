@@ -2,8 +2,8 @@
 
   python3 dial_probe.py --rtos GR3.rtos --manifest patch-manifest.json --report out.json
 
-  - ActionModel::OnEvent's entry (0x53221a1c): the key in r1 written to the ring of eleven at
-    0x55804398 (byte 11 the next slot, a stray slot taken as 0), then the function's own first
+  - ActionModel::OnEvent's entry (0x53221a1c): the key in r1 written to the ring of seven at
+    0x558043a8 (byte 7 the next slot, a stray slot taken as 0), then the function's own first
     instruction (ip = sp) and +4; every register and the flags kept;
   - the rear dial router (0x53295da0) left alone.
 With `rearDialOff` (the build option, T-DIAL3): the rear dial's codes (24, 25) return at once
@@ -18,7 +18,8 @@ from unicorn import arm_const as reg
 from film_roll_check import RollProbe
 from native_probe import STACK
 
-TABLE,KEY,ROUTER=0x55804398,0x53221a1c,0x53295da0
+TABLE,KEY,ROUTER=0x558043a8,0x53221a1c,0x53295da0
+RING=7   # bytes 0..6, byte 7 the next slot (dial-probe.ts)
 
 def verify(data,manifest):
     if manifest.get('rearDialOff'):return verify_off(data,manifest)
@@ -31,15 +32,15 @@ def verify(data,manifest):
         c.emu_start(at,at+4,count=200)
         assert c.reg_read(reg.UC_ARM_REG_PC)==at+4 and c.reg_read(reg.UC_ARM_REG_SP)==STACK and c.reg_read(reg.UC_ARM_REG_R12)==STACK
         assert [c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]==regs[:12] and c.reg_read(reg.UC_ARM_REG_CPSR)==flags
-    t=lambda:bytes(c.mem_read(TABLE,12))
-    c.mem_write(TABLE,bytes(12))
+    t=lambda:bytes(c.mem_read(TABLE,RING+1))
+    c.mem_write(TABLE,bytes(RING+1))
     seq=[19,25,26,29,32,35,50,58,60,14,9,7,6]
     for k in seq:run(KEY,r1=k,flags=0x80000013 if k&1 else 0x60000013);cases+=1
-    want=bytearray(12)
-    for n,k in enumerate(seq):want[n%11]=k
-    want[11]=len(seq)%11
+    want=bytearray(RING+1)
+    for n,k in enumerate(seq):want[n%RING]=k
+    want[RING]=len(seq)%RING
     assert t()==bytes(want),t().hex()
-    c.mem_write(TABLE,bytes(11)+bytes([200]));run(KEY,r1=33);assert t()==bytes([33]+[0]*10+[1]),'a stray slot is taken as 0';cases+=1
+    c.mem_write(TABLE,bytes(RING)+bytes([200]));run(KEY,r1=33);assert t()==bytes([33]+[0]*(RING-1)+[1]),'a stray slot is taken as 0';cases+=1
     sites={s['address']:s for s in manifest['sites']}
     assert 'dial probe' in sites[KEY]['reason'] and ROUTER not in sites
     return dict(cases=cases,table=hex(TABLE),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
@@ -58,16 +59,16 @@ def verify_off(data,manifest):
         assert c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[1:12]==regs[1:12],(key,got)
         if pc==LR:assert got[0]==1;return 'handled'
         assert pc==KEY+4 and got[0]==regs[0] and c.reg_read(reg.UC_ARM_REG_R12)==STACK;return 'on'
-    c.mem_write(TABLE,bytes(12))
+    c.mem_write(TABLE,bytes(RING+1))
     seq=[24,25,26,29,32,35,50,14,10,11,5,6,7,8,57,23,19]
     for k in seq:
         assert run(k)==('handled' if k in (24,25) else 'on'),k;cases+=1
-    ring=bytes(c.mem_read(TABLE,12))
+    ring=bytes(c.mem_read(TABLE,RING+1))
     if probe:
-        want=bytearray(12)
-        for n,k in enumerate(seq):want[n%11]=k
-        want[11]=len(seq)%11;assert ring==bytes(want),ring.hex()
-    else:assert ring==bytes(12)
+        want=bytearray(RING+1)
+        for n,k in enumerate(seq):want[n%RING]=k
+        want[RING]=len(seq)%RING;assert ring==bytes(want),ring.hex()
+    else:assert ring==bytes(RING+1)
     sites={s['address']:s for s in manifest['sites']}
     assert 'rear dial off' in sites[KEY]['reason'] and ROUTER not in sites
     return dict(cases=cases,filtered=[24,25],probe=probe,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)

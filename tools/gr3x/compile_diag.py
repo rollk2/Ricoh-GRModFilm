@@ -82,7 +82,7 @@ def main():
         "/** Research (T-GRAIN6F, -DGRAIN_FIND): also where the picture's shooting record is, from the encoder's\n"
         " * words (entry datestamp(ctx, config, process, argument)). */\n"
         f"export const GR3X_DATESTAMP_R10_GRAIN_FIND_CODE = '{base64.b64encode(r10f).decode()}';\n"
-        "/** Research (T-DIAL2, -DKEY_DIAG): also the last eleven keys, in the order they came\n"
+        "/** Research (T-DIAL2, T-DOF, -DKEY_DIAG): also a ring of seven bytes, in order\n"
         " * (the context ends with the tags and the table's address). */\n"
         f"export const GR3X_DATESTAMP_R10_KEYS_CODE = '{base64.b64encode(r10k).decode()}';\n")
     print(len(release),len(date),len(halo),len(r10),len(r10g),len(r10d),len(r10f),len(r10k))

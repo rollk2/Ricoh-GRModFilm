@@ -253,6 +253,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   if (macroButton && !wbButton) fail('IIIx Macro button: with the WB button');
   const snapButton = features.snapDof === true;
   if (snapButton && !(macroButton && features.rearDialOff)) fail('IIIx Snap DOF: with the Macro button and the rear dial off');
+  // The settings byte that holds the DOF is not established (T-DOF3, T-DOF4): no build gets it yet.
+  if (snapButton) fail('IIIx Snap DOF: under study (T-DOF4), not buildable');
   if (filmRoll && (!(round10 && dateImprint) || filmProbe)) fail('IIIx film roll: round 10 with the date imprint, without the film probe');
   if (features.lookLayout && !round8) fail('IIIx look layout: round 8');
   if (round7 && dateImprint && features.dateMenu !== 'submenu') fail('IIIx round 7: the date imprint submenu');
