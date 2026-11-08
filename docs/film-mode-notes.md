@@ -3075,3 +3075,23 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   longs sur bas et gauche n'ont rien donné : à refaire en notant l'écran.
 - Demande (2b) : dans Fn Button Settings, des lignes pour les appuis longs des touches et une
   fonction « distance Snap » à leur associer.
+
+## Distance Snap par un bouton (2026-11-08, T-SNAP1)
+
+- Décision : une fonction « Snap Distance » assignable aux boutons dans Fn Button Settings (les
+  lignes Hold plus tard).
+- Firmware : mode de mise au point = octet `+0xc6` de l'enregistrement des réglages (lecteur
+  `0x5326c5f8`, 10 = Snap, 11 = infini) ; distance Snap photo = mot `+0x130` en cm (lecteur
+  `0x53244008`, écrivain `0x53242680`), vidéo `+0x504` ; liste des distances `0x53b591e0` (photo)
+  et `0x53b59150` (vidéo) : 30, 100, 150, 200, 250, 350, 500 cm, −1 (infini). Un cran de molette :
+  `0x53225c74(x, sens)` → `0x532af864(aux, sens)` : position suivante ou précédente dans la liste,
+  bornée aux extrémités, puis application `0x532af660(aux, 0)` ; `ApplySnapDistance` (`0x532af3d4`)
+  convertit en mm. La fonction native 3 « Set Snap » (texte `0x1ba`, icône `0x142`) poste
+  l'événement 0x76 (réglage à la molette). Texte natif « Snap Focus Distance » : `0x3c`.
+- T-SNAP1 (`snapButton`, avec `macroButton`) : fonction 46 (texte `0x3c`, icône `0x142`) dans la
+  table des fonctions (40 entrées) et ses chemins (GetEventCustomize : appui seulement ;
+  GetEventSwitchWlan). Appuyée en mise au point Snap : un cran vers la distance suivante, et après
+  l'infini la première (30 cm) écrite puis appliquée ; autre mode : rien. Vérifié :
+  `snap_button_probe.py` (table, texte, icône, 7 crans, retour au début, 12 cas hors Snap,
+  registres gardés sauf ip, aiguillages Fn / ISO / Drive et Wireless), `wb_button_probe.py`
+  (avec et sans Snap), `dial_probe.py` (molette coupée sans sonde).

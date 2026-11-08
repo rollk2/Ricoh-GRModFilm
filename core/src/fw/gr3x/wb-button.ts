@@ -122,6 +122,31 @@ export function installGr3xWbOpen(p: Gr3xWbProgram) {
 
 /** Macro Mode as a short press of the Macro button: its handler's native body (r0 this, r1 the
  * events, r2 = 4); AAPCS. */
+/**
+ * Snap Focus Distance (function 46, `snapButton`, T-SNAP1): the camera's own text (0x3c, "Snap Focus
+ * Distance", 21 languages) and Set Snap's icon (0x142). Pressed, in Snap focus (the focus mode byte
+ * +0xc6 of the settings record, 0x5326c5f8: 10): the next distance of the camera's list (0x53b591e0:
+ * 30, 100, 150, 200, 250, 350, 500 cm, infinity), as one notch of the rear dial (0x53225c74, its
+ * step: the stored value +0x130 through 0x53242680, then applied); after infinity the first one
+ * again (stored through 0x53242680 and applied by 0x532af660, as the step does). Any other focus
+ * mode: nothing.
+ */
+export const GR3X_SNAP_FUNCTION = 46, GR3X_SNAP_TEXT = 0x3c, GR3X_SNAP_ICON = 0x142;
+const SETTINGS = 0x5320b31c, AUX = 0x5320b73c, FOCUS_MODE = 0x5326c5f8, SNAP_GET = 0x53244008, SNAP_SET = 0x53242680;
+const SNAP_STEP = 0x53225c74, SNAP_APPLY = 0x532af660, SNAP_LIST = 0x53b591e0, SNAP_FOCUS = 10;
+export function installGr3xSnapStep(p: Gr3xWbProgram) {
+  const guards: readonly (readonly [number, number])[] = [
+    [SNAP_GET, 0xe5903004], [SNAP_GET + 4, 0xe5930130], [SNAP_SET + 8, 0xe5831130], [FOCUS_MODE + 4, 0xe5d330c6],
+    [SNAP_STEP + 0x24, branchWord(SNAP_STEP + 0x24, 0x532af864)], [SNAP_APPLY, 0xe1a0c00d],
+    [SNAP_LIST, 30], [SNAP_LIST + 28, 0xffffffff],
+  ];
+  for (const [at, w] of guards) if (p.u32(at) >>> 0 !== w >>> 0) fail(`Snap distance guard at ${at.toString(16)}`);
+  return p.code(`push {r0,r1,r2,r3,r4,lr};bl #${APP};bl #${SETTINGS};mov r4,r0;bl #${FOCUS_MODE};cmp r0,#${SNAP_FOCUS};bne done;
+    mov r0,r4;bl #${SNAP_GET};cmn r0,#1;beq first;mov r0,#0;mov r1,#1;bl #${SNAP_STEP};b done;
+    first:movw r1,#${lo(SNAP_LIST)};movt r1,#${hi(SNAP_LIST)};ldr r1,[r1];mov r0,r4;bl #${SNAP_SET};bl #${APP};bl #${AUX};mov r1,#0;bl #${SNAP_APPLY};
+    done:pop {r0,r1,r2,r3,r4,pc};`);
+}
+
 export function installGr3xMacroPress(p: Gr3xWbProgram) {
   return p.code(`mov r2,#${MACRO_SHORT_PRESS};mov ip,sp;b #${GR3X_MACRO_KEY_HANDLER + 4};`);
 }
@@ -132,11 +157,12 @@ export function installGr3xMacroPress(p: Gr3xWbProgram) {
  * film-roll.ts's, which handles 42, 44 and 45). Returns the lists for the menu (datestamp.ts's
  * `fnLines`).
  */
-export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customize: number, macroText?: number) {
+export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customize: number, macroText?: number, snap = false) {
   const free = (at: number) => { if (p.sites.some(s => s.address === at)) fail(`${at.toString(16)} already patched`); };
   const expect = (at: number, w: number, what: string) => { free(at); if (p.u32(at) >>> 0 !== w >>> 0) fail(what); };
   const macro = macroText !== undefined;
-  const max = macro ? GR3X_MACRO_FUNCTION : GR3X_WB_FUNCTION;
+  if (snap && !macro) fail('Snap distance with the Macro button');
+  const max = snap ? GR3X_SNAP_FUNCTION : macro ? GR3X_MACRO_FUNCTION : GR3X_WB_FUNCTION;
   // The stored byte r (0 or above max: the line's own function, branch to `label`) → the function.
   const choose = (r: string, own: number, label: string) => `cmp ${r},#0;beq ${label};cmp ${r},#${max};bhi ${label};cmp ${r},#${own};moveq ${r},#0;`;
   const record = (label: string) => `movw ip,#${lo(RECORD_POINTER)};movt ip,#${hi(RECORD_POINTER)};ldr ip,[ip];cmp ip,#0x40000000;blo ${label};cmp ip,#0xc0000000;bhs ${label};tst ip,#3;bne ${label};`;

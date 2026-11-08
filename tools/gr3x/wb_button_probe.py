@@ -90,9 +90,12 @@ def verify(data,manifest):
             assert not any(x[0].startswith('bad') for x in p.log),p.log
             count('wb open')
     # --- 2. GetEventCustomize's entry and GetEventSwitchWlan's switch with 44 (and 45: Macro Mode).
-    macro=manifest.get('macroButton')==True;MAX=45 if macro else 44
+    macro=manifest.get('macroButton')==True;snap=manifest.get('snapButton')==True
+    MAX=46 if snap else 45 if macro else 44
+    # With Snap Focus Distance (46, snap_button_probe.py runs it): 47 is the first function read as Off.
+    OFF1=MAX+1
     def macro_stub(st):st[MACRO_BODY]=lambda c:p.log.append(('macro',r(c,0),r(c,1),r(c,2))) or 0;return st
-    for fn in (0,19,43,44,45,46,200):
+    for fn in (0,19,43,44,45,OFF1,200):
         for press in (0,1):
             p.stub=macro_stub(events_stubs());p.log=[]
             regs={0:0x1111,1:EVENTS,2:fn,3:press,4:0x44,5:0x55,6:0x66,7:0x77,8:0x88}
@@ -100,7 +103,7 @@ def verify(data,manifest):
             want=dict(regs);want[2]=fn if fn in (19,) else 0
             kept_regs(want);assert posted()==([0x93] if fn==WB and press==0 else []),(fn,press,p.log)
             assert [x for x in p.log if x[0]=='macro']==([('macro',0x1111,EVENTS,4)] if macro and fn==45 and press==0 else []),(fn,press,p.log);count('customize')
-    for fn in (0,19,43,44,45,46):
+    for fn in (0,19,43,44,45,OFF1):
         p.stub=macro_stub(events_stubs());p.log=[]
         regs={0:0x1111,1:0x2222,2:0x3333,3:0x4444,4:2,5:0x55,6:fn,7:0x77,8:EVENTS,10:0x1010}
         p.run(WLAN,WLAN+4,regs)
@@ -165,7 +168,7 @@ def verify(data,manifest):
             assert u32(cpu,CTRL+4)==5 and bytes(cpu.mem_read(OVERRIDE,1))==b'\0'
             return posted(),calls,[x for x in p.log if x[0]=='native']
         for press in (0,1,2,4):
-            for stored,want_fn in ((0,None),(46,None),(200,None),(19,19),(44,44),(45,0),(23,23),(42,42)):
+            for stored,want_fn in ((0,None),(OFF1,None),(200,None),(19,19),(44,44),(45,0),(23,23),(42,42)):
                 for af in (0,1):
                     ev,calls,native=mkey(MACRO_KEY,stored,press,af)
                     if want_fn is None or af:assert calls==[] and native==[('native',press)],(press,stored,af,calls,native)
@@ -233,7 +236,7 @@ def verify(data,manifest):
         for i,f in enumerate(FNS):
             cpu.mem_write(REC+setting,b'\x77');p.stub={};p.run(e[name+'ListSet'],STOP,{0:LOBJ,1:i});assert r(cpu,0)==1
             assert cpu.mem_read(REC+setting,1)[0]=={own:0,0:own}.get(f,f),(name,f,cpu.mem_read(REC+setting,1)[0]);count('list set')
-            for s in (0,19,23,42,44,45,46,0xff):
+            for s in (0,19,23,42,44,45,46,47,0xff):
                 cpu.mem_write(REC+setting,bytes([s]));p.run(e[name+'ListIsCurrent'],STOP,{0:LOBJ,1:i})
                 d=own if s==0 or s>MAX else 0 if s==own else s
                 assert r(cpu,0)==int(f==d),(name,f,s);count('list is current')
