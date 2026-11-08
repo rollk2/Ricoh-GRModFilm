@@ -2993,3 +2993,9 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   niveau est son Grain codé comme Grain Effect (0, « 1 » 3, « 2 » 2, « 3 » 1). Le développement
   n'est plus modifié. Vérifié : `grain_native_probe.py` (décision : 21 cas film, Clarity
   conservée, 11 cas des looks de l'appareil ; niveau : 15 cas film, 16 autres).
+- **Résultat T-GRAIN8b sur le boîtier (2026-11-08, R0017309 à R0017312, ISO 800, mur clair) : le
+  grain natif s'applique aux films.** Luminance au rayon 1 / 3 / 8 : film G1 3,79 / 5,19 / 6,20 ;
+  film G3 11,97 / 14,10 / 15,39 ; film Off 0,45 / 1,16 / 1,30 ; Monotone Grain Effect 3 16,05 /
+  18,34 / 18,53. Chroma inchangée (Cb rayon 3 : 0,38 en G1, 0,37 en G3, 0,58 en Off) : **le grain
+  natif ne touche que la luminance**, comme un grain argentique. Grain fin (l'essentiel au rayon 1),
+  pas de réglage de taille. Vitesse jugée acceptable (traitement natif).
