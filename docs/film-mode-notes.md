@@ -2892,3 +2892,20 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   d'encodages avant cette photo. Le grain lui-même suit encore le mot du look (inchangé).
 - Vérifié : `grain_tag_probe.py` (10 expositions en file, registres gardés, 4 encodages dont un
   sur file vide, image qui suit la valeur en file).
+- **Résultat T-GRAIN6D sur le boîtier (2026-11-08, 5 photos, mode libre, Affichage immédiat Off).**
+  Étiquettes : « G0 S E3 M 02.00 », « G0 S E0 S 02.01 », « G1 S E3 M 04.00 », « G1 S E0 S
+  04.01 », « G3 L E3 M 07.00 » (la dernière prise avec ouverture du viewer).
+  - Photo 1 : 2 expositions comptées avant son encodage. Sa vue suivante était déjà prise :
+    **l'encodage d'une photo est en retard sur les déclenchements**.
+  - Photo 1 : du grain visible alors que l'étiquette lit G0. Le grain lit le mot du look au début
+    de l'encodage, la date à la fin, plusieurs secondes plus tard (grain lent). Entre les deux, le
+    développement de la vue suivante a réécrit le mot. Le mot du look est global : il porte le
+    réglage de la **dernière photo développée**, pas celui de la photo encodée.
+  - Le compteur d'encodages revient à 0 (04.00, 07.00) alors que celui des expositions continue.
+    Hypothèse : le crochet d'exposition et l'encodage tournent dans des contextes dont les
+    caches ne sont pas cohérents (réécriture d'une ligne de cache périmée). Une file en RAM
+    partagée n'est donc pas fiable : abandonnée comme correctif.
+- Piste de correctif : lire le réglage dans la copie des réglages **propre à la photo**, celle que
+  l'écrivain de la note constructeur lit pendant l'encodage (`r1`, octets `+0x77c` look et
+  `+0x786` Toning, voir `films-r10.ts`, TONING_WRITER). À trouver : comment l'atteindre depuis
+  `JpegEncodeMacroProcess::Execute` (`0x535047d4`).
