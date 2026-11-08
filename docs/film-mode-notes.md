@@ -3013,3 +3013,8 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   build logiciel : Grain et Size), `grain_native_probe.py`, `grain_stage_probe.py` (build
   logiciel), tests unitaires (10 accroches ajoutées par le grain natif : 8 de la ligne Grain, 2 du
   grain natif ; 14 avec le grain logiciel).
+- **Résultat T-GRAIN9 sur le boîtier (2026-11-08, R0017313 à R0017320, ISO 800 à 1000) : validé.**
+  Portra puis Gold, Grain 1, 2, 3 puis Off. Luminance au rayon 1 : Portra 2,64 / 3,65 / 5,21 /
+  0,35 ; Gold 2,71 / 3,89 / 5,24 / 0,32. Chroma inchangée (Cb rayon 3 de 0,34 à 0,44). Vitesse et
+  extinction normales. Les looks de l'appareil n'ont pas la ligne Grain Effect (comme d'origine :
+  seuls les looks monochromes l'ont).
