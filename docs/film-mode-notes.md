@@ -2845,3 +2845,16 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   Vérifié : `tools/gr3x/grain_tag_probe.py` (table des 16 étiquettes, 36 cas film dessinés en bas
   à droite de l'image et de l'aperçu, vignette intacte, image différente pour chaque réglage,
   6 cas sans rien, registres gardés ; build avec date : date plus étiquette).
+- **Résultat T-GRAIN5T sur le boîtier (2026-11-08, R0017274 à R0017280, ISO 200, 1/50).** Les
+  7 étiquettes sont celles du protocole : G0 S, G1 M, G2 M, G3 M, G3 S, G3 L, G0 S (le Off garde
+  la taille S réglée avant). La chaîne écran, octet Toning, mot du look, module est juste sur le
+  boîtier. Écart type du passe haut de la luminance (rayon 1 / 3 / 8) dans les tons moyens
+  (70 à 130) : G0 1,02 / 1,81 / 2,08 ; G1 M 1,18 / 2,12 / 2,53 ; G2 M 1,24 / 2,45 / 3,06 ;
+  G3 M 1,51 / 3,16 / 4,01 ; **G3 S 1,84 / 3,42 / 4,09** ; G3 L 1,28 / 2,85 / 3,84 ; G0 0,94 /
+  1,71 / 1,97. Chroma (Cb, rayon 3) : 0,58 sans grain, 1,97 en G3 M.
+- Lecture : la taille S marque bien la photo cette fois (la plus forte au rayon 1). L'absence de
+  grain en 3 S de la série T-GRAIN5 (même module) n'est pas reproduite et reste inexpliquée.
+  Comme sur PC, les trois tailles ont la même énergie totale : L ne fait que déplacer le grain
+  vers les grandes échelles, elle paraît donc moins granuleuse que M (à revoir dans T-GRAIN6 :
+  un grain plus gros devrait aussi être plus visible). La part colorée reste forte (chroma
+  environ 0,6 fois la luminance au rayon 3).
