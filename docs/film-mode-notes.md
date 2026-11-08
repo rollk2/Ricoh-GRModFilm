@@ -3066,3 +3066,12 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   l'utilisateur : des fonctions « Hold » (appui long) pour Fn et les autres touches, comme
   « Hold Wireless Btn. » (champ `0x92a`) ; à étudier (les touches du pavé ont des codes espacés de
   3, 26 / 29 / 32 / 35 : peut-être appui, appui long, relâchement).
+- **Appuis longs (T-DIAL3, 2026-11-08, R0017347 à R0017352 : Fn, haut, bas, gauche, droite,
+  Wireless, chacun environ 2 s).** Anneau des touches : Fn « 22 » ; haut « 27 » répété ; bas : rien
+  de nouveau après 26 28 (l'appui haut qui sort du mode Macro) et 29 ; gauche : aucun code 32 à 34 ;
+  droite « 36 » répété ; Wireless « 58 60 ». Lecture (moyenne) : chaque touche du pavé a trois
+  codes, appui / maintien répété / relâchement (haut 26 / 27 / 28, droite 35 / 36 / 37 ; bas 29 /
+  30 / 31 et gauche 32 / 33 / 34 attendus). Appui long Fn : 22 ; Wireless : 58 puis 60. Les appuis
+  longs sur bas et gauche n'ont rien donné : à refaire en notant l'écran.
+- Demande (2b) : dans Fn Button Settings, des lignes pour les appuis longs des touches et une
+  fonction « distance Snap » à leur associer.
