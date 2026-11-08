@@ -68,6 +68,11 @@ struct ctx {
    * (bits 20..23: grain 0..3, size code 0 M, 1 S, 2 L) the setting as glyphs, {count, glyph...},
    * or 0. Printed after the name for a film; with the date off, printed alone. */
   const u16 *const *grain_tags;
+#ifdef KEY_DIAG
+  /* Research (T-DIAL1): the keys seen since the last picture, { key, count } x 4, then the rear
+   * dial router's calls (byte 8 direction 0, byte 9 direction 1); printed after the tag, then cleared. */
+  volatile u8 *keys;
+#endif
 #ifdef GRAIN_DIAG
   /* Diagnostic (T-GRAIN6D): the same glyphs with E for the setting queued at the exposure, and the
    * queue: byte 0 the exposures (written by the exposure hook), byte 1 the encodes (this module),
@@ -887,6 +892,23 @@ void datestamp(const struct ctx *k, u32 *config) {
       }
     }
   }
+#ifdef KEY_DIAG
+  /* "  kk.cc" per key seen (code, count), then "  mm.pp" the dial router's calls. */
+  {
+    volatile u8 *t = k->keys;
+    if (ram((const void *)t)) {
+      if (!nn) { glyphs[n++] = G_SPACE; }
+      for (i = 0; i < 4; i++) if (t[2 * i]) {
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+        n += two_digits(t[2 * i], glyphs + n); glyphs[n++] = G_DOT; n += two_digits(t[2 * i + 1], glyphs + n);
+      }
+      glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+      n += two_digits(t[8], glyphs + n); glyphs[n++] = G_DOT; n += two_digits(t[9], glyphs + n);
+      for (i = 0; i < 10; i++) t[i] = 0;
+      nn = n - nd;
+    }
+  }
+#endif
   if (!nd && !nn) return;
 #endif
   cache = k->cache();

@@ -24,7 +24,7 @@ import datestamp_probe as dp
 import datestamp8_probe as d8
 
 def verify(data,manifest):
-    assert manifest.get('grainTag') in (True,'diag','find') and manifest.get('round10')
+    assert manifest.get('grainTag') in (True,'diag','find','keys') and manifest.get('round10')
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc
     mapped=lambda a:any(s<=a<=e for s,e,_ in c.mem_regions())
     for at in range(0x63000000,0x63100000,0x1000):
@@ -83,8 +83,21 @@ def verify(data,manifest):
     for a in range(12):
         for b in range(a+1,12):
             if (a>>2)<3 and (b>>2)<3:assert seen[a]!=seen[b],(a,b)
+    keys=manifest.get('grainTag')=='keys'
     for stash in (0x10000|11|3<<20,0x10000|22|3<<20|1<<22,32|3<<20,0x10000|64|3<<20,0x10000|200|3<<20,0):
-        assert changed(run(stash))==[0]*6,hex(stash);cases['nothing']=cases.get('nothing',0)+1
+        ch=changed(run(stash))
+        # T-DIAL1: the key table is printed for every picture (no grain tag but for a film).
+        if keys:assert ch[0]>0 and ch[2]>0 and ch[4]==ch[5]==0,(hex(stash),ch)
+        else:assert ch==[0]*6,hex(stash)
+        cases['nothing']=cases.get('nothing',0)+1
+    if keys:
+        T=0x55804398;assert words[14]==T
+        u.mem_write(T,bytes(10));empty=run(0x10000|32|3<<20)[0]
+        imgs=[]
+        for tb in (bytes([10,5,35,1,0,0,0,0,0,0]),bytes([10,5,35,1,0,0,0,0,3,0]),bytes([10,5,35,1,0,0,0,0,0,3]),bytes([57,1,0,0,0,0,0,0,0,0])):
+            u.mem_write(T,tb);imgs.append(run(0x10000|32|3<<20)[0]);assert bytes(u.mem_read(T,10))==bytes(10),'the table is cleared'
+        assert all(i!=empty for i in imgs) and len(set(imgs))==4,'the picture follows the table'
+        cases['keys']=4
     if not hidden:
         a=changed(run(0x10000|32|3<<20|1<<22,setting=1));b=changed(run(0x10000|11|3<<20|1<<22,setting=1))
         assert a[0]>b[0]>0 and a[2]>b[2]>0,(a,b);cases['with the date']=2

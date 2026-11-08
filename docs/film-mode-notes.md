@@ -3018,3 +3018,21 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   0,35 ; Gold 2,71 / 3,89 / 5,24 / 0,32. Chroma inchangée (Cb rayon 3 de 0,34 à 0,44). Vitesse et
   extinction normales. Les looks de l'appareil n'ont pas la ligne Grain Effect (comme d'origine :
   seuls les looks monochromes l'ont).
+
+## Molette arrière : désactivation depuis GR Mod (2026-11-08, plan et sonde T-DIAL1)
+
+- Demande : une option de GR Mod (pas un réglage du boîtier) qui neutralise la rotation de la
+  molette arrière **partout** (prise de vue, menus, lecture), en gardant ses quatre boutons et OK.
+  Remarque de l'utilisateur : le mode **Snap** (trois distances) se règle à la molette ; il lui
+  faudra un autre moyen de choisir la distance.
+- Plan validé : (1) sonde T-DIAL1 pour identifier les codes de la rotation sur le boîtier ;
+  (2) recenser où la rotation agit ; (3) un filtre unique (codes de rotation ignorés, ou les deux
+  sens de l'aiguillage) en option de build `rearDialOff` ; (4) sonde d'émulation, contre-épreuve,
+  tests ; (5) test T-DIAL2.
+- Sonde T-DIAL1 (`dialProbe`, `dial-probe.ts`, avec `grainTag: 'keys'`) : table de quatre
+  { touche, nombre } en `0x55804398` remplie à l'entrée de `ActionModel::OnEvent` (`0x53221a1c`),
+  appels de l'aiguillage de la molette en visée (`0x53295da0`) comptés selon le sens (`r3` : octet
+  + 8 sens 0, + 9 autre). Le module de date (`-DKEY_DIAG`) imprime « kk.cc » par touche puis
+  « mm.pp » pour l'aiguillage, et remet la table à zéro : chaque photo montre les gestes faits
+  depuis la précédente. Vérifié : `dial_probe.py` (19 cas, registres et drapeaux gardés),
+  `grain_tag_probe.py` (impression et remise à zéro).
