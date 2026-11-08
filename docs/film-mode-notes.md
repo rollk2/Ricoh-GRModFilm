@@ -2951,5 +2951,31 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - Vérifié : `grain_stage_probe.py` (chaîne Execute, mot de la photo, halation, grain, date ;
   54 cas du mot : 7 looks × 7 Toning, 5 replis ; registres et drapeaux gardés),
   `grain_tag_probe.py` ; `npm test` (hors données privées du GR IV).
+- **Résultat T-GRAIN7 sur le boîtier (2026-11-08, R0017301 à R0017304, 4 vues rapides, boîtier
+  éteint au lieu du viewer) : étiquettes G3 M, G0 S, G3 L, G1 S, justes, grain conforme.** À
+  l'extinction, le boîtier a mis plusieurs secondes à s'éteindre : il a fini d'encoder les 4 vues
+  (le module logiciel). D'où la priorité au grain natif.
 - Reste ouvert : l'orientation de l'empreinte vient toujours du crochet d'exposition (mot global),
   sujette au même décalage si le boîtier tourne entre deux vues rapides.
+
+## Grain natif, deuxième essai : la granulation de l'étape JPEG (2026-11-08, T-GRAIN8)
+
+- Chaîne « [Granulation] Short of work buffer(%d/%d). » (`0x53d5732c`) : fonction de granulation
+  `0x5367ad3c` (tampon de travail, cache nettoyé : traitement matériel ou optimisé). Elle fait
+  partie d'une passe d'effets `0x53680dbc` / `0x53680dc0`, qui enchaîne des effets selon une
+  structure de demi-mots : `[0]` (`0x5367b540`), `[2]` (`0x5367c158`), **`[4]` la granulation**,
+  `[6]`.
+- Cette structure est remplie par `0x5350304c` depuis **l'enregistrement de prise de vue de la
+  photo** (configuration `+0x34`, comme pour le correctif T-GRAIN7) : `+0x793` → `[0]`, `+0x794`
+  → `[2]`, `+0x796` → `[6]`, **`+0x795` → `[4]`** (0 à 3). Appelée par deux processus de la même
+  famille qu'Execute (`0x535032b4`, `0x535036cc`).
+- Le développement (paramètres du look `0x536db7d8`) réécrit `+0x795` de l'enregistrement en
+  `0x536db9c8` (`r6`) : 0 pour Standard, sous lequel un film est rendu. T-GRAIN1 ne changeait que
+  `+0x1f8` du bloc : la granulation restait à 0. Explication probable de son échec.
+- T-GRAIN8 (option de test `grainNative`, `installGr3xNativeGrainFilms`) : pour un film, `r6`
+  et `+0x1f8` reçoivent le Grain du film (bits 4 et 5 de l'octet Toning) codé comme Grain Effect
+  (0 arrêt, « 1 » 3, « 2 » 2, « 3 » 1). Le module logiciel n'est pas installé ; le mot du look de
+  la photo, la halation et l'étiquette restent. La taille n'a pas d'équivalent natif.
+- Inconnu : si la passe d'effets tourne pour un look Standard (son déclenchement n'est pas
+  trouvé ; Negative Film, look couleur, a un grain natif, donc la granulation sait traiter la
+  couleur). Vérifié : `grain_native_probe.py` (49 cas Standard, 4 monochromes), `grain_tag_probe.py`.

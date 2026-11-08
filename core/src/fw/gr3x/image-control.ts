@@ -28,6 +28,7 @@ import { installGr3xGuardCode, installGr3xGuardRecall } from './guard';
 import { gr3xMaxId } from './geometry';
 import { monoLook } from '../aspect/lookstash';
 import { installGr3xHalationScreen } from './halation-screen';
+import { installGr3xNativeGrainFilms } from './grain-native';
 import { GR3X_DEVELOP_LOOK_READ, GR3X_FIRST_FILM, GR3X_HALATION_STASH, GR3X_MATRIX_CALL, GR3X_MATRIX_PROCESS, installGr3xJpegStage } from './jpeg-stage';
 import { HALATION_COLOUR_NAMES, HALATION_NAMES, halationColourIcon, halationColourScale, halationIcon, halationLight, PLAIN_LIGHT } from '../aspect/halation';
 import { halationLightR6, halationScaleR6, PLAIN_LIGHT_R6 } from './halation-r6';
@@ -217,6 +218,9 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
   // The Grain and Size rows of a film (round 10, with the film mode): halation-rows.ts, films.c -DGRAIN.
   const grain = round10 && features.grain === true;
   if (features.grain && !grain) throw new FirmwareError('bad-edit', 'IIIx grain: round 10 only');
+  // T-GRAIN8 (test): the films' Grain through the camera's own granulation instead of the module.
+  const grainNative = grain && features.grainNative === true;
+  if (features.grainNative && !grainNative) throw new FirmwareError('bad-edit', 'IIIx native grain: with the grain rows');
   if (round10 && !round9) throw new FirmwareError('bad-edit', 'IIIx round 10 builds on round 9');
   if (round6 && (!extended || options.ownParameters !== true || options.jpegDiagnostics || !Number.isInteger(options.filmCount) ||
       options.filmCount! < 1 || options.filmCount! > GR3X_MAX_FILMS || options.films?.some(f => f.halation !== undefined)))
@@ -565,6 +569,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     if (!site || !site.reason.startsWith('date imprint')) throw new FirmwareError('unexpected-instruction', 'IIIx JPEG entry is not the date imprint');
     site.replacement = hex(wordsToBytes([replacement])); site.reason = reason;
   };
+  const nativeGrain = grainNative ? installGr3xNativeGrainFilms({ code, append, patch, u32, sites }, capacity) : {};
   const jpeg = installGr3xJpegStage({ code, append, patch, u32, retarget }, {
     after: dateStage,
     halation: halationSlots.length && !round7 ? { levels: round6 ? slots.map(() => 1) : slots.slice(0, 9).map(s => s.halation),
@@ -573,7 +578,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     ...(round7 ? { halation7: { light: slots.slice(0, capacity).map(s => s.quantizedCurves ? halationLight(s.quantizedCurves, s.postQ9) : PLAIN_LIGHT) } } : {}),
     diagnostics: options.jpegDiagnostics === true,
     // The grain on the JPEG (jpeg_grain.c): the black-and-white films take the black-and-white profile.
-    ...(grain ? { grain: { mono: gr3xMonoTable(monoFilms ?? []) } } : {}),
+    ...(grain && !grainNative ? { grain: { mono: gr3xMonoTable(monoFilms ?? []) } } : {}),
     // The picture's own look word (T-GRAIN7): the JPEG is encoded after later shots may have been
     // developed, and the stash then holds their look. Execute's configuration + 0x34 is the shooting
     // record of the picture (SetShootingInfoResultBeforeExpose's, its date at +0x944, the settings
@@ -607,7 +612,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     append: { address: menu.append.address, bytes: hex(payload) },
     addedLooks: slots, renderingImplemented: true as const,
     lookEntries: { aggregate, rawEnum, restriction, enforce, descriptor, gamma, defaults, adapters, setters, activeChecks, activeChecksSet0, ...(liveGamma ? { liveGamma } : {}),
-      ...(own ? { ownParameters: own } : {}), ...(r10 ? { films: r10 } : {}), ...(postMatrix ? { postMatrix } : {}), ...(jpeg ? { jpeg } : {}),
+      ...(own ? { ownParameters: own } : {}), ...(r10 ? { films: r10 } : {}), ...(postMatrix ? { postMatrix } : {}), ...(jpeg ? { jpeg } : {}), ...(grainNative ? { nativeGrain } : {}),
       ...(halationScreen ? { halationScreen } : {}), ...(halationRows ? { halationRows } : {}) },
     ...(round6 ? { filmCount: capacity, halationInCamera: true } : {}),
     ...(round7 ? { round7: true, monoFilms } : {}),

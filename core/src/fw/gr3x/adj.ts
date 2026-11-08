@@ -133,6 +133,8 @@ export interface Gr3xAdjFeatures {
   macroButton?: boolean;
   /** T-GRAIN1 (test, film mode): the camera's own grain on the films, a fixed value per film (grain-native.ts). */
   grainTest?: readonly number[];
+  /** T-GRAIN8 (test): the films' Grain through the camera's own granulation (grain-native.ts), without the JPEG module. */
+  grainNative?: boolean;
   /** Film mode, round 10: Grain and Size rows on a film's Image Control parameter screen (halation-rows.ts, films.c -DGRAIN). */
   grain?: boolean;
   /** GR Mod Film test builds: the grain's setting printed on the photo by the date imprint ("G3 S"). */
@@ -610,7 +612,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainNative ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

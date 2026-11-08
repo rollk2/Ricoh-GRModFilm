@@ -178,7 +178,7 @@ export function installGr3xJpegStage(p: Gr3xJpegProgram, o: Gr3xJpegOptions) {
   }
   Object.assign(entries, entries7);
   if (o.photo) {
-    if (!o.grain) throw new FirmwareError('internal', 'IIIx picture look word: with the grain');
+    if (!o.halation7) throw new FirmwareError('internal', 'IIIx picture look word: round 7 halation');
     const stub = p.code(`${o.photo.asm}${tail}`);
     Object.assign(entries, { photoLook: stub, photoWord: o.photo.address });
     first = stub;

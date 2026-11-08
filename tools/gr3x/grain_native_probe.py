@@ -7,6 +7,11 @@ film goes) and a monochrome case (Soft Monotone, 0x536db9d8) to the end of the f
 the patched end (0x536db9c0): +0x1f8 must be the film's value for a film of the build, 0 for
 Standard itself and for a look beyond the films, the live particle byte for the monochrome look;
 the four live bytes written back and every other halfword of the block as without the patch.
+
+T-GRAIN8 (`grainNative`): for a film of the build (64 + k) the particle byte written back
+(+0x795 of the record, which the JPEG step's granulation reads) and +0x1f8 are the film's Grain
+(bits 4..5 of its Toning byte +0x786) as Grain Effect stores it (0, then 3, 2, 1); for Standard,
+a camera look and a look beyond the films, as without the patch; the monochrome case unchanged.
 """
 import argparse,hashlib,json,struct
 from pathlib import Path
@@ -18,6 +23,7 @@ STANDARD,SOFT_MONO,END=0x536dbaa4,0x536db9d8,0x536db9c0
 BLOCK,LIVE,FRAME=0x63050000,0x63051000,0x63052f00
 
 def verify(data,manifest,base=None):
+    if manifest.get('grainNative'):return verify_films(data,manifest)
     levels=manifest['grainTest'];p=RollProbe(data,manifest);cpu=p.uc;cases={}
     sites={s['address']:s for s in manifest['sites']}
     assert 'native grain' in sites[END]['reason']
@@ -48,6 +54,38 @@ def verify(data,manifest,base=None):
         assert struct.unpack_from('<H',block,0x1f8)[0]==particle and back[2]==particle
         cases['monochrome case']=cases.get('monochrome case',0)+1
     return dict(cases=cases,levels=levels,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
+
+def verify_films(data,manifest):
+    p=RollProbe(data,manifest);cpu=p.uc;cases={};films=manifest['filmCount']
+    sites={s['address']:s for s in manifest['sites']}
+    assert 'native grain' in sites[END]['reason']
+    def run(case,look,particle,toning):
+        cpu.mem_write(BLOCK,bytes(0x200)+b'\xee'*0x20)
+        live=bytearray(range(256))*16;live=live[:0x800]
+        live[0x77c]=look;live[0x795]=particle;live[0x786]=toning;cpu.mem_write(LIVE,bytes(live))
+        cpu.mem_write(FRAME,bytes(0x10)+struct.pack('<8I',4,5,6,7,8,9,10,STOP))
+        for i in range(13):cpu.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),0x1230+i)
+        cpu.reg_write(reg.UC_ARM_REG_R0,BLOCK);cpu.reg_write(reg.UC_ARM_REG_R3,LIVE)
+        cpu.reg_write(reg.UC_ARM_REG_SP,FRAME);cpu.reg_write(reg.UC_ARM_REG_CPSR,0x13)
+        cpu.emu_start(case,STOP,count=20000)
+        assert cpu.reg_read(reg.UC_ARM_REG_PC)==STOP and cpu.reg_read(reg.UC_ARM_REG_SP)==FRAME+0x30
+        assert [cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(4,11)]==[4,5,6,7,8,9,10]
+        return bytes(cpu.mem_read(BLOCK,0x220)),bytes(cpu.mem_read(LIVE+0x793,4))
+    for look in [11,12,63]+[64+k for k in range(films+1)]:
+        for toning in (0x00,0x13,0x25,0x3b,0x70,0xa2,0xf4):
+            block,back=run(STANDARD,look,1,toning)
+            ref,refback=run(STANDARD,11,1,toning)
+            g=(toning>>4)&3;want=(4-g if g else 0) if 64<=look<64+films else None
+            if want is None:assert block==ref and back==refback,(look,hex(toning))
+            else:
+                assert struct.unpack_from('<H',block,0x1f8)[0]==want and back[2]==want,(look,hex(toning),back.hex())
+                assert block[:0x1f8]==ref[:0x1f8] and block[0x1fa:]==ref[0x1fa:] and back[:2]==refback[:2] and back[3]==refback[3]
+            cases['standard case']=cases.get('standard case',0)+1
+    for particle in (0,1,2,3):
+        block,back=run(SOFT_MONO,14,particle,0x30)
+        assert struct.unpack_from('<H',block,0x1f8)[0]==particle and back[2]==particle
+        cases['monochrome case']=cases.get('monochrome case',0)+1
+    return dict(cases=cases,films=films,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':
     a=argparse.ArgumentParser(description=__doc__)

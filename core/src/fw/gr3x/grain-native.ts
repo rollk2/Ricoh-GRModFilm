@@ -33,6 +33,31 @@ export interface Gr3xGrainProgram {
   sites: readonly Gr3xSite[];
 }
 
+/**
+ * T-GRAIN8 (test build, `grainNative`): the camera's own granulation for the films. The JPEG step's
+ * picture effects (0x5350304c, for the effect pass 0x53680dbc of the macro processes 0x535032b4 /
+ * 0x535036cc) read the picture's shooting record (Execute's configuration + 0x34): +0x795 gives
+ * the granulation (0x5367ad3c, "[Granulation] Short of work buffer") its level, 0 none. The
+ * development step's look parameters write that byte back at 0x536db9c8 (r6): 0 for Standard,
+ * the live particle byte for the monochrome looks and Negative Film. For a film (its look at
+ * +0x77c, 64 + k, k < `films`), r6 and +0x1f8 get the film's Grain (bits 4..5 of its Toning byte
+ * +0x786, the parameter screen's Grain row) as Grain Effect stores it: 0 off, "1" 3, "2" 2, "3" 1.
+ */
+export function installGr3xNativeGrainFilms(p: Gr3xGrainProgram, films: number) {
+  const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx native grain: ${m}`); };
+  if (films < 1 || films > 20) fail('films');
+  if (p.sites.some(s => s.address === GR3X_GRAIN_END)) fail('end already patched');
+  if (p.u32(GR3X_GRAIN_END) !== 0xe5c3a793 || p.u32(GR3X_GRAIN_END + 4) !== 0xe5c39794 || p.u32(GR3X_GRAIN_END + 8) !== 0xe5c36795)
+    fail('look parameters end');
+  // r0 the parameters, r3 the record; r6 the particle byte written back next (0x536db9c8).
+  const grainEnd = p.code(`ldrb ip,[r3,#0x77c];sub ip,ip,#${FIRST};cmp ip,#${films - 1};bhi go;
+    ldrb ip,[r3,#0x786];mov ip,ip,lsr #4;ands ip,ip,#3;rsbne ip,ip,#4;mov r6,ip;
+    push {r1};add r1,r0,#0x1f8;strh ip,[r1];pop {r1};
+    go:strb r10,[r3,#0x793];b #${GR3X_GRAIN_END + 4};`);
+  p.patch(GR3X_GRAIN_END, 0xe5c3a793, branchWord(GR3X_GRAIN_END, grainEnd), 'native grain: the films\' Grain to the camera\'s granulation');
+  return { grainEnd };
+}
+
 /** `levels[k]`: film k's value at +0x1f8 (0 off, 3 weak, 2 medium, 1 strong). */
 export function installGr3xNativeGrainTest(p: Gr3xGrainProgram, levels: readonly number[]) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx native grain: ${m}`); };
