@@ -3136,3 +3136,17 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **Note de version à prévoir** : Wireless Button et Hold Wireless Btn. proposent désormais les
   fonctions de GR Mod Film (Film Advance, White Balance, Macro Mode, Snap DOF) : une limite du
   boîtier levée.
+- **Résultat T-DOF2 (2026-11-08)** : Snap DOF (code 24) ne produit rien. L'envoi d'un cran à
+  `ActionModel::OnEvent` ne marche pas (ou le test de priorité `+0x110` est faux) : abandonné.
+- Écriture directe, étude : `0x53559ab0` écrit `+0x798` de l'objet **réel** des valeurs vivantes
+  (changement noté 0xc6) ; l'objet donné par `0x53525d5c` est un **intermédiaire** qui envoie des
+  messages à une autre tâche (`0x5354b564`, table des gestionnaires `0x540927e8`, 530 entrées =
+  2 × 265 : opération 1, élément 0xc6 → `0x53542008`, qui prend `+0x518` puis `0x53559ab0`).
+  L'envoi natif de l'élément 0xc6 : `0x5354c60c(intermédiaire, valeur)`, appelé par
+  `0x53251fc0` (réglages `+0x46e`, photo) et `0x53257e78` (`+0x79a` de tous les enregistrements,
+  vidéo). Or `+0x46e` vaut On / Off (commande de débogage, table du menu `0x53b5908c` = 1, 0) :
+  le champ du DOF dans les réglages n'est pas établi. T-DOF3 (écriture directe) non construit.
+- T-DOF3 (diagnostic, `grainTag: 'settings'`, molette non coupée) : à chaque exposition, les
+  octets `+0xc6, +0x110, +0x46e, +0x798, +0x79a, +0x799, +0x797` de l'enregistrement en cours,
+  plus 10, sont imprimés sur la photo dans cet ordre. Vérifié en émulateur (valeurs, registres,
+  drapeaux) et `grain_tag_probe.py`.

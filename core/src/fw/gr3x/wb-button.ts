@@ -123,22 +123,29 @@ export function installGr3xWbOpen(p: Gr3xWbProgram) {
 /** Macro Mode as a short press of the Macro button: its handler's native body (r0 this, r1 the
  * events, r2 = 4); AAPCS. */
 /**
- * Snap DOF (function 46, `snapDof`): with Snap Distance Priority on (the flag +0x110 of the settings
- * record, getter 0x53243f84; the camera's function 39 posts event 0x78 to toggle it), the rear
- * dial chooses DOF1 / DOF2 / DOF3 (the byte +0x798: 3, 4, 5). Pressed, it sends one notch of the
- * rear dial (`code`: 24 or 25) to ActionModel::OnEvent through the rear dial filter's way around
- * (dial-probe.ts: the model the last key came with, the function's own body), so the camera does
- * everything a notch does. Priority off: nothing. T-DOF1 (test): one notch of 25 per press, to see
- * the direction and the end of the list on the camera.
+ * Snap DOF (function 46, `snapDof`): Snap Distance Priority's depth of field, DOF1 / DOF2 / DOF3 (the
+ * byte +0x798 of the settings record: 3, 4, 5; its strings 0x53b22308), which the rear dial chose.
+ * Pressed: the next one, DOF3 back to DOF1 (anything else read as DOF1's predecessor), written as
+ * the camera writes it: the settings (0x5327b70c: the record in use and the stored ones, as its
+ * menu does) and the live shooting values (0x53559ab0(live, value): +0x798 and the change noted
+ * for the display, item 0xc6; the live object as the folder name's setter takes it,
+ * *0x53525d5c()). Whether Snap Distance Priority is on does not matter: the value waits for it.
+ * T-DOF1 / T-DOF2 sent a rear dial notch (25, then 24) to ActionModel::OnEvent: nothing happened.
  */
 export const GR3X_DOF_FUNCTION = 46, GR3X_DOF_ICON = 0x19;
-const SETTINGS = 0x5320b31c, SNAP_PRIORITY = 0x53243f84;
-export function installGr3xSnapDofPress(p: Gr3xWbProgram, model: number, bypass: number, code = 25) {
-  if (p.u32(SNAP_PRIORITY) !== 0xe5903004 || p.u32(SNAP_PRIORITY + 4) !== 0xe5d30110) fail('Snap priority getter');
-  return p.code(`push {r0,r1,r2,r3,r4,lr};bl #${APP};bl #${SETTINGS};bl #${SNAP_PRIORITY};cmp r0,#0;beq done;
-    movw r4,#${lo(model)};movt r4,#${hi(model)};ldr r0,[r4];cmp r0,#0x40000000;blo done;cmp r0,#0xc0000000;bhs done;tst r0,#3;bne done;
-    mov r1,#${code};bl #${bypass};
-    done:pop {r0,r1,r2,r3,r4,pc};`);
+const SETTINGS = 0x5320b31c, DOF_GET = 0x53245f00, DOF_SET_ALL = 0x5327b70c, DOF_LIVE_SET = 0x53559ab0, LIVE = 0x53525d5c;
+export function installGr3xSnapDofPress(p: Gr3xWbProgram) {
+  const guards: readonly (readonly [number, number])[] = [
+    [DOF_GET, 0xe5903004], [DOF_GET + 4, 0xe5d30798], [DOF_SET_ALL + 0x18, 0xe5c21798],
+    [DOF_LIVE_SET, 0xe1a0c00d], [DOF_LIVE_SET + 0x14, branchWord(DOF_LIVE_SET + 0x14, 0x53559a00, 14, true)], [0x53559a28, 0xe5c32798],
+  ];
+  for (const [at, w] of guards) if (p.u32(at) >>> 0 !== w >>> 0) fail(`Snap DOF guard at ${at.toString(16)}`);
+  return p.code(`push {r0,r1,r2,r3,r4,r5,r6,lr};bl #${APP};bl #${SETTINGS};mov r4,r0;bl #${DOF_GET};
+    cmp r0,#3;movlo r0,#2;cmp r0,#5;movhs r0,#2;add r5,r0,#1;
+    mov r0,r4;mov r1,r5;bl #${DOF_SET_ALL};
+    bl #${LIVE};ldr r0,[r0];cmp r0,#0x40000000;blo done;cmp r0,#0xc0000000;bhs done;tst r0,#3;bne done;
+    mov r1,r5;bl #${DOF_LIVE_SET};
+    done:pop {r0,r1,r2,r3,r4,r5,r6,pc};`);
 }
 
 export function installGr3xMacroPress(p: Gr3xWbProgram) {

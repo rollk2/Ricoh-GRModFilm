@@ -24,7 +24,7 @@ import datestamp_probe as dp
 import datestamp8_probe as d8
 
 def verify(data,manifest):
-    assert manifest.get('grainTag') in (True,'diag','find','keys') and manifest.get('round10')
+    assert manifest.get('grainTag') in (True,'diag','find','keys','settings') and manifest.get('round10')
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc
     mapped=lambda a:any(s<=a<=e for s,e,_ in c.mem_regions())
     for at in range(0x63000000,0x63100000,0x1000):
@@ -83,7 +83,7 @@ def verify(data,manifest):
     for a in range(12):
         for b in range(a+1,12):
             if (a>>2)<3 and (b>>2)<3:assert seen[a]!=seen[b],(a,b)
-    keys=manifest.get('grainTag')=='keys'
+    keys=manifest.get('grainTag') in ('keys','settings')   # 'settings' (T-DOF3): the same ring, filled at the exposure
     for stash in (0x10000|11|3<<20,0x10000|22|3<<20|1<<22,32|3<<20,0x10000|64|3<<20,0x10000|200|3<<20,0):
         ch=changed(run(stash))
         assert ch==[0]*6,hex(stash)   # T-DIAL2 too: an empty ring prints nothing
