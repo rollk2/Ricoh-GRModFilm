@@ -2999,3 +2999,17 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   18,34 / 18,53. Chroma inchangée (Cb rayon 3 : 0,38 en G1, 0,37 en G3, 0,58 en Off) : **le grain
   natif ne touche que la luminance**, comme un grain argentique. Grain fin (l'essentiel au rayon 1),
   pas de réglage de taille. Vitesse jugée acceptable (traitement natif).
+
+## Grain : version finale, le grain natif (2026-11-08, T-GRAIN9)
+
+- Décision de l'utilisateur : on garde le grain natif (« très bien »), une seule ligne Grain Effect
+  à 4 crans (Off, 1, 2, 3), la ligne Grain Size retirée.
+- Option `grain` : ligne Grain seule (`halation-rows.ts`, `grain.size` absent : pas de ligne de
+  type 8 ni de ses six accroches, pas de texte « Grain Size »), grain natif
+  (`installGr3xNativeGrainFilms`), mot du look de la photo pour la halation et la date. Le module
+  `jpeg_grain.c` n'est plus installé ; il reste en option de test `grainSoftware` (avec la ligne
+  Grain Size). Le manifeste porte `grainNative` ou `grainSoftware`.
+- Vérifié : `halation_rows_probe.py` (build natif : Grain seule, accroches de la taille absentes ;
+  build logiciel : Grain et Size), `grain_native_probe.py`, `grain_stage_probe.py` (build
+  logiciel), tests unitaires (10 accroches ajoutées par le grain natif : 8 de la ligne Grain, 2 du
+  grain natif ; 14 avec le grain logiciel).

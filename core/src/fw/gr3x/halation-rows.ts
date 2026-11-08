@@ -71,9 +71,10 @@ export interface Gr3xHalationRowsOptions {
   /** Rounds 7..9: the settings kept and put back with the screen's own (round 10: the Toning byte is
    * one of the parameters the screen backs up and restores itself). */
   backup?: number; restore?: number;
-  /** Round 10 with the grain (films.c -DGRAIN): two more rows, Grain (Grain Effect's name, Off / 1 /
-   * 2 / 3) and its size (S / M / L), kept in the Toning byte's high nibble. */
-  grain?: { sizeText: number; grain: number; grainPut: number; grainText: number; size: number; sizePut: number; sizeText2: number };
+  /** Round 10 with the grain (films.c -DGRAIN): a Grain row (Grain Effect's name, Off / 1 / 2 / 3)
+   * and, with the JPEG module's grain (test builds), its size (S / M / L), kept in the Toning byte's
+   * high nibble. Without `size` (the camera's own granulation, which has no size) Grain alone. */
+  grain?: { grain: number; grainPut: number; grainText: number; size?: { text: number; get: number; put: number; valueText: number } };
 }
 
 const bl = (at: number, target: number) => (0xeb000000 | (((target - (at + 8)) >> 2) & 0xffffff)) >>> 0;
@@ -112,10 +113,10 @@ export function installGr3xHalationRows(p: Gr3xHalationRowsProgram, o: Gr3xHalat
     const at = ov.getUint32(entry * 8, true), count = ov.getUint32(entry * 8 + 4, true);
     const items = p.read(at, count * 2);
     for (let k = 0; k < count; k++) if ([KIND_TONING, KIND_GRAIN, ...(o.grain ? [KIND_GRAIN_FILM, KIND_SIZE] : [])].includes(items[2 * k + 1])) fail('Standard already has kind 10 or 15');
-    return Uint8Array.from([...items, 0, KIND_GRAIN, 0, KIND_TONING, ...(o.grain ? [0, KIND_GRAIN_FILM, 0, KIND_SIZE] : [])]);
+    return Uint8Array.from([...items, 0, KIND_GRAIN, 0, KIND_TONING, ...(o.grain ? [0, KIND_GRAIN_FILM] : []), ...(o.grain?.size ? [0, KIND_SIZE] : [])]);
   };
   const set0 = list(0), set12 = list(12);
-  const more = o.grain ? 4 : 0;
+  const more = o.grain ? (o.grain.size ? 4 : 2) : 0;
   if (set0.length !== 22 + more || set12.length !== 24 + more || set12[1] !== 17 || ov.getUint32(12 * 8, true) !== ov.getUint32(24 * 8, true)) fail('Standard lines');
   const l0 = p.append(set0), l12 = p.append(set12);
   const extra = new Uint8Array(24), ev = new DataView(extra.buffer);
@@ -130,7 +131,8 @@ export function installGr3xHalationRows(p: Gr3xHalationRowsProgram, o: Gr3xHalat
     cmp r0,#1;moveq r0,#25;movhi r0,#14;movlo r0,#36;b #${BASE_RETURN};native:b #${BASE_DEFAULT_TARGET};`);
   p.patch(BASE_DEFAULT, 0xea000024, branchWord(BASE_DEFAULT, base), 'halation: a film\'s parameter lines');
   // --- Names (r0 the kind, r3 the text table entry, r4 the controller).
-  const grainNames = o.grain ? `cmp r0,#${KIND_GRAIN_FILM};bne gs;${film('ip', 'r4')}movwls r1,#${GRAIN_EFFECT_TEXT};b done;gs:cmp r0,#${KIND_SIZE};bne gn;${film('ip', 'r4')}movwls r1,#${o.grain.sizeText};b done;gn:` : '';
+  const grainNames = o.grain ? `cmp r0,#${KIND_GRAIN_FILM};bne gs;${film('ip', 'r4')}movwls r1,#${GRAIN_EFFECT_TEXT};b done;gs:` +
+    (o.grain.size ? `cmp r0,#${KIND_SIZE};bne gn;${film('ip', 'r4')}movwls r1,#${o.grain.size.text};b done;gn:` : '') : '';
   const subtitle = p.code(`ldrh r1,[r3,#2];${grainNames}cmp r0,#${KIND_GRAIN};beq grain;cmp r0,#${KIND_TONING};bne done;
     ${film('ip', 'r4')}movwls r1,#${o.colourText};b done;
     grain:${film('ip', 'r4')}movwls r1,#${o.halationText};done:b #${SUBTITLE + 4};`);
@@ -261,12 +263,14 @@ export function installGr3xHalationRows(p: Gr3xHalationRowsProgram, o: Gr3xHalat
       grainText: text(LIST_TEXT12, TEXT12, G.grainText, 'grain: value of the Grain line'),
       grainIcon: icon(LIST_ICON12, ICON12, 'grain: icon of the Grain line'),
       grainSetter: setter(SETTER12, SETTER_NATIVE12, G.grainPut, 'grain: store the grain'),
-      sizeStart: pos(START8, 'r6', STORED_GETTER8, G.size, 'grain: the stored size'),
-      sizePosition: pos(POSITION8, 'r5', LIVE_GETTER8, G.size, 'grain: the size\'s position'),
-      sizeScale: scale(SCALE8, 0xd2, SIZE_SCALE, 'grain: the size\'s scale'),
-      sizeText: text(LIST_TEXT8, TEXT8, G.sizeText2, 'grain: value of the Size line'),
-      sizeIcon: icon(LIST_ICON8, ICON8, 'grain: icon of the Size line'),
-      sizeSetter: setter(SETTER8, SETTER_NATIVE8, G.sizePut, 'grain: store the size'),
+      ...(G.size ? {
+        sizeStart: pos(START8, 'r6', STORED_GETTER8, G.size.get, 'grain: the stored size'),
+        sizePosition: pos(POSITION8, 'r5', LIVE_GETTER8, G.size.get, 'grain: the size\'s position'),
+        sizeScale: scale(SCALE8, 0xd2, SIZE_SCALE, 'grain: the size\'s scale'),
+        sizeText: text(LIST_TEXT8, TEXT8, G.size.valueText, 'grain: value of the Size line'),
+        sizeIcon: icon(LIST_ICON8, ICON8, 'grain: icon of the Size line'),
+        sizeSetter: setter(SETTER8, SETTER_NATIVE8, G.size.put, 'grain: store the size'),
+      } : {}),
     };
   })() : undefined;
 

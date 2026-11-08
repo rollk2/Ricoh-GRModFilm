@@ -218,9 +218,12 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
   // The Grain and Size rows of a film (round 10, with the film mode): halation-rows.ts, films.c -DGRAIN.
   const grain = round10 && features.grain === true;
   if (features.grain && !grain) throw new FirmwareError('bad-edit', 'IIIx grain: round 10 only');
-  // T-GRAIN8 (test): the films' Grain through the camera's own granulation instead of the module.
-  const grainNative = grain && features.grainNative === true;
-  if (features.grainNative && !grainNative) throw new FirmwareError('bad-edit', 'IIIx native grain: with the grain rows');
+  // The films' Grain goes through the camera's own granulation (grain-native.ts, T-GRAIN8b): fast,
+  // light only, three levels, no size. Test builds (grainSoftware): the JPEG module instead
+  // (jpeg_grain.c, T-GRAIN6), with its Size row.
+  const grainSoftware = grain && features.grainSoftware === true;
+  const grainNative = grain && !grainSoftware;
+  if (features.grainSoftware && !grain) throw new FirmwareError('bad-edit', 'IIIx software grain: with the grain rows');
   if (round10 && !round9) throw new FirmwareError('bad-edit', 'IIIx round 10 builds on round 9');
   if (round6 && (!extended || options.ownParameters !== true || options.jpegDiagnostics || !Number.isInteger(options.filmCount) ||
       options.filmCount! < 1 || options.filmCount! > GR3X_MAX_FILMS || options.films?.some(f => f.halation !== undefined)))
@@ -251,7 +254,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
   // Round 8: the films' names for the date imprint, as the camera's English menu shows them.
   const filmNames = round8Date ? films.map(f => f.names?.en || f.name) : undefined;
   const menu = await buildGr3xLookMenuResearch(raw, specs as Gr3xResearchLook[], displayIcons, ratioMenu, features,
-    round6 ? halationResources(decoded, round7, round8, grain) : undefined, monoFilms, filmNames);
+    round6 ? halationResources(decoded, round7, round8, grainSoftware) : undefined, monoFilms, filmNames);
   const p = GR3X_160;
   const rtos = decoded.subarray(p.rtosOffset, p.rtosOffset + p.rtosLength);
   const originalRead = (va: number, size: number) => {
@@ -535,8 +538,8 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
       ...(sym ? { hal: sym.sp_hal, halPut: sym.sp_hal_put, halText: sym.sp_hal_text, col: sym.sp_col, colPut: sym.sp_col_put }
         : { hal: own2Entry('sp_hal'), halPut: own2Entry('sp_hal_put'), halText: own2Entry('sp_hal_text'), col: own2Entry('sp_col'), colPut: own2Entry('sp_col_put'),
           backup: own2Entry('sp_hal_backup'), restore: own2Entry('sp_hal_restore') }),
-      ...(grain && sym ? { grain: { sizeText: menu.extraTextIds[2], grain: sym.sp_grain, grainPut: sym.sp_grain_put, grainText: sym.sp_grain_text,
-        size: sym.sp_size, sizePut: sym.sp_size_put, sizeText2: sym.sp_size_text } } : {}) }) : undefined;
+      ...(grain && sym ? { grain: { grain: sym.sp_grain, grainPut: sym.sp_grain_put, grainText: sym.sp_grain_text,
+        ...(grainSoftware ? { size: { text: menu.extraTextIds[2], get: sym.sp_size, put: sym.sp_size_put, valueText: sym.sp_size_text } } : {}) } } : {}) }) : undefined;
   // Round 6: the Halation line of a film on the parameter screen (halation-screen.ts).
   const halationScreen = round6 && !round7 ? installGr3xHalationScreen({ code, append, patch, u32: (a: number) => u32(a), read: originalRead },
     { films: capacity, textId: menu.extraTextIds[0], iconId: menu.extraIconIds[0], scaleIconId: menu.extraIconIds[1],
@@ -578,7 +581,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     ...(round7 ? { halation7: { light: slots.slice(0, capacity).map(s => s.quantizedCurves ? halationLight(s.quantizedCurves, s.postQ9) : PLAIN_LIGHT) } } : {}),
     diagnostics: options.jpegDiagnostics === true,
     // The grain on the JPEG (jpeg_grain.c): the black-and-white films take the black-and-white profile.
-    ...(grain && !grainNative ? { grain: { mono: gr3xMonoTable(monoFilms ?? []) } } : {}),
+    ...(grainSoftware ? { grain: { mono: gr3xMonoTable(monoFilms ?? []) } } : {}),
     // The picture's own look word (T-GRAIN7): the JPEG is encoded after later shots may have been
     // developed, and the stash then holds their look. Execute's configuration + 0x34 is the shooting
     // record of the picture (SetShootingInfoResultBeforeExpose's, its date at +0x944, the settings

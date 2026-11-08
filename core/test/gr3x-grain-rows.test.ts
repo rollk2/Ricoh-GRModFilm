@@ -38,13 +38,21 @@ describe('grain rows: names and module', () => {
 describe.skipIf(!input)('GR III grain rows', () => {
   let raw: Uint8Array;
   beforeAll(() => { raw = new Uint8Array(readFileSync(input!)); });
-  it('adds the two rows\' hooks to a film mode build and only them', async () => {
+  it('adds the Grain row\'s hooks and the native granulation\'s two to a film mode build, and only them', async () => {
     const plain = await buildGr3xTestFirmware(raw, [], looks, menu, film);
     const grain = await buildGr3xTestFirmware(raw, [], looks, menu, { ...film, grain: true });
     const added = grain.manifest.sites.filter(s => !plain.manifest.sites.some(t => t.address === s.address));
+    expect(added.filter(s => /^grain:/.test(s.reason)).length).toBe(8);
+    expect(added.filter(s => /^native grain:/.test(s.reason)).map(s => s.address).sort()).toEqual([0x535031b0, 0x535131c4]);
+    expect(added.length).toBe(10);
+    expect((grain.manifest as unknown as { grain?: boolean; grainNative?: boolean }).grainNative).toBe(true);
+  }, 600000);
+  it('test builds: the JPEG module\'s grain with its Size row instead (grainSoftware)', async () => {
+    const plain = await buildGr3xTestFirmware(raw, [], looks, menu, film);
+    const soft = await buildGr3xTestFirmware(raw, [], looks, menu, { ...film, grain: true, grainSoftware: true } as typeof film);
+    const added = soft.manifest.sites.filter(s => !plain.manifest.sites.some(t => t.address === s.address));
     expect(added.length).toBe(14);
     expect(added.every(s => /^grain:/.test(s.reason))).toBe(true);
-    expect((grain.manifest as unknown as { grain?: boolean }).grain).toBe(true);
   }, 600000);
   it('needs the film mode', async () => {
     const { filmMode: _, dateHidden: __, ...noFilm } = film;
