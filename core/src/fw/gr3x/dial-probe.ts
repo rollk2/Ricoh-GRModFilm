@@ -39,7 +39,9 @@ export const GR3X_REAR_DIAL_KEYS = [24, 25] as const;
  * other key goes on (the function's own first instruction, then + 4). With the probe (T-DIAL3)
  * the key is noted in the ring first, then filtered.
  */
-export function installGr3xRearDialOff(p: Gr3xDialProgram, probe = false) {
+/** The ActionModel the last key came with (round 10's zero-filled words), for Snap DOF's notch. */
+export const GR3X_KEY_MODEL = 0x558043a8;
+export function installGr3xRearDialOff(p: Gr3xDialProgram, probe = false, keepModel = false) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx rear dial off: ${m}`); };
   const at = GR3X_KEY_EVENT_ENTRY;
   if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
@@ -47,9 +49,13 @@ export function installGr3xRearDialOff(p: Gr3xDialProgram, probe = false) {
   const T = `movw ip,#${lo(GR3X_DIAL_TABLE)};movt ip,#${hi(GR3X_DIAL_TABLE)};`;
   const ring = probe ? `push {r0,r2};${T}ldrb r0,[ip,#11];cmp r0,#11;movhs r0,#0;strb r1,[ip,r0];add r0,r0,#1;cmp r0,#11;moveq r0,#0;strb r0,[ip,#11];pop {r0,r2};` : '';
   const [a, b] = GR3X_REAR_DIAL_KEYS;
-  const filter = p.code(`${ring}cmp r1,#${a};cmpne r1,#${b};moveq r0,#1;bxeq lr;mov ip,sp;b #${at + 4};`);
+  // keepModel (Snap DOF): every key's model kept, so a function can send a notch itself.
+  const keep = keepModel ? `movw ip,#${lo(GR3X_KEY_MODEL)};movt ip,#${hi(GR3X_KEY_MODEL)};str r0,[ip];` : '';
+  const filter = p.code(`${ring}${keep}cmp r1,#${a};cmpne r1,#${b};moveq r0,#1;bxeq lr;mov ip,sp;b #${at + 4};`);
   p.patch(at, 0xe1a0c00d, branchWord(at, filter), 'rear dial off: its rotation ignored');
-  return { rearDialFilter: filter, ...(probe ? { dialTable: GR3X_DIAL_TABLE } : {}) };
+  // The way around the filter: OnEvent's own body (r0 the model, r1 the key), as a function.
+  const bypass = keepModel ? p.code(`mov ip,sp;b #${at + 4};`) : 0;
+  return { rearDialFilter: filter, ...(probe ? { dialTable: GR3X_DIAL_TABLE } : {}), ...(keepModel ? { rearDialBypass: bypass, keyModel: GR3X_KEY_MODEL } : {}) };
 }
 
 export function installGr3xDialProbe(p: Gr3xDialProgram) {

@@ -3101,3 +3101,23 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   touche du pavé a trois codes, appui / maintien répété / relâchement (haut 26-27-28, bas
   29-30-31, gauche 32-33-34, droite 35-36-37) ; l'appui long de Fn donne 22. Une touche dont la
   fonction ouvre un écran ne laisse plus passer ses codes de maintien.
+- **Correction de l'utilisateur (2026-11-08)** : T-SNAP1 visait le mauvais réglage. La distance
+  Snap se règle à la molette avant et ne doit pas changer ; en mode Snap, la molette arrière choisit
+  le type de profondeur de champ **DOF1 / DOF2 / DOF3**. T-SNAP1 n'est pas flashé, sa fonction est
+  retirée.
+
+## Snap DOF par un bouton (2026-11-08, T-DOF1)
+
+- Firmware : « Snap Distance Priority » est la fonction native 39 de Fn Button Settings (texte
+  `0x46`, icône `0x19`, chaîne « ToggleSnapFocusPriority » qui règle Fn sur 39) : elle poste
+  l'événement 0x78 (bascule de l'indicateur `+0x110` des réglages, lecteur `0x53243f84`). Le choix
+  DOF est l'octet `+0x798` (lecteur `0x53245f00`, écrivain de tous les enregistrements `0x5327b70c`,
+  valeurs vivantes `0x53559ab0`) : 3 DOF1, 4 DOF2, 5 DOF3 (chaînes à `0x53b22308`). L'utilisateur :
+  la fonction 39 active le mode, le DOF se choisit à la molette arrière.
+- T-DOF1 (`snapDof`, avec `macroButton` et `rearDialOff`) : fonction 46 « Snap DOF » (texte propre,
+  icône `0x19`). Le filtre de la molette garde l'objet de chaque touche (`0x558043a8`) et donne un
+  contournement (le corps d'`ActionModel::OnEvent`) ; appuyée avec Snap Distance Priority actif, la
+  fonction envoie un cran de molette, code 25, à cet objet ; sinon rien. But du test : le sens du
+  code 25 et le comportement en bout de liste. Vérifié : `snap_dof_probe.py` (table, texte en 21
+  lignes, icône, objet gardé, cran envoyé ou non, aiguillages), `wb_button_probe.py`,
+  `dial_probe.py`.

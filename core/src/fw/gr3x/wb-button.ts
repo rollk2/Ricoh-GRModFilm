@@ -123,27 +123,21 @@ export function installGr3xWbOpen(p: Gr3xWbProgram) {
 /** Macro Mode as a short press of the Macro button: its handler's native body (r0 this, r1 the
  * events, r2 = 4); AAPCS. */
 /**
- * Snap Focus Distance (function 46, `snapButton`, T-SNAP1): the camera's own text (0x3c, "Snap Focus
- * Distance", 21 languages) and Set Snap's icon (0x142). Pressed, in Snap focus (the focus mode byte
- * +0xc6 of the settings record, 0x5326c5f8: 10): the next distance of the camera's list (0x53b591e0:
- * 30, 100, 150, 200, 250, 350, 500 cm, infinity), as one notch of the rear dial (0x53225c74, its
- * step: the stored value +0x130 through 0x53242680, then applied); after infinity the first one
- * again (stored through 0x53242680 and applied by 0x532af660, as the step does). Any other focus
- * mode: nothing.
+ * Snap DOF (function 46, `snapDof`): with Snap Distance Priority on (the flag +0x110 of the settings
+ * record, getter 0x53243f84; the camera's function 39 posts event 0x78 to toggle it), the rear
+ * dial chooses DOF1 / DOF2 / DOF3 (the byte +0x798: 3, 4, 5). Pressed, it sends one notch of the
+ * rear dial (`code`: 24 or 25) to ActionModel::OnEvent through the rear dial filter's way around
+ * (dial-probe.ts: the model the last key came with, the function's own body), so the camera does
+ * everything a notch does. Priority off: nothing. T-DOF1 (test): one notch of 25 per press, to see
+ * the direction and the end of the list on the camera.
  */
-export const GR3X_SNAP_FUNCTION = 46, GR3X_SNAP_TEXT = 0x3c, GR3X_SNAP_ICON = 0x142;
-const SETTINGS = 0x5320b31c, AUX = 0x5320b73c, FOCUS_MODE = 0x5326c5f8, SNAP_GET = 0x53244008, SNAP_SET = 0x53242680;
-const SNAP_STEP = 0x53225c74, SNAP_APPLY = 0x532af660, SNAP_LIST = 0x53b591e0, SNAP_FOCUS = 10;
-export function installGr3xSnapStep(p: Gr3xWbProgram) {
-  const guards: readonly (readonly [number, number])[] = [
-    [SNAP_GET, 0xe5903004], [SNAP_GET + 4, 0xe5930130], [SNAP_SET + 8, 0xe5831130], [FOCUS_MODE + 4, 0xe5d330c6],
-    [SNAP_STEP + 0x24, branchWord(SNAP_STEP + 0x24, 0x532af864)], [SNAP_APPLY, 0xe1a0c00d],
-    [SNAP_LIST, 30], [SNAP_LIST + 28, 0xffffffff],
-  ];
-  for (const [at, w] of guards) if (p.u32(at) >>> 0 !== w >>> 0) fail(`Snap distance guard at ${at.toString(16)}`);
-  return p.code(`push {r0,r1,r2,r3,r4,lr};bl #${APP};bl #${SETTINGS};mov r4,r0;bl #${FOCUS_MODE};cmp r0,#${SNAP_FOCUS};bne done;
-    mov r0,r4;bl #${SNAP_GET};cmn r0,#1;beq first;mov r0,#0;mov r1,#1;bl #${SNAP_STEP};b done;
-    first:movw r1,#${lo(SNAP_LIST)};movt r1,#${hi(SNAP_LIST)};ldr r1,[r1];mov r0,r4;bl #${SNAP_SET};bl #${APP};bl #${AUX};mov r1,#0;bl #${SNAP_APPLY};
+export const GR3X_DOF_FUNCTION = 46, GR3X_DOF_ICON = 0x19;
+const SETTINGS = 0x5320b31c, SNAP_PRIORITY = 0x53243f84;
+export function installGr3xSnapDofPress(p: Gr3xWbProgram, model: number, bypass: number, code = 25) {
+  if (p.u32(SNAP_PRIORITY) !== 0xe5903004 || p.u32(SNAP_PRIORITY + 4) !== 0xe5d30110) fail('Snap priority getter');
+  return p.code(`push {r0,r1,r2,r3,r4,lr};bl #${APP};bl #${SETTINGS};bl #${SNAP_PRIORITY};cmp r0,#0;beq done;
+    movw r4,#${lo(model)};movt r4,#${hi(model)};ldr r0,[r4];cmp r0,#0x40000000;blo done;cmp r0,#0xc0000000;bhs done;tst r0,#3;bne done;
+    mov r1,#${code};bl #${bypass};
     done:pop {r0,r1,r2,r3,r4,pc};`);
 }
 
@@ -161,8 +155,8 @@ export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customiz
   const free = (at: number) => { if (p.sites.some(s => s.address === at)) fail(`${at.toString(16)} already patched`); };
   const expect = (at: number, w: number, what: string) => { free(at); if (p.u32(at) >>> 0 !== w >>> 0) fail(what); };
   const macro = macroText !== undefined;
-  if (snap && !macro) fail('Snap distance with the Macro button');
-  const max = snap ? GR3X_SNAP_FUNCTION : macro ? GR3X_MACRO_FUNCTION : GR3X_WB_FUNCTION;
+  if (snap && !macro) fail('Snap DOF with the Macro button');
+  const max = snap ? GR3X_DOF_FUNCTION : macro ? GR3X_MACRO_FUNCTION : GR3X_WB_FUNCTION;
   // The stored byte r (0 or above max: the line's own function, branch to `label`) → the function.
   const choose = (r: string, own: number, label: string) => `cmp ${r},#0;beq ${label};cmp ${r},#${max};bhi ${label};cmp ${r},#${own};moveq ${r},#0;`;
   const record = (label: string) => `movw ip,#${lo(RECORD_POINTER)};movt ip,#${hi(RECORD_POINTER)};ldr ip,[ip];cmp ip,#0x40000000;blo ${label};cmp ip,#0xc0000000;bhs ${label};tst ip,#3;bne ${label};`;
