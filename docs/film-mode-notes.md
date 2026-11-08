@@ -3050,3 +3050,13 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - T-DIAL2 : anneau des onze dernières touches (`0x55804398`, octet 11 la place suivante), écrit
   par le seul crochet ; le module de date les imprime dans l'ordre, sans rien effacer. Vérifié :
   `dial_probe.py` (14 cas), `grain_tag_probe.py` (anneau imprimé dans l'ordre, laissé intact).
+- **Résultat T-DIAL2 sur le boîtier (2026-11-08, R0017339 à R0017345).** Sans geste : 05 08 06.
+  Molette, dans un sens comme dans l'autre (molette défaillante) : **25** répété, une fois **24** ;
+  en mode Snap aussi (25 25 25 24). Levier ADJ enfoncé : 14, ouvre le menu ADJ. Déclenchement :
+  05 07 08 06. Conclusion (forte) : la rotation de la molette arrive à `ActionModel::OnEvent` sous
+  les codes **24 et 25** ; Snap règle sa distance avec les mêmes codes.
+- T-DIAL3 (`rearDialOff`, `installGr3xRearDialOff`) : à l'entrée de `0x53221a1c`, les codes 24 et
+  25 rendent 1 (traité) sans rien faire ; les autres touches continuent. Avec la sonde, l'anneau
+  note toutes les touches avant le filtre. Vérifié : `dial_probe.py` (17 touches : 24 et 25
+  traitées, les 15 autres continuent, registres gardés, anneau complet ; contre-épreuve sur T-DIAL2
+  détectée), `grain_tag_probe.py`. Snap : un bouton à prévoir pour la distance.

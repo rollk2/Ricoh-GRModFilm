@@ -6,6 +6,10 @@
     0x55804398 (byte 11 the next slot, a stray slot taken as 0), then the function's own first
     instruction (ip = sp) and +4; every register and the flags kept;
   - the rear dial router (0x53295da0) left alone.
+With `rearDialOff` (the build option, T-DIAL3): the rear dial's codes (24, 25) return at once
+to the caller with r0 = 1 (handled), every other register as given (ip aside) and nothing else
+done; any other key goes on as above; with the probe the ring still notes every key, the
+filtered ones included. Without the probe nothing else is written.
 The printing of the ring (datestamp.c -DKEY_DIAG) is checked by grain_tag_probe.py.
 """
 import argparse,hashlib,json,struct
@@ -17,6 +21,7 @@ from native_probe import STACK
 TABLE,KEY,ROUTER=0x55804398,0x53221a1c,0x53295da0
 
 def verify(data,manifest):
+    if manifest.get('rearDialOff'):return verify_off(data,manifest)
     assert manifest.get('dialProbe')==True
     p=RollProbe(data,manifest);c=p.uc;cases=0
     def run(at,r1=0,r3=0,flags=0x60000013):
@@ -38,6 +43,34 @@ def verify(data,manifest):
     sites={s['address']:s for s in manifest['sites']}
     assert 'dial probe' in sites[KEY]['reason'] and ROUTER not in sites
     return dict(cases=cases,table=hex(TABLE),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
+
+def verify_off(data,manifest):
+    p=RollProbe(data,manifest);c=p.uc;cases=0;probe=manifest.get('dialProbe')==True
+    LR=0x5a5a5a5a
+    def run(key):
+        regs=[0x1000+i for i in range(13)];regs[1]=key
+        for i,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),v)
+        c.reg_write(reg.UC_ARM_REG_SP,STACK);c.reg_write(reg.UC_ARM_REG_LR,LR);c.reg_write(reg.UC_ARM_REG_CPSR,0x13)
+        from unicorn import UC_HOOK_CODE
+        h=c.hook_add(UC_HOOK_CODE,lambda u,at,size,d:u.emu_stop() if at in (KEY+4,LR) else None)
+        c.emu_start(KEY,LR,count=60);c.hook_del(h)
+        pc=c.reg_read(reg.UC_ARM_REG_PC);got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]
+        assert c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[1:12]==regs[1:12],(key,got)
+        if pc==LR:assert got[0]==1;return 'handled'
+        assert pc==KEY+4 and got[0]==regs[0] and c.reg_read(reg.UC_ARM_REG_R12)==STACK;return 'on'
+    c.mem_write(TABLE,bytes(12))
+    seq=[24,25,26,29,32,35,50,14,10,11,5,6,7,8,57,23,19]
+    for k in seq:
+        assert run(k)==('handled' if k in (24,25) else 'on'),k;cases+=1
+    ring=bytes(c.mem_read(TABLE,12))
+    if probe:
+        want=bytearray(12)
+        for n,k in enumerate(seq):want[n%11]=k
+        want[11]=len(seq)%11;assert ring==bytes(want),ring.hex()
+    else:assert ring==bytes(12)
+    sites={s['address']:s for s in manifest['sites']}
+    assert 'rear dial off' in sites[KEY]['reason'] and ROUTER not in sites
+    return dict(cases=cases,filtered=[24,25],probe=probe,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':
     a=argparse.ArgumentParser(description=__doc__)

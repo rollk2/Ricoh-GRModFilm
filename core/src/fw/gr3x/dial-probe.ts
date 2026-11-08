@@ -27,6 +27,31 @@ export interface Gr3xDialProgram {
   sites: readonly Gr3xSite[];
 }
 
+/** The rear dial's rotation as ActionModel::OnEvent receives it (T-DIAL1, T-DIAL2 on the camera:
+ * 24 and 25, in the viewfinder as in Snap mode; up / down / left / right 26 / 29 / 32 / 35, OK 50,
+ * ADJ pressed 14, the shot 5 to 8). */
+export const GR3X_REAR_DIAL_KEYS = [24, 25] as const;
+
+/**
+ * `rearDialOff` (build option): the rear dial's rotation ignored everywhere (viewfinder, menus,
+ * playback), its four buttons and OK as before. At ActionModel::OnEvent's entry, which every key
+ * of every controller goes through, the two codes return 1 (handled) without anything done; any
+ * other key goes on (the function's own first instruction, then + 4). With the probe (T-DIAL3)
+ * the key is noted in the ring first, then filtered.
+ */
+export function installGr3xRearDialOff(p: Gr3xDialProgram, probe = false) {
+  const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx rear dial off: ${m}`); };
+  const at = GR3X_KEY_EVENT_ENTRY;
+  if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
+  if (p.sites.some(s => s.address === at)) fail('key entry already patched');
+  const T = `movw ip,#${lo(GR3X_DIAL_TABLE)};movt ip,#${hi(GR3X_DIAL_TABLE)};`;
+  const ring = probe ? `push {r0,r2};${T}ldrb r0,[ip,#11];cmp r0,#11;movhs r0,#0;strb r1,[ip,r0];add r0,r0,#1;cmp r0,#11;moveq r0,#0;strb r0,[ip,#11];pop {r0,r2};` : '';
+  const [a, b] = GR3X_REAR_DIAL_KEYS;
+  const filter = p.code(`${ring}cmp r1,#${a};cmpne r1,#${b};moveq r0,#1;bxeq lr;mov ip,sp;b #${at + 4};`);
+  p.patch(at, 0xe1a0c00d, branchWord(at, filter), 'rear dial off: its rotation ignored');
+  return { rearDialFilter: filter, ...(probe ? { dialTable: GR3X_DIAL_TABLE } : {}) };
+}
+
 export function installGr3xDialProbe(p: Gr3xDialProgram) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx dial probe: ${m}`); };
   const at = GR3X_KEY_EVENT_ENTRY;
