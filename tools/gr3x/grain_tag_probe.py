@@ -86,17 +86,17 @@ def verify(data,manifest):
     keys=manifest.get('grainTag')=='keys'
     for stash in (0x10000|11|3<<20,0x10000|22|3<<20|1<<22,32|3<<20,0x10000|64|3<<20,0x10000|200|3<<20,0):
         ch=changed(run(stash))
-        # T-DIAL1: the key table is printed for every picture (no grain tag but for a film).
-        if keys:assert ch[0]>0 and ch[2]>0 and ch[4]==ch[5]==0,(hex(stash),ch)
-        else:assert ch==[0]*6,hex(stash)
+        assert ch==[0]*6,hex(stash)   # T-DIAL2 too: an empty ring prints nothing
         cases['nothing']=cases.get('nothing',0)+1
     if keys:
         T=0x55804398;assert words[14]==T
-        u.mem_write(T,bytes(10));empty=run(0x10000|32|3<<20)[0]
+        u.mem_write(T,bytes([26,29]+[0]*9+[2]));ch=changed(run(0x10000|11|3<<20))
+        assert ch[0]>0 and ch[2]>0 and ch[4]==ch[5]==0,('a camera look shows the ring',ch)
+        u.mem_write(T,bytes(12));empty=run(0x10000|32|3<<20)[0]
         imgs=[]
-        for tb in (bytes([10,5,35,1,0,0,0,0,0,0]),bytes([10,5,35,1,0,0,0,0,3,0]),bytes([10,5,35,1,0,0,0,0,0,3]),bytes([57,1,0,0,0,0,0,0,0,0])):
-            u.mem_write(T,tb);imgs.append(run(0x10000|32|3<<20)[0]);assert bytes(u.mem_read(T,10))==bytes(10),'the table is cleared'
-        assert all(i!=empty for i in imgs) and len(set(imgs))==4,'the picture follows the table'
+        for tb in (bytes([19,25]+[0]*9+[2]),bytes([25,19]+[0]*9+[2]),bytes([19,25]+[0]*9+[5]),bytes(range(40,51))+bytes([3])):
+            u.mem_write(T,tb);imgs.append(run(0x10000|32|3<<20)[0]);assert bytes(u.mem_read(T,12))==tb,'the ring is left as it is'
+        assert all(i!=empty for i in imgs) and imgs[0]!=imgs[1] and imgs[0]==imgs[2] and imgs[3]!=imgs[0],'the picture shows the ring in order'
         cases['keys']=4
     if not hidden:
         a=changed(run(0x10000|32|3<<20|1<<22,setting=1));b=changed(run(0x10000|11|3<<20|1<<22,setting=1))

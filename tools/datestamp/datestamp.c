@@ -69,8 +69,7 @@ struct ctx {
    * or 0. Printed after the name for a film; with the date off, printed alone. */
   const u16 *const *grain_tags;
 #ifdef KEY_DIAG
-  /* Research (T-DIAL1): the keys seen since the last picture, { key, count } x 4, then the rear
-   * dial router's calls (byte 8 direction 0, byte 9 direction 1); printed after the tag, then cleared. */
+  /* Research (T-DIAL2): the last eleven keys seen (a ring, bytes 0..10, byte 11 the next slot). */
   volatile u8 *keys;
 #endif
 #ifdef GRAIN_DIAG
@@ -893,18 +892,20 @@ void datestamp(const struct ctx *k, u32 *config) {
     }
   }
 #ifdef KEY_DIAG
-  /* "  kk.cc" per key seen (code, count), then "  mm.pp" the dial router's calls. */
+  /* T-DIAL2: the last eleven keys in the order they came ("  kk" each, oldest first; bytes 0..10 a
+   * ring, byte 11 the next slot), written by the key hook only (no clearing from here). */
   {
     volatile u8 *t = k->keys;
     if (ram((const void *)t)) {
+      u32 at = t[11] < 11u ? t[11] : 0u;
       if (!nn) { glyphs[n++] = G_SPACE; }
-      for (i = 0; i < 4; i++) if (t[2 * i]) {
-        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
-        n += two_digits(t[2 * i], glyphs + n); glyphs[n++] = G_DOT; n += two_digits(t[2 * i + 1], glyphs + n);
+      for (i = 0; i < 11; i++) {
+        u32 c = t[at];
+        at = at + 1u == 11u ? 0u : at + 1u;
+        if (!c) continue;
+        glyphs[n++] = G_SPACE;
+        n += two_digits(c, glyphs + n);
       }
-      glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
-      n += two_digits(t[8], glyphs + n); glyphs[n++] = G_DOT; n += two_digits(t[9], glyphs + n);
-      for (i = 0; i < 10; i++) t[i] = 0;
       nn = n - nd;
     }
   }

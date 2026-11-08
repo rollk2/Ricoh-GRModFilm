@@ -3040,3 +3040,13 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   impression, à refaire. Précision de l'utilisateur : la molette est défaillante (elle saute,
   revient en arrière) ; c'est la raison de la demande. Les deux sens peuvent donc apparaître
   mêlés pour un même geste. Choix pour Snap : la distance réglée par un bouton.
+- **Résultat T-DIAL1 sur le boîtier (2026-11-08, R0017330 à R0017338).** Code propre à chaque
+  geste (premier de la table) : aucun 58, **molette horaire 19** (avec 9 et 14), **antihoraire 25**
+  (avec 7 et 6), haut 26, bas 29, gauche 32, droite 35, OK 50, Snap + molette 58, 60 et 14. Codes 5
+  à 8 sur toutes les photos (prise de vue). L'aiguillage `0x53295da0` est appelé sans cesse (99 dans
+  les deux sens partout) : ce n'est pas un point d'écoute de la molette. Les nombres à 00 d'un code
+  vu montrent que la remise à zéro par l'encodage et le crochet des touches se partagent mal la
+  mémoire.
+- T-DIAL2 : anneau des onze dernières touches (`0x55804398`, octet 11 la place suivante), écrit
+  par le seul crochet ; le module de date les imprime dans l'ordre, sans rien effacer. Vérifié :
+  `dial_probe.py` (14 cas), `grain_tag_probe.py` (anneau imprimé dans l'ordre, laissé intact).
