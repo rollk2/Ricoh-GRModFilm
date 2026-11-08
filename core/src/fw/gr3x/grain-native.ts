@@ -34,28 +34,39 @@ export interface Gr3xGrainProgram {
 }
 
 /**
- * T-GRAIN8 (test build, `grainNative`): the camera's own granulation for the films. The JPEG step's
- * picture effects (0x5350304c, for the effect pass 0x53680dbc of the macro processes 0x535032b4 /
- * 0x535036cc) read the picture's shooting record (Execute's configuration + 0x34): +0x795 gives
- * the granulation (0x5367ad3c, "[Granulation] Short of work buffer") its level, 0 none. The
- * development step's look parameters write that byte back at 0x536db9c8 (r6): 0 for Standard,
- * the live particle byte for the monochrome looks and Negative Film. For a film (its look at
- * +0x77c, 64 + k, k < `films`), r6 and +0x1f8 get the film's Grain (bits 4..5 of its Toning byte
- * +0x786, the parameter screen's Grain row) as Grain Effect stores it: 0 off, "1" 3, "2" 2, "3" 1.
+ * T-GRAIN8b (test build, `grainNative`): the camera's own granulation for the films.
+ *  - The JPEG step's picture effects (0x5350304c, for the effect pass 0x53680dbc of the macro
+ *    process 0x535032b4) read the picture's shooting record: +0x795 gives the granulation
+ *    (0x5367ad3c, "[Granulation] Short of work buffer") its level, 0 none.
+ *  - Whether the effect pass runs at all is decided per look by 0x535131c0 (object + 0x24, from
+ *    the record): Standard, Vivid and most colour looks only for +0x793 / +0x794 (not 4); the
+ *    monochrome looks and Negative Film also for +0x795; a look beyond 22 (a film) never.
+ *    T-GRAIN8 (the development step's write back of +0x795) therefore showed nothing.
+ * The decision's look read (0x535131c0) is already image-control.ts's adapter, which takes a film
+ * as Standard. Here, right after it (0x535131c4), for a film (its look at +0x77c, 64 + k, k <
+ * `films`) whose Grain is not off (bits 4..5 of its Toning byte +0x786, the parameter screen's
+ * Grain row) the effect pass runs; otherwise Standard's rule as before. The level read
+ * at 0x535031b0 is that Grain as Grain Effect stores it (0 off, "1" 3, "2" 2, "3" 1).
  */
+export const GR3X_EFFECT_DECISION = 0x535131c4, GR3X_EFFECT_PARTICLE = 0x535031b0;
 export function installGr3xNativeGrainFilms(p: Gr3xGrainProgram, films: number) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx native grain: ${m}`); };
   if (films < 1 || films > 20) fail('films');
-  if (p.sites.some(s => s.address === GR3X_GRAIN_END)) fail('end already patched');
-  if (p.u32(GR3X_GRAIN_END) !== 0xe5c3a793 || p.u32(GR3X_GRAIN_END + 4) !== 0xe5c39794 || p.u32(GR3X_GRAIN_END + 8) !== 0xe5c36795)
-    fail('look parameters end');
-  // r0 the parameters, r3 the record; r6 the particle byte written back next (0x536db9c8).
-  const grainEnd = p.code(`ldrb ip,[r3,#0x77c];sub ip,ip,#${FIRST};cmp ip,#${films - 1};bhi go;
-    ldrb ip,[r3,#0x786];mov ip,ip,lsr #4;ands ip,ip,#3;rsbne ip,ip,#4;mov r6,ip;
-    push {r1};add r1,r0,#0x1f8;strh ip,[r1];pop {r1};
-    go:strb r10,[r3,#0x793];b #${GR3X_GRAIN_END + 4};`);
-  p.patch(GR3X_GRAIN_END, 0xe5c3a793, branchWord(GR3X_GRAIN_END, grainEnd), 'native grain: the films\' Grain to the camera\'s granulation');
-  return { grainEnd };
+  for (const at of [GR3X_EFFECT_DECISION, GR3X_EFFECT_PARTICLE]) if (p.sites.some(s => s.address === at)) fail('already patched');
+  if (p.u32(GR3X_EFFECT_DECISION) !== 0xe243200b || p.u32(GR3X_EFFECT_DECISION + 4) !== 0xe3520001) fail('effect decision');
+  if (p.u32(GR3X_EFFECT_PARTICLE) !== 0xe5d53795 || p.u32(GR3X_EFFECT_PARTICLE + 4) !== 0xe3530003) fail('effect particle');
+  // r0 the object, r1 the record, r3 the look as the adapter gives it; r2 free (set by the native
+  // instruction run on the other path).
+  const decision = p.code(`ldrb r2,[r1,#0x77c];sub r2,r2,#${FIRST};cmp r2,#${films - 1};bhi native;
+    ldrb r2,[r1,#0x786];tst r2,#0x30;beq native;mov r2,#1;strb r2,[r0,#0x24];bx lr;
+    native:sub r2,r3,#0xb;b #${GR3X_EFFECT_DECISION + 4};`);
+  p.patch(GR3X_EFFECT_DECISION, 0xe243200b, branchWord(GR3X_EFFECT_DECISION, decision), 'native grain: a film with Grain runs the effect pass');
+  // r5 the record; r3 the particle level (the next instruction compares it, the flags are free).
+  const particle = p.code(`ldrb r3,[r5,#0x77c];sub r3,r3,#${FIRST};cmp r3,#${films - 1};ldrbhi r3,[r5,#0x795];bhi back;
+    ldrb r3,[r5,#0x786];mov r3,r3,lsr #4;ands r3,r3,#3;rsbne r3,r3,#4;
+    back:b #${GR3X_EFFECT_PARTICLE + 4};`);
+  p.patch(GR3X_EFFECT_PARTICLE, 0xe5d53795, branchWord(GR3X_EFFECT_PARTICLE, particle), 'native grain: a film\'s Grain as the granulation level');
+  return { effectDecision: decision, effectParticle: particle };
 }
 
 /** `levels[k]`: film k's value at +0x1f8 (0 off, 3 weak, 2 medium, 1 strong). */

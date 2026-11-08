@@ -8,10 +8,11 @@ the patched end (0x536db9c0): +0x1f8 must be the film's value for a film of the 
 Standard itself and for a look beyond the films, the live particle byte for the monochrome look;
 the four live bytes written back and every other halfword of the block as without the patch.
 
-T-GRAIN8 (`grainNative`): for a film of the build (64 + k) the particle byte written back
-(+0x795 of the record, which the JPEG step's granulation reads) and +0x1f8 are the film's Grain
-(bits 4..5 of its Toning byte +0x786) as Grain Effect stores it (0, then 3, 2, 1); for Standard,
-a camera look and a look beyond the films, as without the patch; the monochrome case unchanged.
+T-GRAIN8b (`grainNative`): the effect pass's decision (0x535131c0, its hook at 0x535131c4) runs
+the pass for a film of the build whose Grain is not off, Standard's rule otherwise (a film is
+taken as Standard there), the native rule for any other look; the granulation level read at
+0x535031b0 is the film's Grain (bits 4..5 of its Toning byte +0x786) as Grain Effect stores it
+(0, then 3, 2, 1), the record's +0x795 for any other look.
 """
 import argparse,hashlib,json,struct
 from pathlib import Path
@@ -56,35 +57,50 @@ def verify(data,manifest,base=None):
     return dict(cases=cases,levels=levels,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 def verify_films(data,manifest):
+    """T-GRAIN8b: the effect pass's decision (0x535131c0, object + 0x24) and its granulation level
+    (0x535031b0 .. the halfword at + 4 of the effects), executed natively around the hooks."""
+    from unicorn import UC_HOOK_CODE
     p=RollProbe(data,manifest);cpu=p.uc;cases={};films=manifest['filmCount']
     sites={s['address']:s for s in manifest['sites']}
-    assert 'native grain' in sites[END]['reason']
-    def run(case,look,particle,toning):
-        cpu.mem_write(BLOCK,bytes(0x200)+b'\xee'*0x20)
-        live=bytearray(range(256))*16;live=live[:0x800]
-        live[0x77c]=look;live[0x795]=particle;live[0x786]=toning;cpu.mem_write(LIVE,bytes(live))
-        cpu.mem_write(FRAME,bytes(0x10)+struct.pack('<8I',4,5,6,7,8,9,10,STOP))
+    assert 'native grain' in sites[0x535131c4]['reason'] and 'native grain' in sites[0x535031b0]['reason']
+    assert END not in sites,'the development step is left alone'
+    OBJ,REC,PAR=0x63050000,0x63051000,0x63052000
+    def record(look,toning,p793=4,p794=4,p795=0,p796=0):
+        b=bytearray(0x800);b[0x77c]=look;b[0x786]=toning;b[0x793:0x797]=bytes([p793,p794,p795,p796]);cpu.mem_write(REC,bytes(b))
+    def decide(*a,**k):
+        record(*a,**k);cpu.mem_write(OBJ,b'\xaa'*0x40)
         for i in range(13):cpu.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),0x1230+i)
-        cpu.reg_write(reg.UC_ARM_REG_R0,BLOCK);cpu.reg_write(reg.UC_ARM_REG_R3,LIVE)
-        cpu.reg_write(reg.UC_ARM_REG_SP,FRAME);cpu.reg_write(reg.UC_ARM_REG_CPSR,0x13)
-        cpu.emu_start(case,STOP,count=20000)
-        assert cpu.reg_read(reg.UC_ARM_REG_PC)==STOP and cpu.reg_read(reg.UC_ARM_REG_SP)==FRAME+0x30
-        assert [cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(4,11)]==[4,5,6,7,8,9,10]
-        return bytes(cpu.mem_read(BLOCK,0x220)),bytes(cpu.mem_read(LIVE+0x793,4))
-    for look in [11,12,63]+[64+k for k in range(films+1)]:
-        for toning in (0x00,0x13,0x25,0x3b,0x70,0xa2,0xf4):
-            block,back=run(STANDARD,look,1,toning)
-            ref,refback=run(STANDARD,11,1,toning)
-            g=(toning>>4)&3;want=(4-g if g else 0) if 64<=look<64+films else None
-            if want is None:assert block==ref and back==refback,(look,hex(toning))
-            else:
-                assert struct.unpack_from('<H',block,0x1f8)[0]==want and back[2]==want,(look,hex(toning),back.hex())
-                assert block[:0x1f8]==ref[:0x1f8] and block[0x1fa:]==ref[0x1fa:] and back[:2]==refback[:2] and back[3]==refback[3]
-            cases['standard case']=cases.get('standard case',0)+1
-    for particle in (0,1,2,3):
-        block,back=run(SOFT_MONO,14,particle,0x30)
-        assert struct.unpack_from('<H',block,0x1f8)[0]==particle and back[2]==particle
-        cases['monochrome case']=cases.get('monochrome case',0)+1
+        cpu.reg_write(reg.UC_ARM_REG_R0,OBJ);cpu.reg_write(reg.UC_ARM_REG_R1,REC)
+        cpu.reg_write(reg.UC_ARM_REG_SP,FRAME);cpu.reg_write(reg.UC_ARM_REG_LR,STOP)
+        cpu.emu_start(0x535131c0,STOP,count=200)
+        assert cpu.reg_read(reg.UC_ARM_REG_SP)==FRAME and [cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in (4,5,6,7,8,9,10,11)]==[0x1230+i for i in (4,5,6,7,8,9,10,11)]
+        o=bytes(cpu.mem_read(OBJ,0x40));assert o[:0x24]==b'\xaa'*0x24 and o[0x25:]==b'\xaa'*0x1b
+        return o[0x24]
+    for k in range(films):
+        for toning in (0x00,0x0b,0x10,0x25,0x3f,0xc0,0xf2):
+            assert decide(64+k,toning,p795=3)==int(bool(toning&0x30)),(k,hex(toning));cases['decision film']=cases.get('decision film',0)+1
+            assert decide(64+k,toning,p793=2)==1,(k,hex(toning))   # Standard's rule still (Clarity)
+    # The camera's looks as without the hook (the native rules; a look beyond the films as any other).
+    for look,kw,want in ((11,{},0),(11,{'p793':2},1),(11,{'p795':3},0),(13,{},0),(13,{'p795':2},1),(14,{},1),(16,{'p795':1},1),
+                         (20,{'p796':1},1),(22,{'p795':3},1),(22,{},0),(64+films,{'p795':3},0)):
+        assert decide(look,0x30,**kw)==want,(look,kw);cases['decision camera']=cases.get('decision camera',0)+1
+    rets={0x535031dc,0x53503208,0x5350321c,0x53503230}
+    def level(*a,**k):
+        record(*a,**k);cpu.mem_write(PAR,b'\xbb'*0x10)
+        for i in range(13):cpu.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),0x1230+i)
+        cpu.reg_write(reg.UC_ARM_REG_R4,PAR);cpu.reg_write(reg.UC_ARM_REG_R5,REC);cpu.reg_write(reg.UC_ARM_REG_SP,FRAME)
+        h=cpu.hook_add(UC_HOOK_CODE,lambda u,at,size,d:u.emu_stop() if at in rets else None)
+        cpu.emu_start(0x535031b0,STOP,count=100);cpu.hook_del(h)
+        assert cpu.reg_read(reg.UC_ARM_REG_PC) in rets
+        b=bytes(cpu.mem_read(PAR,0x10));assert b[:4]==b'\xbb'*4 and b[6:]==b'\xbb'*10
+        return struct.unpack_from('<H',b,4)[0]
+    for k in range(films):
+        for toning in (0x00,0x1a,0x23,0x30,0xf1):
+            g=(toning>>4)&3
+            assert level(64+k,toning,p795=2)==(4-g if g else 0),(k,hex(toning));cases['level film']=cases.get('level film',0)+1
+    for look in (11,13,22,64+films):
+        for v in (0,1,2,3):
+            assert level(look,0x30,p795=v)==v,(look,v);cases['level camera']=cases.get('level camera',0)+1
     return dict(cases=cases,films=films,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':

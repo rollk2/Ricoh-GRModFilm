@@ -2979,3 +2979,17 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - Inconnu : si la passe d'effets tourne pour un look Standard (son déclenchement n'est pas
   trouvé ; Negative Film, look couleur, a un grain natif, donc la granulation sait traiter la
   couleur). Vérifié : `grain_native_probe.py` (49 cas Standard, 4 monochromes), `grain_tag_probe.py`.
+- **Résultat T-GRAIN8 sur le boîtier (2026-11-08, R0017305 à R0017308, ISO 100, ciel).** Film G3
+  (étiquette G3 M) : aucun grain (luminance rayon 1 : 0,30, contre 0,29 en Off). Monotone Grain
+  Effect 3 : grain natif très fort (15,3). Vitesse jugée acceptable.
+- **Déclencheur trouvé** : `0x535131c0` (appelée par `0x53513500` en `0x5351361c`, objet + 0x24,
+  depuis l'enregistrement de la photo) décide si la passe d'effets tourne. Looks 11, 12, 17, 18,
+  19, 21 : seulement si `+0x793` ou `+0x794` diffère de 4 (Clarity) ; 13, 15, 16, 22 : aussi si
+  `+0x795` (grain) n'est pas 0 ; 14 : toujours ; 20 : selon `+0x796`. Sa lecture du look est déjà
+  l'adaptateur des films (un film y est Standard) : le grain y était ignoré.
+- T-GRAIN8b (`grainNative`, `installGr3xNativeGrainFilms`) : accroche en `0x535131c4` (après
+  l'adaptateur) : pour un film dont le Grain n'est pas Off, la passe tourne ; sinon la règle de
+  Standard. Accroche en `0x535031b0` (lecture de `+0x795` par `0x5350304c`) : pour un film, le
+  niveau est son Grain codé comme Grain Effect (0, « 1 » 3, « 2 » 2, « 3 » 1). Le développement
+  n'est plus modifié. Vérifié : `grain_native_probe.py` (décision : 21 cas film, Clarity
+  conservée, 11 cas des looks de l'appareil ; niveau : 15 cas film, 16 autres).
