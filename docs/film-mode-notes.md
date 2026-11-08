@@ -3095,3 +3095,9 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   `snap_button_probe.py` (table, texte, icône, 7 crans, retour au début, 12 cas hors Snap,
   registres gardés sauf ip, aiguillages Fn / ISO / Drive et Wireless), `wb_button_probe.py`
   (avec et sans Snap), `dial_probe.py` (molette coupée sans sonde).
+- **Appuis longs, deuxième série (2026-11-08, R0017353 à R0017358, bas et gauche désassignés).**
+  Fn : 22 ; haut : 27 répété puis 28 ; bas : 30 répété puis 31 ; gauche : 33 répété puis 34 ;
+  droite : 36 répété puis 37 ; Wireless : 58 (sans 60 cette fois). **Confirmé (fort)** : chaque
+  touche du pavé a trois codes, appui / maintien répété / relâchement (haut 26-27-28, bas
+  29-30-31, gauche 32-33-34, droite 35-36-37) ; l'appui long de Fn donne 22. Une touche dont la
+  fonction ouvre un écran ne laisse plus passer ses codes de maintien.
