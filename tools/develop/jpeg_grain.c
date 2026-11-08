@@ -15,7 +15,8 @@
  * (650 770 bytes, and 525 312 of scratch while they are made), then the grain on every picture of
  * the configuration (the full one and the smaller ones, each once), the texture step scaled by the
  * picture's width against the largest one (the grain keeps its size on the photo in every picture);
- * the buffers go back to the heap. The frame's seed is a hash of the full picture before the grain.
+ * the buffers go back to the heap. The amounts grow with the size (S 0.85, M 1, L 1.35). The
+ * frame's seed is a hash of the full picture before the grain.
  * A picture this does not recognise (format, sizes) is left alone, as the halation does.
  */
 #include "develop.h"
@@ -90,7 +91,7 @@ static u32 seed_of(const struct picture *p) {
 }
 
 void grain_stage(const struct gctx *k, u32 *config) {
-  u32 st, style, level, code, size, i, j, widest = 0, step;
+  u32 st, style, level, code, size, i, j, widest = 0, step, gain;
   struct picture *seen[4], *main = 0;
   struct dv_textures tex;
   struct dv_grain g;
@@ -125,6 +126,9 @@ void grain_stage(const struct gctx *k, u32 *config) {
   cache = k->cache();
   sync(k, cache, main, 0);
   dv_grain_setup(&g, &tex, &k->profiles[k->mono[style] ? 1 : 0], level, size, seed_of(main));
+  /* A bigger grain shows more (T-GRAIN6): S 0.85, M 1, L 1.35 of the amounts. */
+  gain = size == DV_SIZE_SMALL ? 218u : size == DV_SIZE_LARGE ? 346u : 256u;
+  g.amount = (g.amount * gain + 128u) >> 8; g.chroma = (g.chroma * gain + 128u) >> 8;
   step = g.step_q16;
   for (i = 0; i < 4; i++) {
     struct picture *p = seen[i];

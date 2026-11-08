@@ -2858,3 +2858,17 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   vers les grandes échelles, elle paraît donc moins granuleuse que M (à revoir dans T-GRAIN6 :
   un grain plus gros devrait aussi être plus visible). La part colorée reste forte (chroma
   environ 0,6 fois la luminance au rayon 3).
+
+## Grain : T-GRAIN6, le profil argentique (2026-11-08)
+
+- Profil couleur du JPEG (`gen_jpeg_grain.py`, plus l'archétype NEG400) : taille 2,0 (contre 1,4),
+  octave grossière 65 % (contre 45 : grain en amas), chroma 8 (contre 25), courbe de tons centrée
+  sur les gris moyens (bosse à 0,45, largeur 0,25, ombres 110, blancs 10). Noir et blanc : BW400
+  en taille 2,2 et octave 65 %. `-DDIGITAL` redonne les profils de T-GRAIN5.
+- Les quantités suivent la taille (`jpeg_grain.c`, idem `grain_ref.c`) : S 0,85, M 1, L 1,35. Un
+  grain plus gros se voit donc plus, au lieu de garder la même énergie que M.
+- Référence PC sur un recadrage de R0017274 (sans grain), en G3 M : chroma (Cb, rayon 3) 1,47
+  avec T-GRAIN5, 0,75 avec T-GRAIN6 (0,64 sans grain) ; luminance au rayon 8 : 3,77 avec T-GRAIN5,
+  4,13 avec T-GRAIN6 (G3 L 4,47).
+- Vérifié : `jpeg_grain_probe.py` (module de 9 160 octets identique au PC au bit près, 32 cas,
+  même coût), `grain_stage_probe.py`, `grain_tag_probe.py` sur le build T-GRAIN6 (avec étiquette).

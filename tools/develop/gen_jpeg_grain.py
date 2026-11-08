@@ -7,9 +7,10 @@ core/src/fw/gr3x/grain-module.ts.
 1. Camera: jpeg_grain.c (-Os) and grain.c (-O2, its loop is the hot one) with the camera modules'
    flags (build.py ARM_FLAGS), linked at two addresses: the bytes must be the same (no relocation),
    no data section of any kind, nothing called outside the blob. The entry `grain_stage` is noted.
-2. PC: the four texture recipes (host_recipes) and the two grain profiles (colour: the spec's
-   NEG400 archetype; black and white: BW400), as the camera reads them (the structs have no
-   pointer: the same layout on both).
+2. PC: the four texture recipes (host_recipes) and the two grain profiles, as the camera reads
+   them (the structs have no pointer: the same layout on both). T-GRAIN6, the film look: colour
+   size 2.0, coarse octave 65 %, chroma 8, most in the mid tones; black and white BW400 at size
+   2.2 (-DDIGITAL: T-GRAIN5's NEG400 and BW400).
 """
 import base64
 import hashlib
@@ -25,11 +26,30 @@ sys.path.insert(0, str(HERE))
 from build import ARM_FLAGS, LIB  # noqa: E402
 
 DUMP = r'''
+#include <math.h>
 #include <stdio.h>
 #include "host.h"
+/* host.c's tone curve (a bump at c of width w over a floor fading from `shadow` to `top`). */
+static void tone(double out[17], double c, double w, double shadow, double top) {
+  int i;
+  for (i = 0; i < 17; i++) {
+    double l = i == 16 ? 1.0 : i / 16.0, b = exp(-(l - c) * (l - c) / (2 * w * w));
+    double f = shadow * (1 - l) + top * l, v = f + (255 - f) * b;
+    if (l > 0.94) v = v * (1 - l) / 0.06 + top * (l - 0.94) / 0.06;
+    out[i] = v;
+  }
+}
 int main(void) {
-  struct dv_tex_recipe r[4]; struct dv_grain_profile p[2];
-  host_recipes(r); host_profile(&p[0], ARCH_NEG400); host_profile(&p[1], ARCH_BW400);
+  struct dv_tex_recipe r[4]; struct dv_grain_profile p[2]; double t[17];
+  host_recipes(r);
+#ifdef DIGITAL
+  host_profile(&p[0], ARCH_NEG400); host_profile(&p[1], ARCH_BW400);
+#else
+  /* T-GRAIN6, the film look: bigger grain in clumps (size 2.0, coarse octave 65 %), most in the
+   * mid tones, little colour (chroma 8 against NEG400's 25); black and white: BW400, bigger. */
+  tone(t, 0.45, 0.25, 110, 10); host_profile_make(&p[0], 45, 2.0, 65, 8, t);
+  tone(t, 0.45, 0.22, 170, 30); host_profile_make(&p[1], 70, 2.2, 65, 0, t);
+#endif
   if (sizeof r[0] != 44 || sizeof p[0] != 32) return 1;
   fwrite(r, sizeof r, 1, stdout); fwrite(p, sizeof p, 1, stdout);
   return 0;
@@ -79,10 +99,10 @@ def camera(tmp):
     return blobs[0], entry
 
 
-def host_data(tmp):
+def host_data(tmp, extra=()):
     (tmp / 'dump.c').write_text(DUMP)
     exe = tmp / 'dump'
-    run(['cc', '-O2', '-I', HERE / 'host', '-o', exe, tmp / 'dump.c', HERE / 'host' / 'host.c'] + [HERE / f for f in LIB] + ['-lm'])
+    run(['cc', '-O2', *extra, '-I', HERE / 'host', '-o', exe, tmp / 'dump.c', HERE / 'host' / 'host.c'] + [HERE / f for f in LIB] + ['-lm'])
     data = run([exe])
     if len(data) != 4 * 44 + 2 * 32:
         sys.exit('host data size')
@@ -109,7 +129,7 @@ def main():
         f'export const GR3X_GRAIN_ENTRY = {entry};',
         '/** The four texture recipes (struct dv_tex_recipe, 44 bytes each). */',
         f"export const GR3X_GRAIN_RECIPES = '{b64(recipes)}';",
-        '/** The grain profiles (struct dv_grain_profile, 32 bytes each): colour (NEG400), black and white (BW400). */',
+        '/** The grain profiles (struct dv_grain_profile, 32 bytes each): colour, black and white (T-GRAIN6, the film look). */',
         f"export const GR3X_GRAIN_PROFILES = '{b64(profiles)}';",
         '',
     ]), encoding='utf-8')

@@ -25,6 +25,8 @@ int main(int argc, char **argv) {
   level = atoi(argv[3]); size = atoi(argv[4]); mono = atoi(argv[5]); seed = strtoul(argv[6], 0, 0); widest = atoi(argv[7]);
   host_textures(&t, r);
   dv_grain_setup(&g, &t, &p[mono ? 1 : 0], level, size, seed);
+  { unsigned gain = size == DV_SIZE_SMALL ? 218u : size == DV_SIZE_LARGE ? 346u : 256u;   /* as the module */
+    g.amount = (g.amount * gain + 128u) >> 8; g.chroma = (g.chroma * gain + 128u) >> 8; }
   step = g.step_q16;
   for (a = 8; a < argc; a += 4) {
     unsigned w = atoi(argv[a]), h = atoi(argv[a + 1]);
