@@ -3301,3 +3301,22 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **0.9.3-RC1 validé sur le boîtier ; 0.9.3 publiée (2026-11-09)** : PR rollk2/Ricoh-GRModFilm#6
   fusionnée dans `main`, release `v0.9.3` créée par l'utilisateur dans l'interface web (le push de
   tag est refusé depuis la session), construction verte (Windows, macOS, Linux, SHA256SUMS).
+
+## Rouleau chargé : lignes de menu verrouillées (2026-11-09, préparation)
+
+- Inventaire des onglets (build T-HOLD3, émulé ; titres par la fonction de dessin de chaque ligne,
+  `TOP_SET_TITLE 0x5339dc70`, ou par le premier texte qu'elle charge quand elle demande des objets
+  absents). Table des onglets `0x5407d3f8` ; descripteur : nombre `+0x8b`, pages `+0x80`, dessin
+  `+0x8c + 8 × ligne`, identifiant `+0x1bc + 4 × ligne`.
+- Still Image Settings (`0x53b36dec`, 38 lignes, pages 0, 8, 16, 19, 26, 31, 35) : Focus 05d, Face/Eye
+  05e, AF Assist Light 05f, Snap Focus Distance 060, Full Press Snap 061, Focus Peaking 062, AF.C 063,
+  MF Auto Magnification 065 ; Exposure Mode 066, AE Metering 067, ISO Setting 0b8, Flash Mode 0dd,
+  Program Line 068, ND Filter 069, Auto EV Compensation 06a, Link AE and AF Point 06b ; White Balance
+  04e, WB Fine-tuning 06c, AWB in Tungsten Light 06d ; Still/Movie 06e, Snap Distance Priority 06f,
+  GF-2 Flash Mode 070, Macro Mode 071, Drive Mode 00e, AA Filter Simulator 0db, HDF 13f ; File Format
+  072, Aspect Ratio 073, Crop 074, JPEG Recorded Pixels 075, Color Space 076 ; Image Control 012,
+  Peripheral Illumin. Corr. 120, D-Range Correction 0ba, Noise Reduction 0bc ; Shake Reduction 07b,
+  Auto SR Off 07c, Horizon Correction 07d (identifiants 0x02000xxx).
+- Décision de l'utilisateur : masquer, rouleau entamé, Image Control, Aspect Ratio, Crop, Drive Mode,
+  File Format, JPEG Recorded Pixels, Color Space ; garder Setup (Format, dossiers, numérotation).
+  Question ADJ / Fn : ces réglages comme Off tant que le rouleau est chargé (à étudier).
