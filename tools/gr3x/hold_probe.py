@@ -5,12 +5,13 @@
 Run from ActionModel::OnEvent's entry (0x53221a1c, through the rear dial's filter when it is off),
 the app, controllers, state and AF-move getters stubbed, OnEvent after its first instruction
 (`holdOrig`) replaced by a recorder (the key, and the key's own setting at that moment):
-  - Hold lines Off: every key goes on (pressed, held, released), Fn's held code 99 returns 0;
+  - Hold lines Off: every key goes on (pressed, held, released);
   - a pad key with a Hold function: pressed kept back; first held code: its press and release sent
     with its own setting holding the Hold function (Macro and WB: 0 for their own function), then
     the setting back; later held codes and the release kept back;
   - a short press: kept back, then on release the press sent and the release goes on;
-  - Fn: 22 kept back, 99 runs its Hold (22 then 23 with 0x922 set), 23 kept back;
+  - Fn (no held code): 22 kept back, its time noted (tk_get_otm, stubbed); 23 after 600 ms or more
+    (the clock may wrap) runs its Hold (22 then 23 with 0x922 set), sooner the short press;
   - not in the viewfinder (another controller), the AF point moved by the pad, a Hold above the
     highest function, no record: as before (the AF point does not stop Fn);
   - r4..r11 kept (OnEvent takes two arguments: r2, r3 and ip are free), r0 and r1 as given when
@@ -28,9 +29,9 @@ from native_probe import STACK
 KEY=0x53221a1c;LR=0x5a5a5a5a
 APP,CONTROLLERS,STATE,AF_MOVE=0x5320ad88,0x5320aefc,0x5320b61c,0x532a441c
 RECORD_POINTER=0x55063f34;REC=0x63041000;CTRL=0x63042000;THIS=0x63043000
-STATE_RAM=0x558043be
+STATE_RAM=0x558043be;TIME_RAM=0x558043a0;OTM=0x53050b7c;HOLD_MS=600
 # Fn, Macro (up), WB (down), ISO (left), Drive (right): press, held, release, Hold byte, own byte, own function.
-KEYS=((22,99,23,0x806,0x922,0),(26,27,28,0x84a,0xac5,45),(29,30,31,0x88e,0xabb,44),(32,33,34,0xacf,0x924,0),(35,36,37,0xae3,0x926,0))
+KEYS=((22,None,23,0x806,0x922,0),(26,27,28,0x84a,0xac5,45),(29,30,31,0x88e,0xabb,44),(32,33,34,0xacf,0x924,0),(35,36,37,0xae3,0x926,0))
 
 def r(c,n):return c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%n))
 
@@ -40,19 +41,20 @@ def verify(data,manifest):
     count=lambda k:cases.__setitem__(k,cases.get(k,0)+1)
     MAX=46 if manifest.get('snapDof') else 45
     sites={s['address']:s for s in manifest['sites']}
-    assert 'hold buttons' in sites[0x53223708]['reason']
-    orig=e['holdOrig'];calls=[];env={'ctrl':0x08000000,'af':0}
+    assert 0x53223708 not in sites
+    orig=e['holdOrig'];calls=[];env={'ctrl':0x08000000,'af':0,'ms':0}
     def hook(cpu,at,size,user):
         ret=None
         if at==APP:ret=0xa0a0
         elif at==CONTROLLERS:cpu.mem_write(CTRL,struct.pack('<I',env['ctrl']));ret=CTRL
         elif at==STATE:ret=0xb61c
         elif at==AF_MOVE:ret=env['af']
+        elif at==OTM:cpu.mem_write(r(cpu,0),struct.pack('<iI',7,env['ms']&0xffffffff));ret=0
         elif at==orig:
             k=r(cpu,1);own=[x for x in KEYS if k in (x[0],x[2])]
             calls.append((r(cpu,0),k,cpu.mem_read(REC+own[0][4],1)[0] if own else None));ret=1
         if ret is not None:cpu.reg_write(reg.UC_ARM_REG_R0,ret);cpu.reg_write(reg.UC_ARM_REG_PC,cpu.reg_read(reg.UC_ARM_REG_LR))
-    for at in (APP,CONTROLLERS,STATE,AF_MOVE,orig):c.hook_add(UC_HOOK_CODE,hook,begin=at,end=at)
+    for at in (APP,CONTROLLERS,STATE,AF_MOVE,OTM,orig):c.hook_add(UC_HOOK_CODE,hook,begin=at,end=at)
     def setup(holds=(0,0,0,0,0),own=None):
         c.mem_write(REC,bytes(0xb28));c.mem_write(RECORD_POINTER,struct.pack('<I',REC))
         for k,h in zip(KEYS,holds):c.mem_write(REC+k[3],bytes([h]))
@@ -74,7 +76,8 @@ def verify(data,manifest):
     setup()
     for k in KEYS:
         for code in k[:3]:
-            assert key(code)==((0,[]) if code==99 else ('on',[])),code;count('off')
+            if code is None:continue
+            assert key(code)==('on',[]),code;count('off')
     for code in (24,25):assert key(code)==((1,[]) if manifest.get('rearDialOff') else ('on',[]));count('rear dial')
     for code in (50,14,5):assert key(code)==('on',[]);count('other keys')
     for i,k in enumerate(KEYS):
@@ -83,18 +86,30 @@ def verify(data,manifest):
             holds=[0]*5;holds[i]=H;setup(holds)
             v=0 if H==of else H
             # Long press: kept back, Hold on the first held code, the rest kept back.
+            if held is None:
+                # Fn: timed (tk_get_otm at the press, then at the release; the clock may wrap).
+                for t0,dt in ((1000,HOLD_MS),(5000,HOLD_MS+900),(0xfffffe00,HOLD_MS+10)):
+                    env['ms']=t0;assert key(press)==(1,[]) and c.mem_read(STATE_RAM,2)==bytes([press,0])
+                    assert struct.unpack('<I',bytes(c.mem_read(TIME_RAM,4)))[0]==t0
+                    env['ms']=t0+dt;assert key(release)==(1,[(THIS,press,v),(THIS,release,v)]),(H,t0,dt,calls)
+                    assert c.mem_read(REC+ob,1)[0]==own[i] and c.mem_read(STATE_RAM,1)[0]==0;count('long press')
+                for t0,dt in ((1000,0),(1000,HOLD_MS-1),(0xffffff00,300)):
+                    env['ms']=t0;assert key(press)==(1,[]);env['ms']=t0+dt
+                    assert key(release)==('on',[(THIS,press,own[i])]),(t0,dt);count('short press')
+                assert key(release)==('on',[]);count('stray')
+                continue
             assert key(press)==(1,[]),(k,H);assert c.mem_read(STATE_RAM,2)==bytes([press,0])
             assert key(held)==(1,[(THIS,press,v),(THIS,release,v)]),(k,H,calls)
             assert c.mem_read(REC+ob,1)[0]==own[i] and c.mem_read(STATE_RAM,2)==bytes([press,1])
             assert key(held)==(1,[]) and key(release)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==0;count('long press')
             # Short press: the press sent at release, the release goes on.
             assert key(press)==(1,[]) and key(release)==('on',[(THIS,press,own[i])]);count('short press')
-            # A held or released key whose press was not kept back: as before (Fn's 99: nothing).
-            assert key(held)==((0,[]) if held==99 else ('on',[]));assert key(release)==('on',[]);count('stray')
+            # A held or released key whose press was not kept back: as before.
+            assert key(held)==('on',[]);assert key(release)==('on',[]);count('stray')
         holds=[0]*5;holds[i]=44
         for ctrl in (0x02000104,0x08000001,0x0800000c):
             setup(holds);env['ctrl']=ctrl
-            assert key(press)==('on',[]) and key(held)==((0,[]) if held==99 else ('on',[]));count('not viewfinder')
+            assert key(press)==('on',[]) and key(release)==('on',[]);count('not viewfinder')
         env['ctrl']=0x08000002;setup(holds);assert key(press)==(1,[]);count('viewfinder 2')
         env['ctrl']=0x08000000
         setup(holds);env['af']=1
@@ -102,20 +117,6 @@ def verify(data,manifest):
         for H in (MAX+1,0xff):
             holds2=[0]*5;holds2[i]=H;setup(holds2);assert key(press)==('on',[]);count('above max')
         setup(holds);c.mem_write(RECORD_POINTER,bytes(4));assert key(press)==('on',[]);count('no record')
-    # Fn's held sub-state in the translation: a frame as the translation's push leaves it.
-    FP=STACK-0x100;SP=FP-0x14-0x20
-    c.mem_write(FP-0x14,struct.pack('<5I',0x4444,0x5555,0xf0f0,0x6000,0x1e1e))
-    for i in range(13):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),0x2000+i)
-    c.reg_write(reg.UC_ARM_REG_R0,THIS);c.reg_write(reg.UC_ARM_REG_R11,FP);c.reg_write(reg.UC_ARM_REG_SP,SP)
-    c.reg_write(reg.UC_ARM_REG_CPSR,0x13)   # Z clear: the held sub-state's branch taken
-    h=c.hook_add(UC_HOOK_CODE,lambda u,at,size,d:u.emu_stop() if at==KEY else None)
-    c.emu_start(0x53223708,0,count=40);c.hook_del(h)
-    assert c.reg_read(reg.UC_ARM_REG_PC)==KEY and r(c,0)==THIS and r(c,1)==99 and r(c,4)==0x4444 and r(c,5)==0x5555
-    assert c.reg_read(reg.UC_ARM_REG_R11)==0xf0f0 and c.reg_read(reg.UC_ARM_REG_SP)==0x6000 and c.reg_read(reg.UC_ARM_REG_LR)==0x1e1e;count('Fn held translation')
-    c.reg_write(reg.UC_ARM_REG_CPSR,0x13|0x40000000)   # Z set: pressed, the camera's 22 as before
-    for i in range(13):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),0x2000+i)
-    c.reg_write(reg.UC_ARM_REG_R11,FP);c.reg_write(reg.UC_ARM_REG_SP,SP)
-    c.emu_start(0x53223708,0x5322370c,count=4);assert c.reg_read(reg.UC_ARM_REG_PC)==0x5322370c;count('Fn pressed translation')
     return dict(cases=cases,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':

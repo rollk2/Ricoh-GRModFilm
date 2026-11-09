@@ -8,7 +8,7 @@ import { Engine } from '../src/app/engine';
 import { planGr3xMenu } from '../src/fw/gr3x/geometry';
 import { GR3X_ISO_GETTER_CALL, GR3X_ISO_KEY_ID, GR3X_MACRO_KEY_HANDLER, GR3X_MACRO_LINE_NAMES, GR3X_WB_KEY_EVENT, GR3X_WB_KEY_HANDLER, gr3xWbLineName } from '../src/fw/gr3x/wb-button';
 import { readGr3xBuildRecipe, encodeGr3xRatioRecipe } from '../src/fw/gr3x/ratio-recipe';
-import { GR3X_FN_HELD_SITE, GR3X_KEY_EVENT_ENTRY, gr3xHoldLineName } from '../src/fw/gr3x/hold';
+import { GR3X_KEY_EVENT_ENTRY, gr3xHoldLineName } from '../src/fw/gr3x/hold';
 
 const input = process.env.GRMOD_GR3_FIRMWARE;
 const menu = planGr3xMenu([{ ratio: '65:24', name: 'XPan' }]);
@@ -84,18 +84,18 @@ describe.skipIf(!input)('GR III WB button', () => {
     expect((snap.entries as Record<string, number>).snapStep).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, snapDof: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
-  it('adds the Hold lines\' filter: Fn\'s held state, and the key entry unless the rear dial filter has it', async () => {
+  it('adds the Hold lines\' filter at the key entry, unless the rear dial filter has it', async () => {
     const base = { ...film, wbButton: true, macroButton: true, snapDof: true } as const;
     const snap = await buildGr3xAdjResearch(raw, menu, base);
     const hold = await buildGr3xAdjResearch(raw, menu, { ...base, holdButtons: true });
     expect(hold).toMatchObject({ holdButtons: true });
     const added = (b: typeof hold, a: typeof snap) => b.sites.filter(s => !a.sites.some(t => t.address === s.address)).map(s => s.address).sort();
-    expect(added(hold, snap)).toEqual([GR3X_KEY_EVENT_ENTRY, GR3X_FN_HELD_SITE].sort());
+    expect(added(hold, snap)).toEqual([GR3X_KEY_EVENT_ENTRY]);
     const dial = await buildGr3xAdjResearch(raw, menu, { ...base, rearDialOff: true });
     const both = await buildGr3xAdjResearch(raw, menu, { ...base, rearDialOff: true, holdButtons: true });
-    expect(added(both, dial)).toEqual([GR3X_FN_HELD_SITE]);
+    expect(added(both, dial)).toEqual([]);
     const e = both.entries as Record<string, number>;
-    for (const k of ['holdFilter', 'holdOrig', 'holdFnHeld', 'hold0ListSet', 'hold4ListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
+    for (const k of ['holdFilter', 'holdOrig', 'hold0ListSet', 'hold4ListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, holdButtons: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
   it('needs the film mode', async () => {

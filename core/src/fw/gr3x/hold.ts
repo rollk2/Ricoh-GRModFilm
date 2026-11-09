@@ -6,18 +6,17 @@
  * The key codes at ActionModel::OnEvent (0x53221a1c), T-HOLD0 on the camera (2026-11-09):
  *  - up (Macro button) 26 pressed / 27 held, repeated / 28 released; down (WB button) 29 / 30 / 31;
  *    left (ISO button) 32 / 33 / 34; right (Drive button) 35 / 36 / 37;
- *  - Fn 22 pressed, 23 released, no held code: the events' translation (0x532231e4, Fn's event type
- *    0x1b: state 2 pressed, its sub-state at + 4 0 first, else held; state 1 released) drops Fn's
- *    held sub-state (0x53223708, `bne` to the « nothing » return), as it turns Wireless's into 60
- *    (Hold Wireless) and the pad's into 27 / 30 / 33 / 36. There it becomes GR3X_FN_HELD (99), a code
- *    of ours that only the filter below sees (it never reaches the camera's OnEvent).
+ *  - Fn 22 pressed, 23 released, no held code (T-HOLD2: the events' translation, 0x532231e4, drops
+ *    any held sub-state of Fn's event type 0x1b at 0x53223708, but none comes: turned into a code of
+ *    ours, it never showed). Fn's long press is timed: tk_get_otm at the press and at the release,
+ *    GR3X_FN_HOLD_MS or more runs the Hold function, on release.
  * The filter (at OnEvent's entry, after the rear dial's when that is off), in the viewfinder only
  * (controller 0x08000000 or 0x08000002: its key handler 0x5320c844 runs the buttons' functions at once,
  * through CaptureReadySwitchFunctionModel) and for a key whose Hold line is not Off (the 4-way pad
  * also not moving the AF point):
  *  - pressed: kept back (state: the key's press code, « hold run » cleared);
- *  - first held code: the Hold function, as a press and a release of that key sent to OnEvent with
- *    the key's own setting (Fn 0x922, ISO 0x924, Drive 0x926, WB 0xabb, Macro 0xac5) holding the Hold
+ *  - first held code (Fn: its release, held long enough): the Hold function, as a press and a
+ *    release of that key sent to OnEvent with the key's own setting (Fn 0x922, ISO 0x924, Drive 0x926, WB 0xabb, Macro 0xac5) holding the Hold
  *    function for the time of the two calls; later held codes kept back;
  *  - released: after a Hold, kept back; else the press sent then the release goes on (a short press,
  *    on release).
@@ -32,16 +31,21 @@ const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 const fail = (what: string): never => { throw new FirmwareError('unexpected-layout', `IIIx hold buttons: ${what}`); };
 
 export const GR3X_KEY_EVENT_ENTRY = 0x53221a1c;
-/** Fn's held sub-state in the events' translation: `bne` to the « nothing » return. */
-export const GR3X_FN_HELD_SITE = 0x53223708, GR3X_FN_HELD_DROP = 0x53223424;
-export const GR3X_FN_HELD = 99;
+/** T-Kernel's tk_get_otm (function code 0x80510100: after tk_set_tim / tk_get_tim, before tk_dly_tsk,
+ * the cyclic handlers' five and the alarms' five, by their argument counts): SYSTIM { hi, lo } in ms. */
+export const GR3X_GET_OTM = 0x53050b7c;
+/** Fn's long press: at least this long between its press and its release. */
+export const GR3X_FN_HOLD_MS = 600;
+/** Fn's press time (tk_get_otm's low word): round 10's zero-filled word 0x558043a0 (the film roll's
+ * test forms' logs and T-DOF5's research copy only, never with this). */
+export const GR3X_HOLD_TIME = 0x558043a0;
 /** The keys: Fn, up (Macro), down (WB), left (ISO), right (Drive); their press code (the pad's held
  * and released codes follow it), their Hold setting and their own setting. Padding bytes 0x806,
  * 0x84a, 0x88e, 0xacf, 0xae3: no exact access through a record (settings_layout_probe.py); the
  * wide ones are another object's (0x806: a hardware block's bit fields, 0x5373xxxx; 0x88e: the
  * live values' record, 0x5355xxxx), the debug dump's reads, or none. */
 export const GR3X_HOLD_KEYS = [
-  { name: 'Fn', press: 22, release: 23, held: GR3X_FN_HELD, hold: 0x806, own: 0x922, ownFunction: 0 },
+  { name: 'Fn', press: 22, release: 23, held: 0, hold: 0x806, own: 0x922, ownFunction: 0 },
   { name: 'Macro', press: 26, release: 28, held: 27, hold: 0x84a, own: 0xac5, ownFunction: 45 },
   { name: 'WB', press: 29, release: 31, held: 30, hold: 0x88e, own: 0xabb, ownFunction: 44 },
   { name: 'ISO', press: 32, release: 34, held: 33, hold: 0xacf, own: 0x924, ownFunction: 0 },
@@ -61,26 +65,28 @@ export interface Gr3xHoldProgram {
 }
 
 /**
- * Installs the Fn held code and the filter. `max`: the highest function (above: Off). Returns the
- * filter's address, to be jumped to with OnEvent's arguments (r0 this, r1 the key, lr) in place of
- * its first instruction: the rear dial's filter goes on there, else the caller patches OnEvent's
- * entry to it (`entryPatched` false: done here).
+ * Installs the filter. `max`: the highest function (above: Off). Returns the filter's address, to be
+ * jumped to with OnEvent's arguments (r0 this, r1 the key, lr) in place of its first instruction:
+ * the rear dial's filter goes on there, else OnEvent's entry is patched to it here (`entryPatched`
+ * false).
  */
 export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPatched: boolean) {
   const at = GR3X_KEY_EVENT_ENTRY;
   if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
-  const dropWord = branchWord(GR3X_FN_HELD_SITE, GR3X_FN_HELD_DROP, 1);
-  if (p.u32(GR3X_FN_HELD_SITE) !== dropWord || p.u32(GR3X_FN_HELD_SITE - 8) !== 0xe5923004 || p.u32(GR3X_FN_HELD_SITE + 4) !== 0xe3a01016)
-    fail('Fn held sub-state');
-  if (p.sites.some(s => s.address === GR3X_FN_HELD_SITE)) fail('Fn held sub-state already patched');
   if (!entryPatched && p.sites.some(s => s.address === at)) fail('key entry already patched');
+  // tk_get_otm: push {r4}; add r4,sp,#4; push {lr}; ldr ip,=0x80510100; svc #6; ...
+  if (p.u32(GR3X_GET_OTM) !== 0xe92d0010 || p.u32(GR3X_GET_OTM + 0xc) !== 0xe59fc00c || p.u32(GR3X_GET_OTM + 0x10) !== 0xef000006 || p.u32(GR3X_GET_OTM + 0x20) !== 0x80510100)
+    fail('tk_get_otm');
   // OnEvent after its first instruction: callable with bl (r0 this, r1 the key).
   const orig = p.code(`mov ip,sp;b #${at + 4};`);
   const S = `movw ip,#${lo(GR3X_HOLD_STATE)};movt ip,#${hi(GR3X_HOLD_STATE)};`;
+  const T = `movw ip,#${lo(GR3X_HOLD_TIME)};movt ip,#${hi(GR3X_HOLD_TIME)};`;
+  // The milliseconds since start-up (low word of tk_get_otm's SYSTIM) in r0; r1..r3, ip clobbered.
+  const now = `sub sp,sp,#8;mov r0,sp;bl #${GR3X_GET_OTM};ldr r0,[sp,#4];add sp,sp,#8;`;
   const R = (label: string) => `movw ip,#${lo(RECORD_POINTER)};movt ip,#${hi(RECORD_POINTER)};ldr ip,[ip];cmp ip,#0x40000000;blo ${label};cmp ip,#0xc0000000;bhs ${label};tst ip,#3;bne ${label};`;
   const K = GR3X_HOLD_KEYS;
   // r4 this, r5 the key; r6 the key's index, r7 the phase (0 pressed, 1 held, 2 released), r8 the Hold function.
-  const classify = K.map((k, i) => [[k.press, 0], [k.held, 1], [k.release, 2]].map(([c, ph]) =>
+  const classify = K.map((k, i) => ([[k.press, 0], ...(k.held ? [[k.held, 1]] : []), [k.release, 2]] as const).map(([c, ph]) =>
     `cmp r5,#${c};moveq r6,#${i};moveq r7,#${ph};beq cls;`).join('')).join('');
   const holdByte = K.map((k, i) => `cmp r6,#${i};movweq r0,#${k.hold};`).join('');
   const ownByte = K.map((k, i) => `cmp r6,#${i};movweq r0,#${k.own};`).join('');
@@ -93,21 +99,19 @@ export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPat
     cls:${R('pass')}${holdByte}ldrb r8,[ip,r0];cmp r8,#0;beq pass;cmp r8,#${max};bhi pass;
     bl #${APP};bl #${CONTROLLERS};ldr r0,[r0];bic r0,r0,#2;cmp r0,#0x08000000;bne pass;
     cmp r6,#0;beq noaf;bl #${APP};bl #${STATE};bl #${AF_MOVE};cmp r0,#0;bne pass;noaf:
-    ${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];b handled;
+    ${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];
+    cmp r6,#0;bne handled;${now}${T}str r0,[ip];b handled;
     notpress:ldrb r0,[ip];cmp r0,r1;bne pass;cmp r7,#1;bne release;
     ldrb r0,[ip,#1];cmp r0,#0;bne handled;mov r0,#1;strb r0,[ip,#1];
-    ${R('handled')}${ownByte}ldrb r2,[ip,r0];mov r3,r8;${ownValue}strb r3,[ip,r0];push {r0,r1,r2,ip};
+    run:${R('handled')}${ownByte}ldrb r2,[ip,r0];mov r3,r8;${ownValue}strb r3,[ip,r0];push {r0,r1,r2,ip};
     mov r0,r4;bl #${orig};${releaseOf}mov r0,r4;bl #${orig};pop {r0,r1,r2,ip};strb r2,[ip,r0];b handled;
-    release:mov r0,#0;strb r0,[ip];ldrb r0,[ip,#1];cmp r0,#0;bne handled;mov r0,r4;bl #${orig};
-    pass:cmp r5,#${GR3X_FN_HELD};beq none;pop {r0,r1,r4,r5,r6,r7,r8,lr};mov ip,sp;b #${at + 4};
-    none:mov r0,#0;str r0,[sp];pop {r0,r1,r4,r5,r6,r7,r8,pc};
+    release:mov r0,#0;strb r0,[ip];ldrb r0,[ip,#1];cmp r0,#0;bne handled;
+    cmp r6,#0;bne short;push {r1};${now}pop {r1};${T}ldr r2,[ip];sub r0,r0,r2;movw r2,#${GR3X_FN_HOLD_MS};cmp r0,r2;bhs run;
+    short:mov r0,r4;bl #${orig};
+    pass:pop {r0,r1,r4,r5,r6,r7,r8,lr};mov ip,sp;b #${at + 4};
     handled:mov r0,#1;str r0,[sp];pop {r0,r1,r4,r5,r6,r7,r8,pc};`);
-  // Fn held: GR3X_FN_HELD to OnEvent (its entry: the filters), the translation's frame undone as its
-  // other ends do with ldm sp,{r4,r5,fp,sp,lr} (r0 is still this).
-  const fnHeld = p.code(`mov r1,#${GR3X_FN_HELD};sub sp,fp,#0x14;ldr r4,[sp];ldr r5,[sp,#4];ldr lr,[sp,#16];ldr fp,[sp,#8];ldr sp,[sp,#12];b #${at};`);
-  p.patch(GR3X_FN_HELD_SITE, dropWord, branchWord(GR3X_FN_HELD_SITE, fnHeld, 1), 'hold buttons: Fn\'s held state as a key of ours');
   if (!entryPatched) p.patch(at, 0xe1a0c00d, branchWord(at, filter), 'hold buttons: long presses at the key entry');
-  return { holdFilter: filter, holdOrig: orig, holdFnHeld: fnHeld };
+  return { holdFilter: filter, holdOrig: orig };
 }
 
 /** The Hold lines' names in each text row (ja en fr de es pt it nl da sv fi pl cs hu tr el ru ko

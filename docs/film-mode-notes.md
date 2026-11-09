@@ -3273,3 +3273,16 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   WB, Hold WB, Macro, Hold Macro, puis Wireless, Hold Wireless, Focus, Keep AE Lock, One Push AE.
   Sonde des touches gardée pour voir si le maintien de Fn (99) arrive. Vérifié : `wb_button_probe.py`
   (ordre), `hold_probe.py`, `dial_probe.py`, `snap_dof_probe.py`, tests.
+- **Résultat T-HOLD2 (2026-11-09)** : après un appui long sur Fn, l'anneau ne montre que 22 et 23 :
+  certitude forte, **le boîtier n'envoie aucun maintien pour Fn** (le crochet du code 99 est retiré).
+- Horloge : le noyau est T-Kernel (chaînes `tk_ext_tsk`). Enveloppes `svc #6` avec le code de
+  fonction en `ip` ; par l'ordre et le nombre d'arguments (0x804f à 0x8052 : un argument chacun,
+  puis les minuteries cycliques 0x8053 à 0x8057 : 1, 1, 1, 1, 2, et les alarmes 0x8058 à 0x805c :
+  1, 1, 2, 1, 2), **`tk_get_otm` = code 0x80510100, enveloppe `0x53050b7c`** (appelée par
+  `0x5304df20` et `0x536afc84`, qui relisent SYSTIM { haut en + 0, bas en + 4 }, en ms).
+  Certitude forte. (`0x55375fb4`, très lu, est l'index d'un journal circulaire, pas une horloge.)
+- **T-HOLD3** : Fn chronométré. À l'appui, le mot bas de `tk_get_otm` est noté en `0x558043a0` ;
+  au relâchement, 600 ms ou plus lancent la fonction Hold (au relâchement), sinon l'appui court.
+  Les touches du pavé gardent le premier code de maintien. Build sans sonde, avec No movie.
+  Vérifié : `hold_probe.py` (Fn chronométré, y compris le retour à zéro de l'horloge),
+  `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`, `grain_native_probe.py`, tests.
