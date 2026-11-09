@@ -28,7 +28,8 @@
  * the On icon and its text (Off: the camera's icon and text 2), set through the native writer
  * (0x532731d4, Off first then the value, so that the live value changes and the DSP state is sent
  * again), current when the byte is the value. The SR button turns a speed Off, then back to
- * 1/4000. The speed's boundaries are a table of float bits (`append`).
+ * 1/4000. The speed's boundaries are a table of float bits (`append`). The shooting screen's SR
+ * icon (GR3X_SR_ICON_CALLS) follows the speed too.
  */
 import { branchWord } from '../aspect/arm';
 import { FirmwareError } from '../types';
@@ -78,7 +79,10 @@ export const GR3X_SR_GETTER = 0x53245378, GR3X_SR_LIVE_LOAD = 0x53271dd8, GR3X_S
 /** Record 42's count, draw, set and is-current functions (referenced by it only). */
 export const GR3X_SR_LIST = { count: 0x531b3af4, draw: 0x531b5258, set: 0x531b6d84, current: 0x531b84dc } as const;
 const APP = 0x5320ad88, SETTINGS = 0x5320b31c, DRAW = 0x5339e8b0, ICON_OFF = 0x1ae, ICON_ON = 0x1b0, TEXT_OFF = 2;
-const RECORD_POINTER = 0x55063f34, SR_BYTE = 0x4f6;
+const RECORD_POINTER = 0x55063f34, SR_BYTE = 0x4f6, LIVE_VALUES = 0x53525d5c;
+/** The SR icon: its choice (0x533676ac: one of two images for 1) and the settings monitor's
+ * comparison that redraws it on a change (0x532a4f18, cached at + 0x8f0). */
+export const GR3X_SR_ICON_CALLS = [0x532a4f18, 0x533676ac] as const;
 
 export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | undefined, diag = false, srText = 0) {
   const bl = (from: number, to: number) => branchWord(from, to, 14, true);
@@ -133,5 +137,15 @@ export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | unde
   p.patch(L.draw, 0xe1a0c00d, branchWord(L.draw, draw), 'SR speed: Shake Reduction\'s values drawn (Off, the speeds)');
   p.patch(L.set, 0xe1a0c00d, branchWord(L.set, set), 'SR speed: Shake Reduction\'s value set');
   p.patch(L.current, 0xe1a0c00d, branchWord(L.current, current), 'SR speed: Shake Reduction\'s current value');
-  return { srSpeedGet: get, srSpeedDraw: draw, srSpeedSet: set, srSpeedCurrent: current, srSpeedText: srText };
+  // The SR icon of the shooting screen (its choice and the settings monitor that redraws it): the
+  // setting, then Off when the live speed is faster than the threshold.
+  for (const at of GR3X_SR_ICON_CALLS) {
+    if (p.u32(at) !== bl(at, GR3X_SR_GETTER)) fail(`SR icon call at ${at.toString(16)}`);
+    if (p.sites.some(s => s.address === at)) fail(`${at.toString(16)} already patched`);
+  }
+  const shown = p.code(`push {r4,r5,r6,lr};bl #${GR3X_SR_GETTER};mov r5,r0;cmp r5,#0;beq out;
+    bl #${LIVE_VALUES};ldr r0,[r0];bl #${GR3X_LIVE_TV};${boundary}vmov r0,s0;cmp r0,#0;mvnlt r0,r0;eorlt r0,r0,#0x80000000;cmp r0,r1;movge r5,#0;
+    out:mov r0,r5;pop {r4,r5,r6,pc};`);
+  for (const at of GR3X_SR_ICON_CALLS) p.patch(at, bl(at, GR3X_SR_GETTER), bl(at, shown), 'SR speed: the SR icon follows the shutter speed');
+  return { srSpeedGet: get, srSpeedDraw: draw, srSpeedSet: set, srSpeedCurrent: current, srSpeedShown: shown, srSpeedText: srText };
 }

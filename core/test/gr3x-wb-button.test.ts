@@ -99,6 +99,13 @@ describe.skipIf(!input)('GR III WB button', () => {
     for (const k of ['holdFilter', 'holdOrig', 'hold0ListSet', 'hold4ListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, holdButtons: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
+  it('adds Fn + the front dial to the Hold buttons\' filter, with the rear dial off only', async () => {
+    const hold = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true });
+    const dial = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true, fnDial: true });
+    expect(dial).toMatchObject({ fnDial: true });
+    expect(dial.sites.map(s => s.address).sort()).toEqual(hold.sites.map(s => s.address).sort());
+    await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, fnDial: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
+  }, 240000);
   it('locks the film settings while a roll is loaded: menu lines, Fn functions, ADJ slots', async () => {
     const plain = await buildGr3xAdjResearch(raw, menu, film);
     const lock = await buildGr3xAdjResearch(raw, menu, { ...film, rollLock: true });

@@ -72,12 +72,29 @@ def verify(data,manifest):
             assert got[0]==THIS and got[1]==code and c.reg_read(reg.UC_ARM_REG_R12)==STACK;return ('on',list(calls))
         assert pc==LR;return (got[0],list(calls))
     own=(7,8,9,10,11)
-    # Hold lines Off: as before.
+    fnDial=bool(manifest.get('fnDial'))
+    # Hold lines Off: as before (with Fn + front dial, Fn's press kept back: a short press on release).
     setup()
     for k in KEYS:
         for code in k[:3]:
             if code is None:continue
+            if fnDial and k[0]==22:continue
             assert key(code)==('on',[]),code;count('off')
+    if fnDial:
+        for dt in (0,HOLD_MS+500):
+            env['ms']=1000;assert key(22)==(1,[]);env['ms']=1000+dt
+            assert key(23)==('on',[(THIS,22,7)]),dt;count('Fn short, Hold Off')
+        # Fn held + the front dial: the rear dial's codes; Fn's release then kept back.
+        for holds in ((0,0,0,0,0),(44,0,0,0,0)):
+            setup(holds);env['ms']=1000
+            assert key(22)==(1,[])
+            assert key(9)==(1,[(THIS,24,None)]) and key(10)==(1,[(THIS,25,None)]) and key(9)==(1,[(THIS,24,None)]),calls;count('Fn + front dial')
+            env['ms']=5000;assert key(23)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==0;count('Fn released after the dial')
+            assert key(9)==('on',[]) and key(10)==('on',[]);count('front dial alone')
+        env['ctrl']=0x02000104;setup()
+        assert key(22)==('on',[]) and key(9)==('on',[]) and key(23)==('on',[]);count('Fn + dial, not viewfinder');env['ctrl']=0x08000000
+    else:
+        for code in (9,10):setup();assert key(code)==('on',[]);count('front dial')
     for code in (24,25):assert key(code)==((1,[]) if manifest.get('rearDialOff') else ('on',[]));count('rear dial')
     for code in (50,14,5):assert key(code)==('on',[]);count('other keys')
     for i,k in enumerate(KEYS):

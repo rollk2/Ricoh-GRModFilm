@@ -142,6 +142,8 @@ export interface Gr3xAdjFeatures {
   snapDof?: boolean;
   /** With `macroButton`: Hold lines for Fn and the 4-way pad's keys in Fn Button Settings, their long press runs that function (hold.ts). */
   holdButtons?: boolean;
+  /** With the Hold buttons and the rear dial off: Fn held + the front dial for the rear dial (hold.ts). */
+  fnDial?: boolean;
   /** With the film mode: Still Image Settings' film lines hidden while a roll is loaded (T-LOCK1), and the
    * same settings' Fn and ADJ lever functions Off then (T-LOCK2; film-roll.ts). */
   rollLock?: boolean;
@@ -518,7 +520,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const wbOpen = wbButton ? installGr3xWbOpen({ code, append, patch, read, u32: word, sites }) : 0;
   if (features.dialProbe && features.grainTag !== 'keys') fail('IIIx dial probe: with the keys tag');
   // Hold buttons: their filter at the key entry, after the rear dial's when that is off.
-  const holdEntries = holdButtons ? installGr3xHoldButtons({ code, patch, u32: word, sites }, snapButton ? GR3X_DOF_FUNCTION : GR3X_MACRO_FUNCTION, !!features.rearDialOff) : undefined;
+  if (features.fnDial && !(holdButtons && features.rearDialOff)) fail('IIIx Fn + front dial: with the Hold buttons and the rear dial off');
+  const holdEntries = holdButtons ? installGr3xHoldButtons({ code, patch, u32: word, sites }, snapButton ? GR3X_DOF_FUNCTION : GR3X_MACRO_FUNCTION, !!features.rearDialOff, !!features.fnDial) : undefined;
   const dialEntries = features.rearDialOff ? installGr3xRearDialOff({ code, patch, u32: word, sites }, features.dialProbe === 'hold' ? 'hold' : features.dialProbe === true, holdEntries?.holdFilter)
     : features.dialProbe ? installGr3xDialProbe({ code, patch, u32: word, sites }) : {};
   const grainEntries = features.grainTest ? (features.filmMode ? installGr3xNativeGrainTest({ code, append, patch, u32: word, sites }, features.grainTest) : fail('IIIx native grain: with the film mode')) : {};
@@ -692,7 +695,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.playProbe ? { playProbe: features.playProbe } : {}), ...(features.playLast ? { playLast: features.playLast } : {}), ...(features.srSpeed ? { srSpeed: { ...features.srSpeed } } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(features.fnDial ? { fnDial: true } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.playProbe ? { playProbe: features.playProbe } : {}), ...(features.playLast ? { playLast: features.playLast } : {}), ...(features.srSpeed ? { srSpeed: { ...features.srSpeed } } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

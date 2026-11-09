@@ -3561,3 +3561,22 @@ Certitude : **statique** (lecture du code), sauf mention.
   maintenu. Vérifié : `sr_speed_probe.py` (seuils de toute la liste, sans enregistrement, accesseur,
   valeur vivante avec et sans vidéo, compte, dessin des 53 valeurs, textes des 21 langues, écriture,
   valeur courante), toutes les autres sondes, tests.
+- **Résultat T-SR2 sur le boîtier (2026-11-09)** : la liste fonctionne ; le seuil 1/20 marche ; en U3
+  le seuil revient à 1/4000 tant que la BOX n'est pas enregistrée (comportement normal d'une BOX) ;
+  le bouton SR fait vitesse → Off → 1/4000. Demande : voir la main SR de l'écran apparaître et
+  disparaître selon la vitesse.
+- **Codes de la molette avant** (anneau des touches de T-SR2) : Fn maintenu, un cran dans chaque
+  sens : « 04 22 09 10 23 » ; sans Fn : « 19 09 10 09 10 ». La molette avant arrive à
+  `ActionModel::OnEvent` sous les codes **9 et 10** (un par sens ; certitude moyenne, le sens reste
+  à confirmer ; 19 non expliqué).
+- Main SR de l'écran (statique) : son image est choisie en `0x533676ac` (accesseur de Shake
+  Reduction, 1 → une image, sinon l'autre) ; la surveillance des réglages `0x532a4f18` compare la
+  valeur à sa copie (`+0x8f0`) et fait redessiner au changement.
+- **T-FN1** : T-SR2, plus (1) ces deux appels passent par un accesseur « affiché » : le réglage,
+  puis Off quand la vitesse vivante est plus rapide que le seuil ; (2) `fnDial` (filtre des appuis
+  longs, `hold.ts`) : en visée, pendant que l'appui de Fn est retenu, la molette avant (9, 10)
+  envoie à OnEvent les codes de la molette arrière (24, 25 ; sens supposé), puis le relâchement de
+  Fn est retenu ; l'appui de Fn est retenu même avec sa ligne Hold sur Off (un appui long y vaut un
+  appui court). Vérifié : `hold_probe.py` (Fn + molette, Fn seul avec et sans Hold, hors visée,
+  molette seule ; sans `fnDial` sur T-SR2), `sr_speed_probe.py` (icône), toutes les autres sondes,
+  tests.

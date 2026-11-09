@@ -54,6 +54,9 @@ export const GR3X_HOLD_KEYS = [
 /** RAM: the press kept back (its code, 0 none) and « hold run »: round 10's zero-filled words, the
  * area's last two bytes (0x558043be, 0x558043bf: after the AF Point and Apply to U states). */
 export const GR3X_HOLD_STATE = 0x558043be;
+/** The front dial's rotation at OnEvent (T-SR2's key ring on the camera, 2026-11-09: 9 and 10, one
+ * notch each way, with Fn held), and the rear dial's codes they stand for (T-DIAL2: 24, 25). */
+export const GR3X_FRONT_DIAL_KEYS = [9, 10] as const, GR3X_REAR_DIAL_CODES = [24, 25] as const;
 const RECORD_POINTER = 0x55063f34;
 const APP = 0x5320ad88, CONTROLLERS = 0x5320aefc, STATE = 0x5320b61c, AF_MOVE = 0x532a441c;
 
@@ -70,7 +73,7 @@ export interface Gr3xHoldProgram {
  * the rear dial's filter goes on there, else OnEvent's entry is patched to it here (`entryPatched`
  * false).
  */
-export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPatched: boolean) {
+export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPatched: boolean, fnDial = false) {
   const at = GR3X_KEY_EVENT_ENTRY;
   if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
   if (!entryPatched && p.sites.some(s => s.address === at)) fail('key entry already patched');
@@ -94,9 +97,16 @@ export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPat
   const ownValue = K.filter(k => k.ownFunction).map(k => `cmp r6,#${K.indexOf(k)};bne v${k.name};cmp r3,#${k.ownFunction};moveq r3,#0;v${k.name}:`).join('');
   const pressOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.press};`).join('');
   const releaseOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.release};`).join('');
+  // `fnDial`: the front dial (9, 10) while Fn's press is kept back: the rear dial's codes (24, 25)
+  // sent to OnEvent, Fn's release then kept back; Fn's press kept back even with its Hold line Off
+  // (a long press then runs as a short one).
+  const [D1, D2] = GR3X_FRONT_DIAL_KEYS, [R1, R2] = GR3X_REAR_DIAL_CODES;
+  const dial = fnDial ? `cmp r5,#${D1};cmpne r5,#${D2};bne keys;${S}ldrb r0,[ip];cmp r0,#${K[0].press};bne pass;mov r0,#1;strb r0,[ip,#1];
+    mov r0,r4;cmp r5,#${D1};moveq r1,#${R1};movne r1,#${R2};bl #${orig};b handled;keys:` : '';
+  const fnOff = fnDial ? 'cmp r6,#0;beq fnon;' : '';
   const filter = p.code(`push {r0,r1,r4,r5,r6,r7,r8,lr};mov r4,r0;mov r5,r1;
-    ${classify}b pass;
-    cls:${R('pass')}${holdByte}ldrb r8,[ip,r0];cmp r8,#0;beq pass;cmp r8,#${max};bhi pass;
+    ${dial}${classify}b pass;
+    cls:${R('pass')}${holdByte}ldrb r8,[ip,r0];${fnOff}cmp r8,#0;beq pass;fnon:cmp r8,#${max};bhi pass;
     bl #${APP};bl #${CONTROLLERS};ldr r0,[r0];bic r0,r0,#2;cmp r0,#0x08000000;bne pass;
     cmp r6,#0;beq noaf;bl #${APP};bl #${STATE};bl #${AF_MOVE};cmp r0,#0;bne pass;noaf:
     ${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];
@@ -106,7 +116,7 @@ export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPat
     run:${R('handled')}${ownByte}ldrb r2,[ip,r0];mov r3,r8;${ownValue}strb r3,[ip,r0];push {r0,r1,r2,ip};
     mov r0,r4;bl #${orig};${releaseOf}mov r0,r4;bl #${orig};pop {r0,r1,r2,ip};strb r2,[ip,r0];b handled;
     release:mov r0,#0;strb r0,[ip];ldrb r0,[ip,#1];cmp r0,#0;bne handled;
-    cmp r6,#0;bne short;push {r1};${now}pop {r1};${T}ldr r2,[ip];sub r0,r0,r2;movw r2,#${GR3X_FN_HOLD_MS};cmp r0,r2;bhs run;
+    cmp r6,#0;bne short;cmp r8,#0;beq short;push {r1};${now}pop {r1};${T}ldr r2,[ip];sub r0,r0,r2;movw r2,#${GR3X_FN_HOLD_MS};cmp r0,r2;bhs run;
     short:mov r0,r4;bl #${orig};
     pass:pop {r0,r1,r4,r5,r6,r7,r8,lr};mov ip,sp;b #${at + 4};
     handled:mov r0,#1;str r0,[sp];pop {r0,r1,r4,r5,r6,r7,r8,pc};`);

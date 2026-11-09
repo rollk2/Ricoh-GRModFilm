@@ -81,7 +81,7 @@ def verify(data,manifest):
             assert run(CALLS[0],1,11.0,9)==1;count('no record')
         c.mem_write(0x55063f34,struct.pack('<I',SET))
         # The byte's getter and the live SR value: On / Off.
-        OBJ=0x6304e000;c.mem_write(OBJ,struct.pack('<II',0,SET))
+        OBJ=0x6304e000;c.mem_write(OBJ,struct.pack('<II',0,SET));LVC=0x6304e100;c.mem_write(LVC,struct.pack('<I',LV))
         def call(fn,args,stubs={}):
             hs=[]
             for a,f in stubs.items():
@@ -104,8 +104,19 @@ def verify(data,manifest):
                 c.mem_write(SET+0x44,bytes([movie]));c.mem_write(SET+0x472,bytes(1));c.mem_write(SET+0x484,bytes(1))
                 assert call(0x53271dc4,[OBJ])==(1 if raw and not movie else 0),(raw,movie);count('live value')
         c.mem_write(SET+0x44,bytes(1))
+        # The SR icon (its choice and the settings monitor): the setting, Off when faster than the threshold.
+        e=manifest['entries'];sh=e['srSpeedShown'];sites={x['address']:x for x in manifest['sites']}
+        for at in (0x532a4f18,0x533676ac):
+            w=struct.unpack('<I',bytes.fromhex(sites[at]['replacement']))[0];assert w>>24==0xeb and (at+8+((w&0xffffff)<<2))&0xffffffff==sh or (at+8+(((w&0xffffff)-0x1000000)<<2))&0xffffffff==sh,hex(at)
+        for raw in (0,1,24,38,52,60):
+            c.mem_write(SET+0x4f6,bytes([raw]))
+            for k in (0,23,24,37,51):
+                for d in (-0.15,0.15):
+                    tv=12-k/3+d;c.mem_write(REC+0x4bc,struct.pack('<f',tv));f=struct.unpack('<f',struct.pack('<f',tv))[0]
+                    want=0 if raw==0 else (1 if not 2<=raw<=52 or f<12-(raw-1)/3+1/6 else 0)
+                    assert call(sh,[OBJ],{0x53525d5c:lambda u:LVC})==want,(raw,tv);count('icon '+('on' if want else 'off'))
         # Record 42: count, draw, set, current.
-        e=manifest['entries'];st=e['srSpeedText']
+        st=e['srSpeedText']
         assert call(0x531b3af4,[0])==53;count('count')
         drawn=[];D=e['srSpeedDraw']
         # The arguments at our jump to 0x5339e8b0 (the base probe stubs that function itself).
