@@ -30,9 +30,9 @@ export interface Gr3xHideable {
   /** A 4-byte setting: the value is an index into this table of words (its menu's values). */ table?: number;
 }
 export const GR3X_HIDEABLE = {
-  /** Off, Face Detection, Eye Detection (3 values; writer 0x53273064). */
+  /** ON, Auto Area, OFF (3 values, icons 0x129, 0x127, 0x128 of 0x532932e0; writer 0x53273064). */
   faceEye: { line: 0x0200005e, byte: 0x12c, values: [0, 1, 2], fn: [8], adj: [] },
-  /** On, Off (writer 0x5324bbb4). */
+  /** On, Off (icons 0xfd, 0xfc of 0x53293310: 1 On, 0 Off; writer 0x5324bbb4). */
   afAssist: { line: 0x0200005f, byte: 0x12e, values: [1, 0], fn: [], adj: [] },
   /** Focus-priority, FPS-priority (writer 0x5324bc68). */
   afc: { line: 0x02000063, byte: 0x13c, values: [1, 2], fn: [], adj: [] },
@@ -40,7 +40,8 @@ export const GR3X_HIDEABLE = {
   mfMag: { line: 0x02000065, byte: 0x140, values: [1, 0], fn: [], adj: [] },
   /** Flash On, Flash On + Red-eye, Slow-speed Sync, Slow Sync + Red-eye (writer 0x5324beac). */
   flash: { line: 0x020000dd, byte: 0x164, values: [0, 1, 2, 3], fn: [20], adj: [8] },
-  /** Off, On (writer 0x532734ec). */
+  /** On, Off: 0 is On (icon 2, GF-2), 1 Off (icon 3, GF-2 crossed) by 0x53294120; its writer turns Snap
+   * Distance Priority off (0xa3c = 1) when it is set On, as 0xa3c's writer turns it Off (writer 0x532734ec). */
   gf2: { line: 0x02000070, byte: 0xb22, values: [0, 1], fn: [41], adj: [0x13] },
   /** Flash Exposure Comp. (no line of its own; list record 13): a float at + 0x168 (writer 0x5324bf68)
    * from the table 0x53b592e0 (+1.0, +0.7, +0.3, 0.0, -0.3 ... -2.0: indexes 0..9; 0.0 first here,

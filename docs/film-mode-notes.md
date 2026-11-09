@@ -3397,3 +3397,12 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **T-HIDE2** : `flashComp` ajouté (valeur = index de la table, 0.0 par défaut ; le mot exact lu
   dans la table du firmware est écrit en 4 octets au chargement). Vérifié : `hidden_probe.py`,
   `film_roll_check.py`, `lock_probe.py`, autres sondes, tests.
+- **Erreur sur T-HIDE1 / T-HIDE2 (signalée le 2026-11-09)** : GF-2 s'est retrouvé actif. Valeurs vérifiées
+  par les icônes que le menu dessine (extraites du firmware) : Face/Eye 0 = ON, 1 = Auto Area, 2 = OFF
+  (`0x532932e0`) ; GF-2 0 = ON (icône GF-2), 1 = OFF (icône barrée) (`0x53294120`) ; AF Assist 0 = OFF,
+  1 = ON ; AF.C 1 = priorité mise au point, 2 = FPS ; Flash Mode 0 Flash On, 1 anti-yeux rouges,
+  2 Slow, 3 Slow + anti-yeux rouges ; MF Auto Magnification 0 = Off. Les builds de test avaient donc
+  mis Face/Eye sur ON et GF-2 sur ON. Libellés de l'application corrigés. Leçon : ne plus choisir
+  seul les valeurs imposées d'un build de test ; les demander à l'utilisateur.
+- Les écrivains GF-2 (`0xb22`) et Snap Distance Priority (`0xa3c`, 0 = actif) s'excluent : activer
+  l'un écrit 1 (inactif) dans l'autre.
