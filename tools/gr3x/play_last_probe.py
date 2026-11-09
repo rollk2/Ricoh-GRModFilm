@@ -2,9 +2,10 @@
 
   python3 play_last_probe.py --rtos GR3.rtos --manifest patch-manifest.json --report out.json
 
-  - the save (0x535a88ac, r7 the request): a folder 100..999 and a number 1..9999 kept with the flag
-    (0x558043a8: folder, number, flag), others ignored; r2 then the request's word + 0x10 as the
-    camera's instruction gives it, every other register kept; on to 0x535a88b0;
+  - the save's two creation calls (0x535a88d8, 0x535a890c; r7 the request; the creation 0x535ba278
+    stubbed: it writes the folder and number into the request and returns 0 or 1): its result in r0,
+    r4..r11 kept; a folder 100..999 and a number 1..9999 kept (0x558043b8: folder | 0x8000, number),
+    others ignored;
   - the opening (0x534e40c8, r0 this, r1 the kind): with the flag, this + 6 = the kind, + 8 the
     folder, + 0xa the number, this[3] = 0, the flag cleared; without it, this untouched; every
     register kept but ip; on to 0x534e40cc.
@@ -28,15 +29,21 @@ def verify(data,manifest):
         c.emu_start(start,LR,count=500);c.hook_del(h)
         assert c.reg_read(reg.UC_ARM_REG_PC)==stop and c.reg_read(reg.UC_ARM_REG_SP)==STACK
         return [c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]
-    for folder,num,ok in ((115,7404,True),(100,1,True),(999,9999,True),(0,0,False),(99,5,False),(1000,5,False),(112,0,False),(112,10000,False)):
-        c.mem_write(L,bytes([0x11]*4));c.mem_write(RING,bytes(8));c.mem_write(REQ+0x10,struct.pack('<HH',folder,num))
-        regs=[0x1000+i for i in range(13)];regs[7]=REQ
-        got=run(0x535a88ac,0x535a88b0,regs)
-        want=list(regs[:12]);want[2]=folder|num<<16
-        assert got==want,(folder,num,[hex(x) for x in got])
-        mem=bytes(c.mem_read(L,4))
-        assert mem==(struct.pack('<HH',folder|0x8000,num) if ok else bytes([0x11]*4)),(folder,num,mem.hex());count('save kept' if ok else 'save ignored')
-        if diag:assert list(c.mem_read(RING,2))==([41,0] if ok else [0,0])
+    def create(u,a_,s_,d):
+        u.mem_write(REQ+0x10,struct.pack('<HH',*create.vals));u.reg_write(reg.UC_ARM_REG_R0,create.res);u.reg_write(reg.UC_ARM_REG_PC,u.reg_read(reg.UC_ARM_REG_LR))
+    h=c.hook_add(UC_HOOK_CODE,create,begin=0x535ba278,end=0x535ba278)
+    for site in (0x535a88d8,0x535a890c):
+        for folder,num,ok in ((115,7404,True),(100,1,True),(999,9999,True),(0,0,False),(99,5,False),(1000,5,False),(112,0,False),(112,10000,False)):
+            for res in (0,1):
+                # The request holds 0 before the creation, which gives the folder and number.
+                c.mem_write(L,bytes([0x11]*4));c.mem_write(RING,bytes(8));c.mem_write(REQ+0x10,bytes(4));create.vals=(folder,num);create.res=res
+                regs=[0x1000+i for i in range(13)];regs[7]=REQ
+                got=run(site,site+4,regs)
+                assert got[0]==res and got[4:12]==regs[4:12],(folder,num,[hex(x) for x in got])
+                mem=bytes(c.mem_read(L,4))
+                assert mem==(struct.pack('<HH',folder|0x8000,num) if ok else bytes([0x11]*4)),(folder,num,mem.hex());count('save kept' if ok else 'save ignored')
+                if diag:assert list(c.mem_read(RING,2))==([41,0] if ok else [44,0])
+    c.hook_del(h)
     for flag in (1,0):
         c.mem_write(L,struct.pack('<HH',115|(0x8000 if flag else 0),7404));c.mem_write(RING,bytes(8))
         before=bytes([9,9,7,1,0,0,3,0])+struct.pack('<HH',110,7405)

@@ -3473,3 +3473,10 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **T-PLAY2d** (`playLast: 'diag'`) : T-PLAY2 avec relevés dans l'anneau : enregistrement retenu 41,
   ouverture avec (42) ou sans (43) drapeau, contrôle de la référence 80 trouvé / 81 absent,
   MoveToLastFile 77. Vérifié : `play_last_probe.py`, `grain_tag_probe.py`, `film_roll_check.py`.
+- **Résultat T-PLAY2d (2026-11-09)** : étape 5 = la vue ; anneau « 43 » sept fois : aucune photo
+  retenue (pas de 41), ouvertures sans drapeau. En `0x535a88ac`, le dossier et le numéro de la
+  requête valent encore 0 : la création `0x535ba278` les donne.
+- **T-PLAY3 / T-PLAY3d** : retenue déplacée après la création (ses deux appels `0x535a88d8`,
+  `0x535a890c` enveloppés : création, puis dossier et numéro de la requête, résultat rendu) ;
+  diagnostic : 41 retenue, 44 création sans valeurs valables. Vérifié : `play_last_probe.py`
+  (deux appels, résultats 0 et 1), `film_roll_check.py`, `grain_tag_probe.py`.
