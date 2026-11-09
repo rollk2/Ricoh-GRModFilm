@@ -3349,3 +3349,4 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   registres), `film_roll_check.py` (verrou pris en compte sur ses réglages aléatoires),
   `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
   `grain_native_probe.py`, tests.
+- **Résultat T-LOCK2 (2026-11-09) : validé par l'utilisateur** (« Cela fonctionne parfaitement »).
