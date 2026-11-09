@@ -148,8 +148,9 @@ Chaque étape suit le même cycle : test en émulateur, flash, essai sur le boî
 ## Évolutions envisagées
 - Reprendre une surimpression après extinction et rallumage (réinjection de l'image, probablement via le développement RAW intégré).
 - Une ou deux vues bonus en fin de rouleau, comme sur une vraie 36 poses.
-- Vue de sécurité sautée après une pellicule « rechargée ».
-- Liste blanche des entrées du menu principal.
+- **Prochain chantier (décidé le 2026-11-09)** : en mode U, mode pellicule, rouleau entamé (pas rembobiné à 0), masquer certaines lignes du menu, comme sur un boîtier argentique chargé. À traiter avec la vue de sécurité sautée après une pellicule « rechargée ». Brique disponible : le masquage de lignes à chaque ouverture du menu (`T18-HIDE1`, liste par identifiant). Lignes à masquer : à définir avec l'utilisateur.
+- ~~Liste blanche des entrées du menu principal~~ : retirée (décision du 2026-11-09).
+- ~~BOX suivante (fonction Fn, plan T25-BOX1)~~ : abandonnée (décision du 2026-11-09).
 - Touche WB dans la liste des touches réglables de Fn Button Settings (demande du 2026-11-02) : **validée sur le boîtier (WB-RC1)** ; touche Macro ajoutée (WB-RC2, validée sur le boîtier, 0.9.2) ; White Balance devient aussi une fonction des autres touches.
 - Désactiver la molette arrière (demande du 2026-11-08) : option « Rear dial off » de l'application (pas un réglage du boîtier). Les codes 24 et 25 sont ignorés à l'entrée de `ActionModel::OnEvent` (`0x53221a1c`), partout ; les quatre touches et OK restent. **Validée sur le boîtier (T-DIAL3, puis T-HOLD3)**, case dans l'application (0.9.3).
 - Appuis longs (demande du 2026-11-08) : lignes « Hold » sous Fn, ISO, Drive, WB et Macro Button dans Fn Button Settings. Touches du pavé : au premier code de maintien ; Fn (aucun code de maintien) : chronométré par `tk_get_otm`, 600 ms, au relâchement. Réglages dans les octets libres `0x806`, `0x84a`, `0x88e`, `0xacf`, `0xae3`. **Validés sur le boîtier (T-HOLD3)**, 0.9.3.

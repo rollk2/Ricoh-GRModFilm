@@ -2507,10 +2507,11 @@ Demande de l'utilisateur : que Mode Memory puisse s'appliquer aussi aux modes U.
 
 ## Liste v2 (après la 0.9.0)
 
-- **Memory for U** : une deuxième ligne de menu ouvrant Mode Memory avec un jeu de cases propre aux
-  modes U (bits dans des octets libres à vérifier, `0x806`, `0x84a`, `0x88e`, `0x943` ; écran réutilisé
+- **Memory for U** (jamais construit ; à ne pas confondre avec la case « Apply to U modes », livrée en
+  0.9.0) : une deuxième ligne de menu ouvrant Mode Memory avec un jeu de cases propre aux
+  modes U (bits dans des octets libres à vérifier ; `0x806`, `0x84a`, `0x88e` sont pris par les lignes Hold depuis la 0.9.3, `0x943` par Apply to U ; écran réutilisé
   avec un octet de mode ; fusion en U avec échange temporaire des 24 octets de cases). 3 à 5 builds.
-- **BOX suivante** (fonction Fn, plan T25-BOX1).
+- ~~**BOX suivante**~~ (fonction Fn, plan T25-BOX1) : abandonnée le 2026-11-09.
 - Réglages ADJ supplémentaires, Image Control custom supplémentaires, palier de crop 40 mm.
 - **Bogue (moyen, non traité)** : avec No movie, le bouton Wireless affiche encore au démarrage
   l'icône de bascule photo / vidéo (signalé le 2026-11-02). **Retiré le 2026-11-09** (décision de
