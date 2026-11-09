@@ -3331,3 +3331,21 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   chargé, autres onglets identiques), `film_roll_check.py` (mis à jour pour Snap DOF, 46, et le
   verrou), `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
   `grain_native_probe.py`, tests.
+- **Résultat T-LOCK1 (2026-11-09) : validé par l'utilisateur** (« Tout fonctionne »).
+- Fonctions Fn (texte `0x53292ed0` émulé, 0 à 46) : 10 File Format, 11 JPEG → RAW, 12 JPEG → RAW+,
+  13 Aspect Ratio, 14 Crop, 15 JPEG Recorded Pixels, 23 Drive Mode, 24 Drive, 25 Continuous
+  Shooting, 26 Self-timer, 27 Image Control (Color Space n'en a pas). Fonctions du levier ADJ
+  (nom `0x53292810`, 0 = Off) : 1 Focus, 2 Snap Focus Distance, 3 File Format, 4 Aspect Ratio,
+  5 JPEG Recorded Pixels, 6 AE Metering, 7 ISO, 8 Flash Mode, 9 Flash Exp. Comp. (flou en round 10),
+  0x0a Drive, 0x0b Self-timer, 0x0c Image Control, 0x0d One Push AE, 0x0e Outdoor View, 0x0f
+  Framerate, 0x10 Crop, 0x11 Touch AF, 0x12 Snap Distance Priority, 0x13 GF-2.
+- **T-LOCK2** (`rollLock`) : rouleau chargé, les fonctions 10 à 15, 23 à 25 et 27 deviennent Off en
+  tête des crochets du mode pellicule sur `GetEventCustomize` (Fn, ISO, Drive, et donc aussi les
+  lignes Hold) et `GetEventSwitchWlan` (Wireless, `ip` gardé) ; les cinq lecteurs de case ADJ
+  (`0x5324633c` + 12 i) passent par une enveloppe (premier mot) qui lit la case comme avant puis
+  rend Off (0) pour 3, 4, 5, 0x0a, 0x0c, 0x10. Self-timer reste libre. Conséquence : l'écran ADJ Mode
+  Setting montre aussi Off pour ces cases tant que le rouleau est chargé (même lecteur).
+- Vérifié : `lock_probe.py` (Fn et Wireless : 10 Off, 66 gardées ; ADJ : 30 Off, 300 gardées ;
+  registres), `film_roll_check.py` (verrou pris en compte sur ses réglages aléatoires),
+  `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
+  `grain_native_probe.py`, tests.

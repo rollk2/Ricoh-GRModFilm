@@ -9,7 +9,14 @@
     off, not started, counter 0, no mode or record pointer) the camera's own visibility, with its
     arguments; the lines always hidden (Still/Movie...) stay hidden; other lines as the camera's;
   - the menu built natively (its tab builder through `menuRebuild`): Still Image Settings without
-    the seven lines while a roll is loaded, with them otherwise; the other tabs unchanged.
+    the seven lines while a roll is loaded, with them otherwise; the other tabs unchanged;
+  - T-LOCK2: GetEventCustomize's entry (Fn, ISO, Drive: function in r2) and GetEventSwitchWlan's
+    switch (Wireless: r6, ip kept): File Format 10, JPEG → RAW 11, JPEG → RAW+ 12, Aspect Ratio 13,
+    Crop 14, JPEG Recorded Pixels 15, Drive Mode 23, Drive 24, Continuous Shooting 25, Image Control
+    27 become Off (0) while a roll is loaded, unchanged otherwise; other functions unchanged;
+  - the ADJ lever's five slot getters: File Format 3, Aspect Ratio 4, JPEG Recorded Pixels 5, Drive
+    0x0a, Image Control 0x0c, Crop 0x10 read as Off (0) while a roll is loaded; the others, and every
+    function otherwise, as stored (above 0x13 as 0 with the round 10 soft focus).
 """
 import argparse,hashlib,json,struct
 from pathlib import Path
@@ -69,6 +76,43 @@ def verify(data,manifest):
     assert [i for i in still('rewound') if i not in LOCKED]==still('loaded') and still('rewound')==still('P')
     assert len(still('loaded'))==len(still('rewound'))-7
     for t in range(1,5):assert got['loaded'][t]==got['rewound'][t],t
+    p.menu_stubs=False
+    # T-LOCK2: the buttons' functions.
+    FNS=(10,11,12,13,14,15,23,24,25,27);OTHER=(0,1,9,16,19,22,26,28,41)
+    for name,st,loaded in (('loaded',dict(),True),('rewound',dict(frame=0),False),('P',dict(mode=0),False),('film off',dict(flags=2),False)):
+        for f in FNS+OTHER:
+            state(**st)
+            regs={0:0x1110,1:0x2221,2:f,3:0x3333,4:0x44,5:0x55,6:0x66,7:0x77,8:0x88,9:0x99,10:0xaa,11:0xbb}
+            p.run(0x5329bcc8,0x5329bccc,regs)
+            v0=c.reg_read(reg.UC_ARM_REG_R2);want=0 if (loaded and f in FNS) else f
+            assert v0==want,(name,f,v0)
+            for k,v in regs.items():
+                if k!=2:assert c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==v,(name,f,k)
+            count('Fn '+('Off' if want!=f else 'kept'))
+            regs={0:0x1110,1:0x2221,2:0x2222,3:0x3333,4:0x44,5:0x55,6:f,7:0x77,8:0x88,9:0x99,10:0xaa,11:0xbb,12:0xcc}
+            p.run(0x5329a0a0,0x5329a0a4,regs)
+            v0=c.reg_read(reg.UC_ARM_REG_R6)
+            assert v0==want,(name,'wlan',f,v0)
+            for k,v in regs.items():
+                if k!=6:assert c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==v,(name,'wlan',f,k)
+            count('Wireless '+('Off' if want!=f else 'kept'))
+    # T-LOCK2: the ADJ lever's slots.
+    ADJ=(3,4,5,0x0a,0x0c,0x10);soft=manifest.get('adjSoftFocus') or manifest.get('features',{}).get('adjSoftFocus')
+    OBJ=0x6304a300
+    for i,at in enumerate((0x5324633c,0x53246348,0x53246354,0x53246360,0x5324636c)):
+        for name,st,loaded in (('loaded',dict(),True),('rewound',dict(frame=0),False),('P',dict(mode=0),False)):
+            for f in range(0,0x16):
+                state(**st);c.mem_write(REC+0x918+2*i,bytes([f]));c.mem_write(OBJ,struct.pack('<II',0,REC))
+                regs={0:OBJ,4:0x44,5:0x55,6:0x66,7:0x77,8:0x88,9:0x99,10:0xaa,11:0xbb}
+                p.run(at,STOP,regs)
+                for k,v in regs.items():
+                    if k>3:assert c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==v,(i,f,k)
+                v0=c.reg_read(reg.UC_ARM_REG_R0)
+                base=0 if f>0x13 else f
+                if f>0x13 and v0==f:base=f   # without the round 10 soft focus the camera's own getter keeps it
+                want=0 if (loaded and base in ADJ) else base
+                assert v0==want,(i,name,f,v0)
+                count('ADJ '+('Off' if want!=base else 'kept'))
     return dict(cases=cases,still_lines={k:len(still(k)) for k in got},rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':

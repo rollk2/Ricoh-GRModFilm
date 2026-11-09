@@ -501,6 +501,9 @@ def verify(data,manifest,seed=3101):
         TABLE_OFF=bytes(cpu.mem_read(0x53b4eb7c,36));tbl=e['filmFnTable'];wb=manifest.get('wbButton')==True;mb=manifest.get('macroButton')==True;sd=manifest.get('snapDof')==True;ADDED=bytes([42,43] if fn4 and not fn7 else [42,44,45,46] if sd else [42,44,45] if mb else [42,44] if wb else [42])
         assert bytes(cpu.mem_read(tbl,36+len(ADDED)))==TABLE_OFF+ADDED
         p.stubs_on=True;p.fn_stubs=True
+        # T-LOCK2 (rollLock): a locked function is Off while the record holds a loaded roll (lock_probe.py checks it).
+        def locked(mode,cur,fn):
+            return manifest.get('rollLock')==True and fn in (10,11,12,13,14,15,23,24,25,27) and 1<=mode<=6 and cur[FLAGS]&3==3 and cur[FRAME]!=0
         # The lists' constructor (native loop, table and count patched): the vector it fills.
         VEC=0x63055000;OBJF=0x63056000
         for model,dropped in ((0,0x28),(1,0x16),(2,None)):
@@ -535,7 +538,7 @@ def verify(data,manifest,seed=3101):
                     adv=fn==42 and film and 1<=mode<=6
                     assert p.posters==(1 if adv else 0),(mode,film,fn)
                     assert p.events==(([('retake action',)] if fn5 else [(0xb7,0,0)]) if fn==43 and not fn7 and film and 1<=mode<=6 and st==2 else []),(mode,film,fn,st,p.events)
-                    want=dict(regs);want[2]=0 if fn in (42,43) else fn
+                    want=dict(regs);want[2]=0 if fn in (42,43) or locked(mode,cur,fn) else fn
                     kept(want,True);assert state()==before
         # Pressed (Movie/Wireless, Hold): the function in r6 at the switch.
         for mode in (0,3):
@@ -548,7 +551,7 @@ def verify(data,manifest,seed=3101):
                     adv=fn==42 and film and 1<=mode<=6
                     assert p.posters==(1 if adv else 0),(mode,film,fn)
                     assert p.events==(([('retake action',)] if fn5 else [(0xb7,0,0)]) if fn==43 and not fn7 and film and 1<=mode<=6 and st==2 else []),(mode,film,fn,st,p.events)
-                    want=dict(regs);want[6]=0 if fn in (42,43) else fn
+                    want=dict(regs);want[6]=0 if fn in (42,43) or locked(mode,cur,fn) else fn
                     for k,v in want.items():assert cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==v,k
                     cpsr=cpu.reg_read(reg.UC_ARM_REG_CPSR);C=(cpsr>>29)&1;Z=(cpsr>>30)&1
                     assert (C==0 or Z==1)==(want[6]<=0x29)

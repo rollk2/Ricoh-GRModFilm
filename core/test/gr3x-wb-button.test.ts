@@ -9,6 +9,7 @@ import { planGr3xMenu } from '../src/fw/gr3x/geometry';
 import { GR3X_ISO_GETTER_CALL, GR3X_ISO_KEY_ID, GR3X_MACRO_KEY_HANDLER, GR3X_MACRO_LINE_NAMES, GR3X_WB_KEY_EVENT, GR3X_WB_KEY_HANDLER, gr3xWbLineName } from '../src/fw/gr3x/wb-button';
 import { readGr3xBuildRecipe, encodeGr3xRatioRecipe } from '../src/fw/gr3x/ratio-recipe';
 import { GR3X_KEY_EVENT_ENTRY, gr3xHoldLineName } from '../src/fw/gr3x/hold';
+import { GR3X_ADJ_SLOT_GETTERS } from '../src/fw/gr3x/film-roll';
 
 const input = process.env.GRMOD_GR3_FIRMWARE;
 const menu = planGr3xMenu([{ ratio: '65:24', name: 'XPan' }]);
@@ -98,11 +99,13 @@ describe.skipIf(!input)('GR III WB button', () => {
     for (const k of ['holdFilter', 'holdOrig', 'hold0ListSet', 'hold4ListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, holdButtons: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
-  it('hides the film lines while a roll is loaded through the existing hidden-lines site', async () => {
+  it('locks the film settings while a roll is loaded: menu lines, Fn functions, ADJ slots', async () => {
     const plain = await buildGr3xAdjResearch(raw, menu, film);
     const lock = await buildGr3xAdjResearch(raw, menu, { ...film, rollLock: true });
     expect(lock).toMatchObject({ rollLock: true });
-    expect(lock.sites.map(s => s.address).sort()).toEqual(plain.sites.map(s => s.address).sort());
+    // T-LOCK2: the ADJ lever's five slot getters; the lines and the Fn functions use sites the film mode has.
+    const added = lock.sites.filter(s => !plain.sites.some(t => t.address === s.address)).map(s => s.address).sort();
+    expect(added).toEqual([...GR3X_ADJ_SLOT_GETTERS].sort());
     expect((lock.entries as Record<string, number>).linesHidden).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, rollLock: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
