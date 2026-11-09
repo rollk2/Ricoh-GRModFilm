@@ -68,6 +68,12 @@ struct ctx {
    * (bits 20..23: grain 0..3, size code 0 M, 1 S, 2 L) the setting as glyphs, {count, glyph...},
    * or 0. Printed after the name for a film; with the date off, printed alone. */
   const u16 *const *grain_tags;
+#ifdef DIFF_DIAG
+  /* Research (T-DOF5): which bytes of the settings record in use change from one picture to the
+   * next. `copy` is the RAM word holding the copy's address (0: none yet), `alloc` the camera's heap. */
+  u8 *volatile *copy;
+  void *(*alloc)(u32 n);
+#endif
 #ifdef KEY_DIAG
   /* Research (T-DIAL2, T-DOF): a ring of seven bytes (bytes 0..6, byte 7 the next slot): the last
    * keys seen, or the bytes noted at the exposure. */
@@ -96,6 +102,10 @@ struct ctx {
 #define SETTING_MAX 15u
 /* Longest name drawn (in glyphs; GR Mod's names are at most 16). */
 #define MAXNAME 24u
+#ifdef DIFF_DIAG
+#define DIFF_SIZE 0xb28u
+#define DIFF_MINUS (G_LETTER | 0xc0u)
+#endif
 
 /* Glyph codes besides the digits 0..15. */
 #define G_APOSTROPHE 16
@@ -892,6 +902,39 @@ void datestamp(const struct ctx *k, u32 *config) {
       }
     }
   }
+#ifdef DIFF_DIAG
+  /* The record's bytes that changed since the previous picture (" ooo.aa.bb" in hex: offset, old,
+   * new; at most four), then " nn" their number (hex, up to ff); the first picture: "  ---". The
+   * copy then follows the record. */
+  {
+    const u8 *r = *k->record;
+    u8 *c = *k->copy;
+    if (ram(r)) {
+      if (!ram(c)) {
+        c = (u8 *)k->alloc(DIFF_SIZE);
+        if (ram(c)) { for (i = 0; i < DIFF_SIZE; i++) c[i] = r[i]; *k->copy = c; }
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE; glyphs[n++] = DIFF_MINUS; glyphs[n++] = DIFF_MINUS; glyphs[n++] = DIFF_MINUS;
+      } else {
+        u32 changed = 0;
+        for (i = 0; i < DIFF_SIZE; i++) {
+          u32 a = c[i], b = r[i];
+          if (a == b) continue;
+          if (changed < 4u) {
+            glyphs[n++] = G_SPACE;
+            glyphs[n++] = (glyph)((i >> 8) & 15u); glyphs[n++] = (glyph)((i >> 4) & 15u); glyphs[n++] = (glyph)(i & 15u);
+            glyphs[n++] = G_DOT; glyphs[n++] = (glyph)(a >> 4); glyphs[n++] = (glyph)(a & 15u);
+            glyphs[n++] = G_DOT; glyphs[n++] = (glyph)(b >> 4); glyphs[n++] = (glyph)(b & 15u);
+          }
+          changed++;
+          c[i] = (u8)b;
+        }
+        if (changed > 255u) changed = 255u;
+        glyphs[n++] = G_SPACE; glyphs[n++] = (glyph)(changed >> 4); glyphs[n++] = (glyph)(changed & 15u);
+      }
+      nn = n - nd;
+    }
+  }
+#endif
 #ifdef KEY_DIAG
   /* The ring in order ("  kk" each, oldest first, zeros left out; bytes 0..6, byte 7 the next slot),
    * written by its hook only (no clearing from here). */

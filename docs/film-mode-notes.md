@@ -3167,3 +3167,13 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   l'enregistrement de la photo (r2 de SetShootingInfoResultBeforeExpose), puis `+0x46e, +0x798` de
   l'enregistrement des réglages, chacun + 10. Vérifié en émulateur avec le banc complet du rouleau
   (anneau intact, registres gardés), `dial_probe.py`, `grain_tag_probe.py`, `wb_button_probe.py`.
+- **Résultat T-DOF4 (2026-11-09)** : 4 photos (priorité coupée, DOF1, DOF2, DOF3) identiques :
+  « 95 10 10 11 10 11 10 ». Enregistrement de la photo : `+0xc6` = 85 (structure différente des
+  réglages), `+0x110` 0, `+0x46e` 0, `+0x798` 1, `+0x79a` 0 ; réglages : `+0x46e` = 1, `+0x798` = 0,
+  inchangés. Aucun de ces octets ne suit le DOF ni la priorité.
+- T-DOF5 (diagnostic, `grainTag: 'diff'`, module `-DDIFF_DIAG`) : à chaque encodage, le module de
+  la date compare l'enregistrement des réglages en cours (0xb28 octets) à sa copie (tas du boîtier,
+  operator new `0x536af2a8`, adresse gardée en `0x558043a0`, mot des seules formes de test du
+  rouleau) et imprime les octets changés depuis la photo précédente, « ooo.aa.bb » en hexadécimal
+  (au plus 4), puis leur nombre ; la première photo : « --- ». Vérifié : `grain_tag_probe.py`
+  (copie créée, rien, un changement, retour, 16 changements), tests.

@@ -142,7 +142,7 @@ export interface Gr3xAdjFeatures {
   /** Film mode, round 10: Grain and Size rows on a film's Image Control parameter screen (halation-rows.ts, films.c -DGRAIN). */
   grain?: boolean;
   /** GR Mod Film test builds: the grain's setting printed on the photo by the date imprint ("G3 S"). */
-  grainTag?: boolean | 'diag' | 'find' | 'keys' | 'settings';
+  grainTag?: boolean | 'diag' | 'find' | 'keys' | 'settings' | 'diff';
   /** T-DIAL1 (test): count the keys and the rear dial router's calls (dial-probe.ts), shown by the date imprint (grainTag 'keys'). */
   dialProbe?: boolean;
   /** The rear dial's rotation ignored everywhere, its buttons kept (dial-probe.ts). */

@@ -24,7 +24,7 @@ import datestamp_probe as dp
 import datestamp8_probe as d8
 
 def verify(data,manifest):
-    assert manifest.get('grainTag') in (True,'diag','find','keys','settings') and manifest.get('round10')
+    assert manifest.get('grainTag') in (True,'diag','find','keys','settings','diff') and manifest.get('round10')
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc
     mapped=lambda a:any(s<=a<=e for s,e,_ in c.mem_regions())
     for at in range(0x63000000,0x63100000,0x1000):
@@ -51,14 +51,23 @@ def verify(data,manifest):
     # 2. The pictures.
     pics=dp.pictures();base=[b for _,b in pics['memory']]
     f=d8.FastDate(p,dp.CLOCK);f.plat=dp.PLAT;u=f.uc
-    def run(stash,setting=0,cfg_word=None):
+    diff=manifest.get('grainTag')=='diff'
+    if diff:   # T-DOF5: the heap for the copy; the copy's word cleared
+        HEAP=0x63c00000;u.mem_write(0x558043a0,bytes(4))
+        def alloc(cpu,at,size,user):
+            cpu.reg_write(reg.UC_ARM_REG_R0,HEAP);cpu.reg_write(reg.UC_ARM_REG_PC,cpu.reg_read(reg.UC_ARM_REG_LR))
+        from unicorn import UC_HOOK_CODE
+        u.hook_add(UC_HOOK_CODE,alloc,begin=0x536af2a8,end=0x536af2a8)
+    def run(stash,setting=0,cfg_word=None,rec_bytes=None):
         for a,b in pics['memory']:u.mem_write(a,b)
         for i,d in enumerate(pics['descriptors']):u.mem_write(dp.DESC+i*0x20,d)
         cfg=bytearray(0x60);struct.pack_into('<4I',cfg,0x3c,*(dp.DESC+i*0x20 for i in range(4)))
         if cfg_word:struct.pack_into('<I',cfg,cfg_word[0]*4,cfg_word[1])
         u.mem_write(dp.CFG,bytes(cfg))
         u.mem_write(dp.ARG,struct.pack('<3I',0,0,dp.CFG));u.mem_write(dp.PLAT,struct.pack('<2I',0,dp.PLAT+0x80))
-        u.mem_write(dp.REC,bytes(0xb28));u.mem_write(dp.REC+dp.OFFSET,bytes([setting]));u.mem_write(dp.PTR,struct.pack('<I',dp.REC))
+        u.mem_write(dp.REC,bytes(0xb28));u.mem_write(dp.REC+dp.OFFSET,bytes([setting]))
+        for o,v in (rec_bytes or {}).items():u.mem_write(dp.REC+o,bytes([v]))
+        u.mem_write(dp.PTR,struct.pack('<I',dp.REC))
         u.mem_write(LOOK,struct.pack('<I',stash));u.mem_write(d8.MODE,b'\x01\xa5\xa5\xa5');u.mem_write(d8.ORIENT_WORD,struct.pack('<I',0))
         if LOOK!=PHOTO:u.mem_write(d8.FRAME_WORD,struct.pack('<I',0))
         regs=[0x62e00000+i*0x100 for i in range(13)];regs[1]=dp.ARG
@@ -84,7 +93,17 @@ def verify(data,manifest):
         for b in range(a+1,12):
             if (a>>2)<3 and (b>>2)<3:assert seen[a]!=seen[b],(a,b)
     keys=manifest.get('grainTag') in ('keys','settings')   # 'settings' (T-DOF3): the same ring, filled at the exposure
-    for stash in (0x10000|11|3<<20,0x10000|22|3<<20|1<<22,32|3<<20,0x10000|64|3<<20,0x10000|200|3<<20,0):
+    if diff:
+        assert words[14]==0x558043a0 and words[15]==0x536af2a8
+        u.mem_write(0x558043a0,bytes(4))
+        first=run(0x10000|32|3<<20,setting=0)[0];assert struct.unpack('<I',bytes(u.mem_read(0x558043a0,4)))[0]==HEAP
+        same=run(0x10000|32|3<<20)[0];assert same!=first,'"---" then " 00"'
+        one=run(0x10000|32|3<<20,rec_bytes={0x46f:4})[0];assert one!=same and bytes(u.mem_read(HEAP+0x46f,1))==b'\x04'
+        back=run(0x10000|32|3<<20)[0];assert back!=one and back!=same,'4 -> 0 is a change too'
+        again=run(0x10000|32|3<<20)[0];assert again==same
+        many=run(0x10000|32|3<<20,rec_bytes={k:1 for k in range(0x100,0x110)})[0];assert many not in (same,one)
+        cases['diff']=6
+    for stash in ((0x10000|11|3<<20,0x10000|22|3<<20|1<<22,32|3<<20,0x10000|64|3<<20,0x10000|200|3<<20,0) if not diff else ()):
         ch=changed(run(stash))
         assert ch==[0]*6,hex(stash)   # T-DIAL2 too: an empty ring prints nothing
         cases['nothing']=cases.get('nothing',0)+1
