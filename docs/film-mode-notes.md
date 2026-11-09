@@ -3465,3 +3465,11 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   de la lecture = cette photo, this[3] = 0, drapeau baissé ; puis le contrôle natif (repli
   MoveToLastFile si le fichier n'est pas là). Vérifié : `play_last_probe.py`, `film_roll_check.py`,
   `lock_probe.py`, `hold_probe.py`, tests. Application : envoyé avec le mode pellicule.
+- **Résultat T-PLAY2 (2026-11-09) : échec** (étape 4 : la vue du rouleau). Hypothèse : la référence
+  posée est refusée par le contrôle (`0x534ea298`, fichier absent de l'index qui a refusé la photo
+  de P), d'où le repli MoveToLastFile.
+- Mémoire du correctif déplacée en `0x558043b8` (dossier avec le bit 15 pour drapeau, numéro), libre
+  dans les builds publiés, pour garder l'anneau de la sonde disponible.
+- **T-PLAY2d** (`playLast: 'diag'`) : T-PLAY2 avec relevés dans l'anneau : enregistrement retenu 41,
+  ouverture avec (42) ou sans (43) drapeau, contrôle de la référence 80 trouvé / 81 absent,
+  MoveToLastFile 77. Vérifié : `play_last_probe.py`, `grain_tag_probe.py`, `film_roll_check.py`.

@@ -11,7 +11,7 @@ export const GR3X_RATIO_RECIPE_MAGIC = new TextEncoder().encode('GR3X-RATIO-RECI
 const LIMIT = 4096;
 
 export function encodeGr3xRatioRecipe(menu: readonly Gr3xMenuRatio[], features: { adjSoftFocus?: boolean; dateImprint?: boolean; dateMenu?: string; pictures?: readonly { name: string; id?: number }[]; pictureMenu?: string; round7?: boolean; round8?: boolean; round9?: boolean; round10?: boolean;
-  lookLayout?: { order: readonly number[]; hidden: readonly number[] }; filmMode?: { codes?: Readonly<Record<number, string>> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; playLast?: boolean; hiddenSettings?: Gr3xHiddenSettings; rearDialOff?: boolean; grain?: boolean } = {}): Uint8Array {
+  lookLayout?: { order: readonly number[]; hidden: readonly number[] }; filmMode?: { codes?: Readonly<Record<number, string>> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; playLast?: boolean | 'diag'; hiddenSettings?: Gr3xHiddenSettings; rearDialOff?: boolean; grain?: boolean } = {}): Uint8Array {
   const data = new TextEncoder().encode(JSON.stringify({
     schema: 1, ratios: gr3xCustoms(menu).map(r => ({ ratio: r.ratio, name: r.name })),
     ...(features.adjSoftFocus ? { adjSoftFocus: true } : {}),
@@ -43,7 +43,7 @@ export function encodeGr3xRatioRecipe(menu: readonly Gr3xMenuRatio[], features: 
     // The film lines of Still Image Settings hidden while a roll is loaded (film-roll.ts, T-LOCK1).
     ...(features.rollLock && features.filmMode ? { rollLock: true } : {}),
     // Playback on the last picture taken (play-last.ts, T-PLAY2).
-    ...(features.playLast && features.filmMode ? { playLast: true } : {}),
+    ...(features.playLast === true && features.filmMode ? { playLast: true } : {}),
     // Camera settings hidden, each at its value (hidden-settings.ts, T-HIDE1).
     ...(features.hiddenSettings && Object.keys(features.hiddenSettings).length && features.filmMode ? { hiddenSettings: { ...features.hiddenSettings } } : {}),
     // The rear dial's rotation ignored everywhere (dial-probe.ts), round 10.

@@ -29,7 +29,7 @@ export interface Gr3xPlayProbeProgram {
 }
 
 /** r1 into the ring (r0, r1, r2, ip used and restored but ip; flags changed). */
-const note = `push {r0,r1,r2};movw ip,#${lo(GR3X_DIAL_TABLE)};movt ip,#${hi(GR3X_DIAL_TABLE)};ldrb r0,[ip,#7];cmp r0,#7;movhs r0,#0;
+export const gr3xRingNote = `push {r0,r1,r2};movw ip,#${lo(GR3X_DIAL_TABLE)};movt ip,#${hi(GR3X_DIAL_TABLE)};ldrb r0,[ip,#7];cmp r0,#7;movhs r0,#0;
   strb r1,[ip,r0];add r0,r0,#1;cmp r0,#7;moveq r0,#0;strb r0,[ip,#7];pop {r0,r1,r2};`;
 
 /**
@@ -48,13 +48,13 @@ export function installGr3xPlayProbe(p: Gr3xPlayProbeProgram, ref = false) {
   const cap = (r: string) => `cmp ${r},#9;movhi ${r},#9;`;
   // r1 = 100 + (r1 / 100) % 100 then 100 + r1 % 100 noted (r2, r3 used).
   const split = (t: string) => `mov r2,#0;${t}a:cmp r1,#100;subhs r1,r1,#100;addhs r2,r2,#1;bhs ${t}a;mov r3,r1;
-    ${t}b:cmp r2,#100;subhs r2,r2,#100;bhs ${t}b;add r1,r2,#100;${note}add r1,r3,#100;${note}`;
-  const open = ref ? p.code(`push {r1,r2,r3};ldrb r1,[r0,#6];add r1,r1,#100;${note}ldrh r1,[r0,#8];${split('x')}ldrh r1,[r0,#0xa];${split('y')}
-    pop {r1,r2,r3};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};`) : p.code(`push {r1};ldrb r1,[r0,#2];${cap('r1')}add r1,r1,#10;${note}ldrb r1,[r0,#3];${cap('r1')}add r1,r1,#20;${note}
-    ldrb r1,[r0,#6];and r1,r1,#7;add r1,r1,#30;${note}pop {r1};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};`);
-  const creation = p.code(`push {r1};mov r1,#50;${note}pop {r1};mov ip,sp;b #${GR3X_MOVE_TO_CREATION + 4};`);
-  const search = p.code(`push {r4,lr};bl #${GR3X_CREATION_SEARCH};mov r4,r0;cmp r0,#0;moveq r1,#60;movne r1,#61;${note}mov r0,r4;pop {r4,pc};`);
-  const last = p.code(`push {r1};mov r1,#77;${note}pop {r1};mov ip,sp;b #${GR3X_MOVE_TO_LAST + 4};`);
+    ${t}b:cmp r2,#100;subhs r2,r2,#100;bhs ${t}b;add r1,r2,#100;${gr3xRingNote}add r1,r3,#100;${gr3xRingNote}`;
+  const open = ref ? p.code(`push {r1,r2,r3};ldrb r1,[r0,#6];add r1,r1,#100;${gr3xRingNote}ldrh r1,[r0,#8];${split('x')}ldrh r1,[r0,#0xa];${split('y')}
+    pop {r1,r2,r3};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};`) : p.code(`push {r1};ldrb r1,[r0,#2];${cap('r1')}add r1,r1,#10;${gr3xRingNote}ldrb r1,[r0,#3];${cap('r1')}add r1,r1,#20;${gr3xRingNote}
+    ldrb r1,[r0,#6];and r1,r1,#7;add r1,r1,#30;${gr3xRingNote}pop {r1};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};`);
+  const creation = p.code(`push {r1};mov r1,#50;${gr3xRingNote}pop {r1};mov ip,sp;b #${GR3X_MOVE_TO_CREATION + 4};`);
+  const search = p.code(`push {r4,lr};bl #${GR3X_CREATION_SEARCH};mov r4,r0;cmp r0,#0;moveq r1,#60;movne r1,#61;${gr3xRingNote}mov r0,r4;pop {r4,pc};`);
+  const last = p.code(`push {r1};mov r1,#77;${gr3xRingNote}pop {r1};mov ip,sp;b #${GR3X_MOVE_TO_LAST + 4};`);
   p.patch(GR3X_PLAY_OPEN, 0xe1a0c00d, branchWord(GR3X_PLAY_OPEN, open), 'play probe: playback opening noted');
   p.patch(GR3X_MOVE_TO_CREATION, 0xe1a0c00d, branchWord(GR3X_MOVE_TO_CREATION, creation), 'play probe: MoveToCreationFile noted');
   p.patch(GR3X_CREATION_SEARCH_CALL, bl(GR3X_CREATION_SEARCH_CALL, GR3X_CREATION_SEARCH), bl(GR3X_CREATION_SEARCH_CALL, search), 'play probe: the created file\'s search noted');
