@@ -3200,3 +3200,16 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   `grain_native_probe.py`, tests.
 - **Résultat T-DOF6 sur le boîtier (2026-11-09) : validé par l'utilisateur.** Snap DOF fait
   DOF1 → DOF2 → DOF3 → DOF1 depuis une touche, sans toucher la distance ; molette arrière coupée.
+
+## Release 0.9.3, étape A : l'application (2026-11-09)
+
+- Contenu décidé de la 0.9.3 : grain natif, Snap DOF, molette arrière désactivable, appuis longs
+  (lignes Hold pour Fn et les quatre touches du pavé), correction de l'icône Wireless au démarrage,
+  listes Wireless étendues.
+- Application : case « Rear dial off » (avec No movie, mêmes conditions : GR III / IIIx complet en
+  round 10), ligne de confirmation, sauvegarde du projet (`rearDialOff`). Snap DOF suit le mode
+  pellicule comme les touches WB et Macro (pas de case : une fonction de plus dans les listes).
+- Moteur : options `snapDof` (demande `macroButton`) et `rearDialOff` (round 10) ; recette du
+  firmware (`ratio-recipe.ts`) avec les deux, relue et vérifiée à l'inspection (reconstruction à
+  l'octet près). Test : construction par le moteur avec, sans, et chacune seule (4 fichiers
+  différents, tous reconnus).

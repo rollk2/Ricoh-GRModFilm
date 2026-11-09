@@ -67,6 +67,8 @@ export interface State {
   soft: boolean; dateStamp: boolean; monoUnlock: boolean;
   /** GR III / IIIx: the film mode, and the movie taken out. */
   filmMode: boolean; noMovie: boolean;
+  /** GR III / IIIx: the rear dial's rotation ignored everywhere. */
+  rearDialOff: boolean;
   /** GR IV: Direct Flash, a fifth Flash Mode (GR III / IIIx have the GF-2 mode of their own). */
   directFlash: boolean;
   /** GR III / IIIx: how many films the build has (1..info.features.maxFilms). */
@@ -102,7 +104,7 @@ const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '',
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
   ready: false, page: 'ic', fwBusy: false, model: 'HDF', lang: 'zh-CN',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -215,7 +217,7 @@ function familyData(s: State): FamilyDoc {
     wall: s.wall.map((w) => ({ id: w.id, name: w.name, kind: 'image', width: w.width, height: w.height, crop: w.crop, ...(w.menuName !== undefined ? { menuName: w.menuName } : {}), ...(w.menuId ? { menuId: w.menuId } : {}) })),
     ratios: s.ratios.map((r) => ({ id: r.id, ratio: r.ratio, name: r.name })),
     soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, filmCount: s.filmCount,
-    filmMode: s.filmMode, noMovie: s.noMovie,
+    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff,
   };
 }
 
@@ -245,7 +247,7 @@ function parseFamily(doc: FamilyDoc | null): Partial<State> {
     lookOrder3: gr3SavedKeys(doc?.lookOrder3), lookHidden3: gr3SavedKeys(doc?.lookHidden3),
     soft: doc?.soft === true || (!!doc?.softFocus && typeof doc.softFocus === 'object' && Object.keys(doc.softFocus).length > 0),
     dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true,
-    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true,
+    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true,
     filmCount: Number.isInteger(doc?.filmCount) && doc!.filmCount >= 0 && doc!.filmCount <= GR3X_FILM_IDS.length ? doc!.filmCount : doc && doc.filmCount === undefined && doc.slots ? 9 : 0,
   };
 }
@@ -983,6 +985,11 @@ export function setNoMovie(noMovie: boolean): void {
   if (noMovie && !filmModeChoosable()) return;
   set({ noMovie }); scheduleSave();
 }
+export function rearDialOffOn(s: State = state): boolean { return !!s.rearDialOff && filmModeChoosable(s); }
+export function setRearDialOff(rearDialOff: boolean): void {
+  if (rearDialOff && !filmModeChoosable()) return;
+  set({ rearDialOff }); scheduleSave();
+}
 /** A film's code as typed: upper case, A-Z and 0-9 only, at most 4 characters ('' for none). */
 export function setFilmCode(id: SlotId, code: string): void {
   const c = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
@@ -995,7 +1002,7 @@ export function filmCodes(s: State = state): Partial<Record<SlotId, string>> {
 /** A film code being typed and not yet 4 characters long. */
 export function filmCodeProblem(id: SlotId, s: State = state): boolean { const c = s.slots[id]?.code; return !!c && !FILM_CODE.test(c); }
 /** Any addition that is not a slot or a ratio. */
-export function extrasOn(s: State = state): boolean { return softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || filmModeOn(s) || noMovieOn(s); }
+export function extrasOn(s: State = state): boolean { return softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s); }
 const MINUS = '\u2212';
 const strengthLabel = (st: SoftFocusStrength | 'custom'): string => t(st === 'weak' ? 'softWeak' : st === 'medium' ? 'softMedium' : st === 'strong' ? 'softStrong' : 'softCustom');
 /** "−2 weak / −3 medium" (−1 first), for confirmations and the copies page. */
@@ -1235,7 +1242,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const dateStamp = !stock && !!state.dateStamp && !!state.info.features.dateStamp;
   const monoUnlock = !stock && monoUnlockOn();
   const directFlash = !stock && directFlashOn();
-  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn();
+  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn();
   if (filmMode && shownSlots().some((x) => filmCodeProblem(x.id))) { toast(t('filmCodeIncomplete'), 'error'); return; }
   if (!stock && (hasNameErrors() || hasRatioErrors())) return;
   if (!stock && hasExtraErrors()) { toast(t('extraIncomplete'), 'error'); return; }
@@ -1247,7 +1254,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const pictures = noPictures ? [] : menuPictures();
   const films = filmCountChoosable() ? state.filmCount : 0;
   const lookLayout = stock ? undefined : lookLayoutSpec();
-  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie) { toast(t('nothingToDo'), 'info'); return; }
+  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff) { toast(t('nothingToDo'), 'info'); return; }
   if (stock && !(await askOfficial([t('copyOfficial')]))) return;
   if (dest.kind === 'card' && !stock) {
     const lines = changes.map((c) => `${state.info?.family === 'gr3x' ? (state.slots[c.id].names[state.lang] || state.info.slots.find(s => s.id === c.id)?.defaultName || c.id) : t(('slot' + c.id) as Key)}  ·  ${c.labels.join(' / ')}`);
@@ -1260,6 +1267,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
     if (directFlash) lines.push(t('flashLine'));
     if (filmMode) lines.push(t('filmModeLine', { l: Object.values(filmCodes()).join(' / ') || '—' }));
     if (noMovie) lines.push(t('noMovieLine'));
+    if (rearDialOff) lines.push(t('rearDialOffLine'));
     if (extras.length) lines.push(t('extraLine', { n: extras.length, l: extras.map((x) => (x.halation ? `${x.name} (${t('halation')})` : x.name)).join(' / ') }));
     if (lookLayout) lines.push(t('lookOrderLine', { n: lookLayout.hidden.length }));
     if (pictures.length) lines.push(t('wallMenuLine', { n: pictures.length, l: pictures.map((p) => p.name).join(' / ') }));
@@ -1276,9 +1284,10 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
       const built = await engine.build(changes.map((c) => c.request), ratios, clarity,
         { adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
           ...(films ? { filmCount: films } : {}), ...(lookLayout ? { lookLayout } : {}),
-          // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed)
-          // and the grain (Grain Off by default on every film's parameter screen).
-          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
+          // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed),
+          // Snap DOF among the buttons' functions and the grain (Grain Off by default on every film's parameter screen).
+          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, snapDof: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
+          ...(rearDialOff ? { rearDialOff } : {}),
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked).
           ...(filmModeChoosable() ? { afPoint: true, memoryU: true } : {}) });
       if (!Object.values(built.checks).every((v) => v === true)) throw new EngineError('selfcheck-failed', 'self-check');

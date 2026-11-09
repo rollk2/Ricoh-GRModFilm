@@ -91,4 +91,18 @@ describe.skipIf(!input)('GR III WB button', () => {
     expect(without.sha256).not.toBe(built.sha256);
     await expect(engine.buildFirmware([], ratios, [], { filmCount: 0, dateStamp: true, wbButton: true })).rejects.toThrow(/film mode/);
   }, 600000);
+  it('builds Snap DOF and the rear dial off from the engine, recorded and recognised', async () => {
+    const engine = await Engine.open(raw);
+    const ratios = [{ ratio: '65:24', name: 'XPan' }];
+    const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
+    const built = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true, rearDialOff: true });
+    const seen = await (await Engine.open(raw)).inspect(built.file);
+    expect(seen).toMatchObject({ verified: true });
+    const plain = await engine.buildFirmware([], ratios, [], base);
+    const snap = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true });
+    const dial = await engine.buildFirmware([], ratios, [], { ...base, rearDialOff: true });
+    expect(new Set([plain.sha256, snap.sha256, dial.sha256, built.sha256]).size).toBe(4);
+    for (const b of [snap, dial]) expect(await (await Engine.open(raw)).inspect(b.file)).toMatchObject({ verified: true });
+    await expect(engine.buildFirmware([], ratios, [], { ...base, macroButton: false, snapDof: true })).rejects.toThrow(/Snap DOF/);
+  }, 900000);
 });
