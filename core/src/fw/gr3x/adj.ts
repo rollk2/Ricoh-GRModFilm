@@ -144,7 +144,7 @@ export interface Gr3xAdjFeatures {
   /** GR Mod Film test builds: the grain's setting printed on the photo by the date imprint ("G3 S"). */
   grainTag?: boolean | 'diag' | 'find' | 'keys' | 'settings' | 'diff';
   /** T-DIAL1 (test): count the keys and the rear dial router's calls (dial-probe.ts), shown by the date imprint (grainTag 'keys'). */
-  dialProbe?: boolean;
+  dialProbe?: boolean | 'hold';
   /** The rear dial's rotation ignored everywhere, its buttons kept (dial-probe.ts). */
   rearDialOff?: boolean;
   filmRoll?: boolean | 'film' | 'folders' | 'folders-diag' | 'menu' | 'keys' | 'fn' | 'fn2' | 'fn3' | 'fn4' | 'fn5' | 'rt1' | 'fn6' | 'fn7' | 'dir1' | 'dir2' | 'dir3' | 'dg1' | 'dg2' | 'dg3' | 'dir4' | 'dir5' | 'dir6' | 'dir7' | 'dir8' | 'dir9' | 'dir10' | 'dir11' | 'dir12' | 'dir13' | 'dir14' | 'end1' | 'end2' | 'end3' | 'clo1' | 'clo2' | 'clo3' | 'clo4' | 'msg1' | 'rwd1' | 'hide1' | 'card1' | 'card2' | 'card3' | 'vid1' | 'vid2' | 'vid3' | 'vid4' | 'tab1' | 'name1' | 'name2';
@@ -473,7 +473,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
       movieLines ? (movieRenamed ? [GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE] : [GR3X_FN_STILL_MOVIE]) : []) : {}) };
   const wbOpen = wbButton ? installGr3xWbOpen({ code, append, patch, read, u32: word, sites }) : 0;
   if (features.dialProbe && features.grainTag !== 'keys') fail('IIIx dial probe: with the keys tag');
-  const dialEntries = features.rearDialOff ? installGr3xRearDialOff({ code, patch, u32: word, sites }, features.dialProbe === true)
+  const dialEntries = features.rearDialOff ? installGr3xRearDialOff({ code, patch, u32: word, sites }, features.dialProbe === 'hold' ? 'hold' : features.dialProbe === true)
     : features.dialProbe ? installGr3xDialProbe({ code, patch, u32: word, sites }) : {};
   const grainEntries = features.grainTest ? (features.filmMode ? installGr3xNativeGrainTest({ code, append, patch, u32: word, sites }, features.grainTest) : fail('IIIx native grain: with the film mode')) : {};
   const macroPress = macroButton ? installGr3xMacroPress({ code, append, patch, read, u32: word, sites }) : 0;
@@ -633,7 +633,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: true } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

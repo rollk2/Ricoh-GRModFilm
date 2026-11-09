@@ -46,7 +46,7 @@ def verify(data,manifest):
     return dict(cases=cases,table=hex(TABLE),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 def verify_off(data,manifest):
-    p=RollProbe(data,manifest);c=p.uc;cases=0;probe=manifest.get('dialProbe')==True
+    p=RollProbe(data,manifest);c=p.uc;cases=0;probe=manifest.get('dialProbe') in (True,'hold');hold=manifest.get('dialProbe')=='hold'
     LR=0x5a5a5a5a
     def run(key):
         regs=[0x1000+i for i in range(13)];regs[1]=key
@@ -60,18 +60,23 @@ def verify_off(data,manifest):
         if pc==LR:assert got[0]==1;return 'handled'
         assert pc==KEY+4 and got[0]==regs[0] and c.reg_read(reg.UC_ARM_REG_R12)==STACK;return 'on'
     c.mem_write(TABLE,bytes(RING+1))
-    seq=[24,25,26,29,32,35,50,14,10,11,5,6,7,8,57,23,19]
+    seq=[24,25,26,29,32,35,50,14,10,11,5,6,7,8,57,23,19]+([27,27,27,28,22,22,8,21,23,33,33,34,7,30] if hold else [])
     for k in seq:
         assert run(k)==('handled' if k in (24,25) else 'on'),k;cases+=1
     ring=bytes(c.mem_read(TABLE,RING+1))
     if probe:
+        # T-HOLD0: the shot's codes 5 to 8 and a key equal to the last noted are left out.
+        kept=[]
+        for k in seq:
+            if hold and (5<=k<=8 or (kept and kept[-1]==k)):continue
+            kept.append(k)
         want=bytearray(RING+1)
-        for n,k in enumerate(seq):want[n%RING]=k
-        want[RING]=len(seq)%RING;assert ring==bytes(want),ring.hex()
+        for n,k in enumerate(kept):want[n%RING]=k
+        want[RING]=len(kept)%RING;assert ring==bytes(want),(ring.hex(),bytes(want).hex())
     else:assert ring==bytes(RING+1)
     sites={s['address']:s for s in manifest['sites']}
     assert 'rear dial off' in sites[KEY]['reason'] and ROUTER not in sites
-    return dict(cases=cases,filtered=[24,25],probe=probe,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
+    return dict(cases=cases,filtered=[24,25],probe=manifest.get('dialProbe',False),rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':
     a=argparse.ArgumentParser(description=__doc__)

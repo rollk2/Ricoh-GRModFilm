@@ -2513,7 +2513,8 @@ Demande de l'utilisateur : que Mode Memory puisse s'appliquer aussi aux modes U.
 - **BOX suivante** (fonction Fn, plan T25-BOX1).
 - Réglages ADJ supplémentaires, Image Control custom supplémentaires, palier de crop 40 mm.
 - **Bogue (moyen, non traité)** : avec No movie, le bouton Wireless affiche encore au démarrage
-  l'icône de bascule photo / vidéo (signalé le 2026-11-02).
+  l'icône de bascule photo / vidéo (signalé le 2026-11-02). **Retiré le 2026-11-09** (décision de
+  l'utilisateur : purement esthétique, hors 0.9.3).
 - ~~**Touche WB dans Fn Button Settings**~~ : fait le 2026-11-02 (build WB-RC1, voir « Touche WB »
   plus bas), à valider sur le boîtier.
 
@@ -3213,3 +3214,20 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   firmware (`ratio-recipe.ts`) avec les deux, relue et vérifiée à l'inspection (reconstruction à
   l'octet près). Test : construction par le moteur avec, sans, et chacune seule (4 fichiers
   différents, tous reconnus).
+
+## Appuis longs, étape C (2026-11-09)
+
+- Décision : lignes Hold pour Fn et les quatre touches du pavé. L'icône Wireless est retirée de la 0.9.3.
+- Lecture statique : la traduction des événements matériels en codes de `ActionModel::OnEvent`
+  est en `0x532231e4` (type de l'événement en `[r1]`, état en `[[r1+4]]` : 1, 2, ...) ; chaque
+  touche y reçoit ses codes (par exemple un type donnant 0x15 à l'état 1, 0x13 à l'état 2). Les
+  codes de Fn ne sont pas établis (seul 22 vu à l'appui long).
+- Piste retenue pour le comportement : au point d'entrée de OnEvent (déjà crocheté par la molette
+  coupée), une touche dont la ligne Hold n'est pas Off voit son appui retenu ; au premier code de
+  maintien, la fonction Hold s'exécute par un appui et un relâchement injectés avec le réglage de
+  la touche échangé le temps de l'appel ; au relâchement sans maintien, l'appui court est rejoué.
+  Une touche dont la ligne Hold est Off garde le comportement natif.
+- T-HOLD0 (diagnostic, `dialProbe: 'hold'`, avec la molette coupée) : l'anneau de 7 touches ne
+  note plus les codes du déclenchement (5 à 8) ni une touche égale à la dernière notée (un maintien
+  répété prend une case). Vérifié : `dial_probe.py` (31 cas), `snap_dof_probe.py`,
+  `grain_tag_probe.py`, tests.
