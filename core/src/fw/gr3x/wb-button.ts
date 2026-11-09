@@ -123,28 +123,35 @@ export function installGr3xWbOpen(p: Gr3xWbProgram) {
 /** Macro Mode as a short press of the Macro button: its handler's native body (r0 this, r1 the
  * events, r2 = 4); AAPCS. */
 /**
- * Snap DOF (function 46, `snapDof`): Snap Distance Priority's depth of field, DOF1 / DOF2 / DOF3 (the
- * byte +0x798 of the settings record: 3, 4, 5; its strings 0x53b22308), which the rear dial chose.
- * Pressed: the next one, DOF3 back to DOF1 (anything else read as DOF1's predecessor), written as
- * the camera writes it: the settings (0x5327b70c: the record in use and the stored ones, as its
- * menu does) and the live shooting values (0x53559ab0(live, value): +0x798 and the change noted
- * for the display, item 0xc6; the live object as the folder name's setter takes it,
- * *0x53525d5c()). Whether Snap Distance Priority is on does not matter: the value waits for it.
- * T-DOF1 / T-DOF2 sent a rear dial notch (25, then 24) to ActionModel::OnEvent: nothing happened.
+ * Snap DOF (function 46, `snapDof`): Snap Distance Priority's depth of field, DOF1 / DOF2 / DOF3,
+ * which the rear dial chose. T-DOF5 (2026-11-09): byte +0xa3e of the settings record, 0 / 1 / 2
+ * (DOF1 -> DOF2 -> DOF3 on the camera); +0xa3c goes 0 -> 1 when the priority is turned off.
+ * The camera's own path, the rear dial's (0x53225c9c, which stops at DOF1 and DOF3):
+ * obj = 0x5320b31c(0x5320ad88()) (its +4: the settings record), DOF_SET(obj, value) (0x532720e4:
+ * stores +0xa3e, then 0x53272090 sends the live focus value, 0x532711e4: 3 + the DOF when +0xa40 is
+ * set, +0x44 is not 1, +0x110 and +0xa3c are 0, else +0x170, to the live values, 0x5354bff8).
+ * Pressed: under exactly that condition (the DOF in use), the next DOF, DOF3 back to DOF1 (a value
+ * above 2 read as DOF3); otherwise nothing. Every register kept.
+ * T-DOF1 / T-DOF2 sent a rear dial notch to ActionModel::OnEvent: nothing happened. T-DOF3 / T-DOF4
+ * looked at +0x798 / +0x46e: not the DOF.
  */
 export const GR3X_DOF_FUNCTION = 46, GR3X_DOF_ICON = 0x19;
-const SETTINGS = 0x5320b31c, DOF_GET = 0x53245f00, DOF_SET_ALL = 0x5327b70c, DOF_LIVE_SET = 0x53559ab0, LIVE = 0x53525d5c;
+export const GR3X_DOF_SET = 0x532720e4;
+const SETTINGS = 0x5320b31c, DOF_GET = 0x532468e8, DOF_LIVE = 0x532711e4;
 export function installGr3xSnapDofPress(p: Gr3xWbProgram) {
   const guards: readonly (readonly [number, number])[] = [
-    [DOF_GET, 0xe5903004], [DOF_GET + 4, 0xe5d30798], [DOF_SET_ALL + 0x18, 0xe5c21798],
-    [DOF_LIVE_SET, 0xe1a0c00d], [DOF_LIVE_SET + 0x14, branchWord(DOF_LIVE_SET + 0x14, 0x53559a00, 14, true)], [0x53559a28, 0xe5c32798],
+    [DOF_GET, 0xe5903004], [DOF_GET + 4, 0xe5d30a3e], [GR3X_DOF_SET, 0xe5903004], [GR3X_DOF_SET + 0x10, 0xe5c31a3e],
+    [GR3X_DOF_SET + 0x14, branchWord(GR3X_DOF_SET + 0x14, 0x53272090, 14, true)],
+    [DOF_LIVE + 0x14, 0xe5d32a40], [DOF_LIVE + 0x20, 0xe5d31044], [DOF_LIVE + 0x24, 0xe5d32110],
+    [DOF_LIVE + 0x38, 0xe5d34a3c], [DOF_LIVE + 0x44, 0xe5d33a3e],
   ];
   for (const [at, w] of guards) if (p.u32(at) >>> 0 !== w >>> 0) fail(`Snap DOF guard at ${at.toString(16)}`);
-  return p.code(`push {r0,r1,r2,r3,r4,r5,r6,lr};bl #${APP};bl #${SETTINGS};mov r4,r0;bl #${DOF_GET};
-    cmp r0,#3;movlo r0,#2;cmp r0,#5;movhs r0,#2;add r5,r0,#1;
-    mov r0,r4;mov r1,r5;bl #${DOF_SET_ALL};
-    bl #${LIVE};ldr r0,[r0];cmp r0,#0x40000000;blo done;cmp r0,#0xc0000000;bhs done;tst r0,#3;bne done;
-    mov r1,r5;bl #${DOF_LIVE_SET};
+  return p.code(`push {r0,r1,r2,r3,r4,r5,r6,lr};bl #${APP};bl #${SETTINGS};mov r4,r0;
+    ldr r3,[r4,#4];cmp r3,#0x40000000;blo done;cmp r3,#0xc0000000;bhs done;
+    ldrb r0,[r3,#0xa40];cmp r0,#0;beq done;ldrb r0,[r3,#0x44];cmp r0,#1;beq done;
+    ldrb r0,[r3,#0x110];cmp r0,#0;bne done;ldrb r0,[r3,#0xa3c];cmp r0,#0;bne done;
+    ldrb r1,[r3,#0xa3e];cmp r1,#2;movhs r1,#0;addlo r1,r1,#1;
+    mov r0,r4;bl #${GR3X_DOF_SET};
     done:pop {r0,r1,r2,r3,r4,r5,r6,pc};`);
 }
 

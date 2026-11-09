@@ -69,6 +69,14 @@ describe.skipIf(!input)('GR III WB button', () => {
     for (const k of ['macroPress', 'macroKeyEntry', 'isoKeySetting', 'isoKeyId', 'macroScreenValue', 'macroListSet', 'macroListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, macroButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
+  it('adds Snap DOF without a new site, with the Macro button only', async () => {
+    const both = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true });
+    const snap = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, snapDof: true });
+    expect(snap).toMatchObject({ snapDof: true });
+    expect(snap.sites.map(s => s.address).sort()).toEqual(both.sites.map(s => s.address).sort());
+    expect((snap.entries as Record<string, number>).snapStep).toBeGreaterThan(0x53000000);
+    await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, snapDof: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
+  }, 240000);
   it('needs the film mode', async () => {
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, filmRoll: 'fn7', wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });

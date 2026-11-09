@@ -3177,3 +3177,24 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   rouleau) et imprime les octets changés depuis la photo précédente, « ooo.aa.bb » en hexadécimal
   (au plus 4), puis leur nombre ; la première photo : « --- ». Vérifié : `grain_tag_probe.py`
   (copie créée, rien, un changement, retour, 16 changements), tests.
+- **Résultat T-DOF5 (2026-11-09)** : 5 photos dans l'ordre (DOF1, DOF1, DOF2, DOF3, priorité
+  coupée) : « --- », « 00 », « a3e.00.01 01 », « a3e.01.02 01 », « a3c.00.01 01 ». Certitude
+  forte : **le DOF est l'octet `+0xa3e` des réglages, 0 / 1 / 2 pour DOF1 / DOF2 / DOF3**, et
+  `+0xa3c` passe de 0 à 1 quand Snap Distance Priority est coupé. Aucun autre octet ne bouge.
+- Code du boîtier autour de `+0xa3e` (lecture statique, puis émulateur) :
+  - lecture `0x532468e8` (`ldr r3,[r0,#4]; ldrb r0,[r3,#0xa3e]`), `r0` l'objet des réglages
+    `0x5320b31c(0x5320ad88())`, dont `+4` est l'enregistrement en cours ;
+  - **écriture `0x532720e4(objet, valeur)`** : range `+0xa3e`, puis `0x53272090` calcule la valeur
+    vivante de mise au point et l'envoie aux valeurs vivantes (`0x5354bff8` sur `*0x53525d5c()`) ;
+  - valeur vivante `0x532711e4` : 3 + le DOF (3, 4, 5 : les chaînes DOF de `0x53b22308`) si
+    `+0xa40` non nul, `+0x44` différent de 1, `+0x110` et `+0xa3c` nuls ; sinon `+0x170` (le mode
+    de mise au point ordinaire) ;
+  - gestionnaire natif de la molette `0x53225c9c(?, sens)` (appelé par `0x53228358` / `0x53228368`) :
+    ordre `0x53b5931c` = 0, 1, 2, s'arrête à DOF1 et à DOF3, puis appelle `0x532720e4`.
+- T-DOF6 : Snap DOF (fonction 46) refait sur ce chemin : si le DOF est en usage (même condition
+  que `0x532711e4`, enregistrement en RAM), valeur suivante, 2 (ou plus) revient à 0, puis
+  `0x532720e4`. Sinon rien. Tous les registres gardés. Le blocage de construction est levé ;
+  Snap DOF ne demande plus que la touche Macro (la molette coupée n'est plus requise). Vérifié :
+  `snap_dof_probe.py` (cycle 4 cas avec la valeur vivante 3 + DOF envoyée, 6 cas « rien »,
+  GetEventCustomize, GetEventSwitchWlan, listes Wireless), `wb_button_probe.py`, `dial_probe.py`,
+  `grain_native_probe.py`, tests.
