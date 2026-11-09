@@ -3350,3 +3350,22 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
   `grain_native_probe.py`, tests.
 - **Résultat T-LOCK2 (2026-11-09) : validé par l'utilisateur** (« Cela fonctionne parfaitement »).
+
+## Lignes masquables depuis l'application (2026-11-09, préparation)
+
+- Décisions : les 7 réglages demandés ; masqués partout (comme la vidéo) ; chaque réglage masqué
+  prend la valeur choisie dans l'application (écrite au démarrage dans l'enregistrement en cours et
+  les BOX) ; un réglage masqué quitte aussi les listes des touches et du levier ADJ.
+- Réglages (fiche de liste du menu `0x53b3c6c0` + 0x40 × n : nombre, set → table d'index en valeur
+  puis écrivain ; lecteurs `0x5324xxxx`) :
+  | Réglage | Ligne | Octet | Valeurs (ordre du menu → valeur) | Fn | ADJ |
+  |---|---|---|---|---|---|
+  | Face/Eye Detection | `0x0200005e` | `0x12c` | 3 : 0, 1, 2 (écrivain `0x53273064`) | 8 | non |
+  | AF Assist Light | `0x0200005f` | `0x12e` | 2 : 1 (On), 0 (Off) (`0x5324bbb4`) | non | non |
+  | AF.C Setting | `0x02000063` | `0x13c` | 2 : 1 Focus-priority, 2 FPS-priority (`0x5324bc68`) | non | non |
+  | MF Auto Magnification | `0x02000065` | `0x140` | 2 : 1 (On), 0 (Off) (`0x532426c0`) | non | non |
+  | Flash Mode | `0x020000dd` | `0x164` | 4 : Flash On, On + Red-eye, Slow-speed Sync, Slow Sync + Red-eye = 0..3 (fiche 12 : 2 valeurs, selon le modèle) (`0x5324beac`) | 20 | 8 |
+  | GF-2 Flash Mode | `0x02000070` | `0xb22` | 2 : 0, 1 (`0x532734ec`, publie un événement) | 41 | 0x13 |
+  | Macro Mode | `0x02000071` | `0x110` | 2 : 1 (On), 0 (Off) (`0x53273438`) | 45 (GR Mod Film) | non |
+- Note : `+0x110` est Macro Mode (ce qu'on prenait pour la priorité Snap en T-DOF1) ; la valeur
+  vivante du DOF exige Macro Off (`0x532711e4`).
