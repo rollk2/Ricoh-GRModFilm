@@ -159,4 +159,20 @@ describe.skipIf(!input)('GR III WB button', () => {
     await expect(engine.buildFirmware([], ratios, [], { ...base, macroButton: false, snapDof: true })).rejects.toThrow(/Snap DOF/);
     await expect(engine.buildFirmware([], ratios, [], { ...base, macroButton: false, holdButtons: true })).rejects.toThrow(/Hold lines/);
   }, 900000);
+  it('builds SR by shutter speed and Fn + the front dial from the engine, recorded and recognised', async () => {
+    const engine = await Engine.open(raw);
+    const ratios = [{ ratio: '65:24', name: 'XPan' }];
+    const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, holdButtons: true, grain: true } as const;
+    const full = await engine.buildFirmware([], ratios, [], { ...base, rollLock: true, playLast: true, rearDialOff: true, srSpeed: true });
+    expect(await (await Engine.open(raw)).inspect(full.file)).toMatchObject({ verified: true });
+    const sr = await engine.buildFirmware([], ratios, [], { ...base, srSpeed: true });
+    const dial = await engine.buildFirmware([], ratios, [], { ...base, rearDialOff: true });
+    const plain = await engine.buildFirmware([], ratios, [], base);
+    expect(new Set([plain.sha256, sr.sha256, dial.sha256, full.sha256]).size).toBe(4);
+    for (const b of [sr, dial]) expect(await (await Engine.open(raw)).inspect(b.file)).toMatchObject({ verified: true });
+    // The rear dial off without the Hold lines: no Fn + front dial.
+    const bare = await engine.buildFirmware([], ratios, [], { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, rearDialOff: true, srSpeed: true });
+    expect(await (await Engine.open(raw)).inspect(bare.file)).toMatchObject({ verified: true });
+    await expect(engine.buildFirmware([], ratios, [], { filmCount: 3, srSpeed: true, gr3Round: 9 } as never)).rejects.toThrow(/round 10/);
+  }, 900000);
 });

@@ -84,7 +84,7 @@ const RECORD_POINTER = 0x55063f34, SR_BYTE = 0x4f6, LIVE_VALUES = 0x53525d5c;
  * comparison that redraws it on a change (0x532a4f18, cached at + 0x8f0). */
 export const GR3X_SR_ICON_CALLS = [0x532a4f18, 0x533676ac] as const;
 
-export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | undefined, diag = false, srText = 0) {
+export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | undefined, diag = false, srText = 0, icon = false) {
   const bl = (from: number, to: number) => branchWord(from, to, 14, true);
   for (const at of GR3X_SR_GET_CALLS) {
     if (p.u32(at) !== bl(at, GR3X_SR_GET)) fail(`SR getter call at ${at.toString(16)}`);
@@ -138,7 +138,9 @@ export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | unde
   p.patch(L.set, 0xe1a0c00d, branchWord(L.set, set), 'SR speed: Shake Reduction\'s value set');
   p.patch(L.current, 0xe1a0c00d, branchWord(L.current, current), 'SR speed: Shake Reduction\'s current value');
   // The SR icon of the shooting screen (its choice and the settings monitor that redraws it): the
-  // setting, then Off when the live speed is faster than the threshold.
+  // setting, then Off when the live speed is faster than the threshold. `icon` only: T-FN1 to
+  // T-FN5 on the camera, the icon did not follow the speed (left for a later release).
+  if (!icon) return { srSpeedGet: get, srSpeedDraw: draw, srSpeedSet: set, srSpeedCurrent: current, srSpeedText: srText };
   for (const at of GR3X_SR_ICON_CALLS) {
     if (p.u32(at) !== bl(at, GR3X_SR_GETTER)) fail(`SR icon call at ${at.toString(16)}`);
     if (p.sites.some(s => s.address === at)) fail(`${at.toString(16)} already patched`);

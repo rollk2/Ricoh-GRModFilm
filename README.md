@@ -8,7 +8,7 @@ does for these cameras is kept. Not a Ricoh product, not an official GR Mod rele
 > tested for it here. GR IV owners should use [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod).
 > (GR Mod's GR IV code is still in this repository, untouched, because the program is shared.)
 
-Version 0.9.3 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page). Camera-tested on a GR III 2.10. The GR IIIx 1.60 is the same program (same
+Version 0.9.4 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page). Camera-tested on a GR III 2.10. The GR IIIx 1.60 is the same program (same
 addresses, same emulator checks) but has **not been tested on a camera**.
 
 ## What the film mode does (GR III / IIIx)
@@ -42,23 +42,37 @@ addresses, same emulator checks) but has **not been tested on a camera**.
 - **Grain** (0.9.3): a « Grain Effect » row (Off / 1 / 2 / 3) on each GR Mod film's parameter
   screen, rendered by the camera's own grain (as its monochrome looks do), so shooting and power-off
   stay as fast as without it. Films only; the camera's own looks are unchanged.
-- **Snap DOF** (0.9.3): a function for the buttons. In Snap Distance Priority, each press picks the
-  next depth of field, DOF1 → DOF2 → DOF3 → DOF1, as the rear dial does (the distance, set with the
-  front dial, does not change). Elsewhere it does nothing.
 - **Hold lines** (0.9.3): Fn Button Settings has a « Hold » line under each of Fn, ISO, Drive, WB
   and Macro Button. A long press runs that function: the 4-way pad's keys while held, Fn when
   released after 0.6 s or more. With a Hold function set, the key's short press runs on release.
   Left Off (the default), the key works as before. Outside shooting (menus, playback) and while
   the 4-way pad moves the AF point, nothing changes.
 - **Wireless Button and Hold Wireless Btn.** (0.9.3) now offer the same functions as the other
-  buttons: Film Advance, White Balance, Macro Mode and Snap DOF were missing from their lists.
-- **Rear dial off** (0.9.3, an option of its own, for a faulty dial): the rear dial's rotation is
-  ignored everywhere; its four keys and OK work as before. Snap DOF then picks the depth of field.
+  buttons: Film Advance, White Balance and Macro Mode were missing from their lists.
+- **Rear dial off** (an option of its own, for a faulty dial): the rear dial's rotation is ignored
+  everywhere; its four keys and OK work as before. With the film mode (0.9.4), **hold Fn and turn
+  the front dial** to do what the rear dial did (the depth of field in Snap Distance Priority, for
+  one). Fn's own function then runs when Fn is released, and not at all after such a turn. The Snap
+  DOF button function of 0.9.3 is gone (Fn + front dial does it).
+- **Roll lock** (0.9.4): while a roll is loaded (not rewound), Image Control, Aspect Ratio, Crop,
+  Drive Mode, File Format, JPEG Recorded Pixels and Color Space leave the menu, their button and
+  ADJ lever functions run Off: the roll's film and format cannot change by mistake.
+- **Hidden camera settings** (0.9.4, chosen in the program): Face/Eye Detection, AF Assist Light,
+  AF.C Setting, MF Auto Magnification, Flash Mode, GF-2 Flash Mode and Flash Exposure Comp. can each
+  be taken out of the camera (menu, buttons, ADJ lever), held at the value you choose.
+- **Playback** (0.9.4) opens on the last picture taken, whatever the folder (before, it could show
+  the roll's last frame after a photo in P).
+- **SR by shutter speed** (0.9.4, an option of its own): Shake Reduction's list becomes Off,
+  1/4000, 1/3200 … 30". With a speed chosen, SR is on at that speed and slower, off when the shutter
+  speed is faster. 1/4000 means always on (the factory On, so nothing changes until you choose
+  another speed). The speed is kept per BOX like Shake Reduction (and once for P, Av, Tv, M). A
+  button set to Shake Reduction turns a speed Off, then back to 1/4000. The SR icon on the shooting
+  screen does not follow the speed yet.
 - The film mode builds on GR Mod's date imprint stage; when the date imprint itself is not
   wanted, its menu line is hidden and nothing is printed on the photos (0.9.2: even when a date
   had been turned on before).
 
-In the program: switch **Film mode** (and **No movie**, **Rear dial off** if wanted) on the GR III / IIIx page, and
+In the program: switch **Film mode** (and **No movie**, **Rear dial off**, **SR by shutter speed** if wanted) on the GR III / IIIx page, and
 give each GR Mod film a 4-character **Film code** (A-Z, 0-9; the folder takes the first three).
 
 ## Install

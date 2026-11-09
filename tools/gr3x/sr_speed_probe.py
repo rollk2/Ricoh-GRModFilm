@@ -105,10 +105,11 @@ def verify(data,manifest):
                 assert call(0x53271dc4,[OBJ])==(1 if raw and not movie else 0),(raw,movie);count('live value')
         c.mem_write(SET+0x44,bytes(1))
         # The SR icon (its choice and the settings monitor): the setting, Off when faster than the threshold.
-        e=manifest['entries'];sh=e['srSpeedShown'];sites={x['address']:x for x in manifest['sites']}
-        for at in (0x532a4f18,0x533676ac):
+        e=manifest['entries'];sh=e.get('srSpeedShown');sites={x['address']:x for x in manifest['sites']}
+        assert (sh is not None)==bool(sr.get('icon')) and all((a in sites)==bool(sh) for a in (0x532a4f18,0x533676ac))
+        for at in ((0x532a4f18,0x533676ac) if sh else ()):
             w=struct.unpack('<I',bytes.fromhex(sites[at]['replacement']))[0];assert w>>24==0xeb and (at+8+((w&0xffffff)<<2))&0xffffffff==sh or (at+8+(((w&0xffffff)-0x1000000)<<2))&0xffffffff==sh,hex(at)
-        for raw in (0,1,24,38,52,60):
+        for raw in ((0,1,24,38,52,60) if sh else ()):
             c.mem_write(SET+0x4f6,bytes([raw]))
             for k in (0,23,24,37,51):
                 for d in (-0.15,0.15):

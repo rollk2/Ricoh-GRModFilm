@@ -3618,3 +3618,18 @@ Certitude : **statique** (lecture du code), sauf mention.
 - **T-FN5** : Fn sans fonction Hold : appui et relâchement passent tout de suite, l'état note
   seulement Fn enfoncé (22) jusqu'au relâchement ; avec une fonction Hold, Fn reste retenu comme en
   0.9.3. Build sans relevé, sans Snap DOF. Vérifié : `hold_probe.py`, autres sondes, tests.
+- **Résultat T-FN5 (2026-11-09)** : AEL ne marche pas en M (comportement natif) ; avec une autre
+  fonction, Fn marche en M et P. Fn + molette avant marche, mais déclenche aussi la fonction de Fn :
+  l'utilisateur préfère la fonction au relâchement. La main SR ne suit pas la vitesse : reportée à
+  une version future.
+- Décisions pour la 0.9.4 : Fn toujours retenu avec Fn + molette avant (comme T-FN4 : la fonction
+  au relâchement, rien après un tour de molette) ; Fn + molette avant automatique avec « Rear dial
+  off » et les lignes Hold (mode pellicule), indiqué dans l'application ; la stabilisation selon la
+  vitesse a sa propre case (`srSpeed`), sans lien avec le mode pellicule ; la main SR (option `icon`)
+  hors de la release ; Snap DOF retiré de l'application.
+- Moteur et recette : options `srSpeed` (round 10) et `fnDial` (déduite de `rearDialOff` avec les
+  lignes Hold, enregistrée explicitement : les builds 0.9.3 se reconstruisent à l'identique).
+  Application : case « SR by shutter speed », texte de « Rear dial off » complété, Snap DOF plus
+  envoyé. **0.9.4-RC1** construite par le moteur (réglages masqués de l'utilisateur, verrou, lecture,
+  stabilisation, molette coupée) : auto-contrôle et inspection vérifiés ; sondes sur un build
+  équivalent ; tests.

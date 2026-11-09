@@ -58,7 +58,9 @@ describe.skipIf(!input)('GR III SR by shutter speed', () => {
     // The menu: Shake Reduction's list and the byte's two readers too, and 52 more texts.
     const list = await buildGr3xAdjResearch(raw, menu, { ...film, srSpeed: {} });
     const listAdded = list.sites.filter(s => !plain.sites.some(t => t.address === s.address)).map(s => s.address).sort();
-    expect(listAdded).toEqual([...GR3X_SR_GET_CALLS, GR3X_SR_GETTER + 8, GR3X_SR_LIVE_LOAD, ...Object.values(GR3X_SR_LIST), ...GR3X_SR_ICON_CALLS].sort());
+    expect(listAdded).toEqual([...GR3X_SR_GET_CALLS, GR3X_SR_GETTER + 8, GR3X_SR_LIVE_LOAD, ...Object.values(GR3X_SR_LIST)].sort());
+    const icon = await buildGr3xAdjResearch(raw, menu, { ...film, srSpeed: { icon: true } });
+    expect(icon.sites.length - list.sites.length).toBe(GR3X_SR_ICON_CALLS.length);
     expect((list as unknown as { catalogs: { textColumns: number } }).catalogs.textColumns - (plain as unknown as { catalogs: { textColumns: number } }).catalogs.textColumns).toBe(52);
   }, 240000);
 });

@@ -81,11 +81,10 @@ def verify(data,manifest):
             if fnDial and k[0]==22:continue
             assert key(code)==('on',[]),code;count('off')
     if fnDial:
-        # Fn with its Hold line Off: its press and release go on at once, noted down meanwhile.
+        # Fn with its Hold line Off: kept back too, a short press on release, however long.
         for dt in (0,HOLD_MS+500):
-            env['ms']=1000;assert key(22)==('on',[]) and list(c.mem_read(STATE_RAM,2))==[22,0];env['ms']=1000+dt
-            assert key(23)==('on',[]) and list(c.mem_read(STATE_RAM,2))==[0,0],dt;count('Fn at once, Hold Off')
-        c.mem_write(STATE_RAM,bytes([22,1]));assert key(23)==('on',[]) and list(c.mem_read(STATE_RAM,2))==[0,0];count('Fn release after the dial, Hold Off')
+            env['ms']=1000;assert key(22)==(1,[]);env['ms']=1000+dt
+            assert key(23)==('on',[(THIS,22,7)]),dt;count('Fn short, Hold Off')
         # Fn held + the front dial: the events' translation (0x532231e4) makes its turns (types 0x22,
         # 0x23) the rear dial's (0x24, 0x25), in r3 and in the event, and sets « hold run ».
         EV=0x63047800
@@ -105,11 +104,11 @@ def verify(data,manifest):
         for t in (0x1b,0x21,0x24,0x25,0x26,0x10):assert xlat(t,[22,0])==(t,t,[22,0]);count('other events')
         # The rear dial's codes go on while Fn is held (they are the front dial's), else ignored.
         for holds in ((0,0,0,0,0),(44,0,0,0,0)):
-            setup(holds);env['ms']=1000;kept=holds[0]!=0
-            assert key(22)==((1,[]) if kept else ('on',[])) and c.mem_read(STATE_RAM,1)[0]==22
+            setup(holds);env['ms']=1000
+            assert key(22)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==22
             assert key(24)==('on',[]) and key(25)==('on',[]);count('rear codes, Fn held')
             c.mem_write(STATE_RAM+1,bytes([1]))
-            env['ms']=5000;assert key(23)==((1,[]) if kept else ('on',[])) and c.mem_read(STATE_RAM,1)[0]==0;count('Fn released after the dial')
+            env['ms']=5000;assert key(23)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==0;count('Fn released after the dial')
             assert key(24)==(1,[]) and key(25)==(1,[]);count('rear codes, Fn not held')
             assert key(9)==('on',[]) and key(10)==('on',[]);count('front dial alone')
         if manifest.get('fnDial')=='diag':
