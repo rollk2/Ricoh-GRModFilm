@@ -3297,3 +3297,6 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **0.9.3-RC1** construit par le moteur de l'application avec les options qu'elle envoie (mode
   pellicule : WB, Macro, Snap DOF, Hold, grain ; No movie et Rear dial off cochés ; 3 films, XPan) :
   autocontrôle complet vrai, reconnu et reconstruit à l'octet près par l'inspection.
+- **0.9.3-RC1 validé sur le boîtier ; 0.9.3 publiée (2026-11-09)** : PR rollk2/Ricoh-GRModFilm#6
+  fusionnée dans `main`, release `v0.9.3` créée par l'utilisateur dans l'interface web (le push de
+  tag est refusé depuis la session), construction verte (Windows, macOS, Linux, SHA256SUMS).
