@@ -3580,3 +3580,12 @@ Certitude : **statique** (lecture du code), sauf mention.
   appui court). Vérifié : `hold_probe.py` (Fn + molette, Fn seul avec et sans Hold, hors visée,
   molette seule ; sans `fnDial` sur T-SR2), `sr_speed_probe.py` (icône), toutes les autres sondes,
   tests.
+- **Résultat T-FN1 (2026-11-09) : échec.** Mode M, Fn maintenu + molette avant : rien ne bouge ;
+  anneau « 22 09 09 10 23 » (Fn retenu, la molette avant arrive bien en 9 / 10). Hold Fn marche,
+  l'appui court de Fn ne marche plus (à éclaircir : la fonction de Fn de l'utilisateur).
+- Lecture statique : `OnEvent` appelle pour la visée (`0x08000000`) le gestionnaire `0x5320c844`
+  (table de sauts `0x5320c874`, entrée code - 1) : 24 → action `0x24`, 25 → `0x25`, 9 → `0x22`,
+  10 → `0x23`, exécutées par `0x532a0d70`. L'envoi de 24 / 25 devrait donc y arriver.
+- **T-FN2** (`fnDial: 'diag'`) : T-FN1, plus l'anneau note le retour d'OnEvent après l'envoi (70 + 0
+  ou 1) et l'arrivée dans les cas 24 / 25 du gestionnaire de la visée (74, 75 : entrées de la table
+  détournées). Vérifié : `hold_probe.py` (notes, registres gardés), autres sondes, tests.

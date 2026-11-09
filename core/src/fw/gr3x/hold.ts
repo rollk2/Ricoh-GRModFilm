@@ -26,6 +26,7 @@
 import { branchWord } from '../aspect/arm';
 import { FirmwareError } from '../types';
 import type { Gr3xSite } from './round10';
+import { gr3xRingNote } from './play-probe';
 
 const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 const fail = (what: string): never => { throw new FirmwareError('unexpected-layout', `IIIx hold buttons: ${what}`); };
@@ -57,6 +58,8 @@ export const GR3X_HOLD_STATE = 0x558043be;
 /** The front dial's rotation at OnEvent (T-SR2's key ring on the camera, 2026-11-09: 9 and 10, one
  * notch each way, with Fn held), and the rear dial's codes they stand for (T-DIAL2: 24, 25). */
 export const GR3X_FRONT_DIAL_KEYS = [9, 10] as const, GR3X_REAR_DIAL_CODES = [24, 25] as const;
+/** The viewfinder's key handler's jump table (0x5320c844: entry key - 1). */
+export const GR3X_VIEW_KEY_TABLE = 0x5320c874;
 const RECORD_POINTER = 0x55063f34;
 const APP = 0x5320ad88, CONTROLLERS = 0x5320aefc, STATE = 0x5320b61c, AF_MOVE = 0x532a441c;
 
@@ -73,7 +76,7 @@ export interface Gr3xHoldProgram {
  * the rear dial's filter goes on there, else OnEvent's entry is patched to it here (`entryPatched`
  * false).
  */
-export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPatched: boolean, fnDial = false) {
+export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPatched: boolean, fnDial: boolean | 'diag' = false) {
   const at = GR3X_KEY_EVENT_ENTRY;
   if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
   if (!entryPatched && p.sites.some(s => s.address === at)) fail('key entry already patched');
@@ -102,7 +105,7 @@ export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPat
   // (a long press then runs as a short one).
   const [D1, D2] = GR3X_FRONT_DIAL_KEYS, [R1, R2] = GR3X_REAR_DIAL_CODES;
   const dial = fnDial ? `cmp r5,#${D1};cmpne r5,#${D2};bne keys;${S}ldrb r0,[ip];cmp r0,#${K[0].press};bne pass;mov r0,#1;strb r0,[ip,#1];
-    mov r0,r4;cmp r5,#${D1};moveq r1,#${R1};movne r1,#${R2};bl #${orig};b handled;keys:` : '';
+    mov r0,r4;cmp r5,#${D1};moveq r1,#${R1};movne r1,#${R2};bl #${orig};${fnDial === 'diag' ? `and r1,r0,#1;add r1,r1,#70;${gr3xRingNote}` : ''}b handled;keys:` : '';
   const fnOff = fnDial ? 'cmp r6,#0;beq fnon;' : '';
   const filter = p.code(`push {r0,r1,r4,r5,r6,r7,r8,lr};mov r4,r0;mov r5,r1;
     ${dial}${classify}b pass;
@@ -121,7 +124,17 @@ export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPat
     pass:pop {r0,r1,r4,r5,r6,r7,r8,lr};mov ip,sp;b #${at + 4};
     handled:mov r0,#1;str r0,[sp];pop {r0,r1,r4,r5,r6,r7,r8,pc};`);
   if (!entryPatched) p.patch(at, 0xe1a0c00d, branchWord(at, filter), 'hold buttons: long presses at the key entry');
-  return { holdFilter: filter, holdOrig: orig };
+  if (fnDial !== 'diag') return { holdFilter: filter, holdOrig: orig };
+  // T-FN2: the viewfinder's key handler (0x5320c844) reaching its cases 24 and 25 (jump table
+  // 0x5320c874, entry key - 1): 74, 75 noted, then the case.
+  const cases = GR3X_REAR_DIAL_CODES.map((k, i) => {
+    const entry = GR3X_VIEW_KEY_TABLE + 4 * (k - 1), target = p.u32(entry);
+    if (target !== [0x5320d890, 0x5320d800][i]) fail('viewfinder key table');
+    const stub = p.code(`push {r0,r1,r2,ip};mov r1,#${74 + i};${gr3xRingNote}pop {r0,r1,r2,ip};b #${target};`);
+    p.patch(entry, target, stub, `Fn + front dial diagnostic: the viewfinder's case ${k} noted`);
+    return stub;
+  });
+  return { holdFilter: filter, holdOrig: orig, fnDialCases: cases[0] };
 }
 
 /** The Hold lines' names in each text row (ja en fr de es pt it nl da sv fi pl cs hu tr el ru ko

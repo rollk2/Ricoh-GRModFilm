@@ -88,9 +88,23 @@ def verify(data,manifest):
         for holds in ((0,0,0,0,0),(44,0,0,0,0)):
             setup(holds);env['ms']=1000
             assert key(22)==(1,[])
+            RING=0x558043a8;c.mem_write(RING,bytes(8))
             assert key(9)==(1,[(THIS,24,None)]) and key(10)==(1,[(THIS,25,None)]) and key(9)==(1,[(THIS,24,None)]),calls;count('Fn + front dial')
+            if manifest.get('fnDial')=='diag':
+                assert list(c.mem_read(RING,8))==[9,71,10,71,9,71,0,6],list(c.mem_read(RING,8));count('dial noted')
             env['ms']=5000;assert key(23)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==0;count('Fn released after the dial')
             assert key(9)==('on',[]) and key(10)==('on',[]);count('front dial alone')
+        if manifest.get('fnDial')=='diag':
+            # The viewfinder's cases 24, 25: noted 74, 75, then the case, registers kept.
+            for i,(k,target) in enumerate(((24,0x5320d890),(25,0x5320d800))):
+                stub=struct.unpack('<I',bytes(c.mem_read(0x5320c874+4*(k-1),4)))[0];assert stub!=target
+                c.mem_write(0x558043a8,bytes(8));regs=[0x3000+j for j in range(13)]
+                for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
+                c.reg_write(reg.UC_ARM_REG_SP,STACK)
+                h=c.hook_add(UC_HOOK_CODE,lambda u,a,s_,d:u.emu_stop() if a==target else None)
+                c.emu_start(stub,target,count=200);c.hook_del(h)
+                got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%j)) for j in range(13)]
+                assert c.reg_read(reg.UC_ARM_REG_PC)==target and got==regs and c.reg_read(reg.UC_ARM_REG_SP)==STACK and list(c.mem_read(0x558043a8,2))==[74+i,0];count('case noted')
         env['ctrl']=0x02000104;setup()
         assert key(22)==('on',[]) and key(9)==('on',[]) and key(23)==('on',[]);count('Fn + dial, not viewfinder');env['ctrl']=0x08000000
     else:
