@@ -59,6 +59,8 @@ export const GR3X_WB_THIS = 0x55804390;
 /** Macro Mode (function 45), its text and icon (the still menu's Macro Mode line, On), its byte. */
 export const GR3X_MACRO_FUNCTION = 45, GR3X_MACRO_TEXT = 0xac, GR3X_MACRO_ICON = 381, GR3X_MACRO_SETTING = 0xac5;
 export const GR3X_MACRO_LINE_ID = 0x020001c1;
+/** The Hold lines' list controller ids (hold.ts: Fn, Macro, WB, ISO, Drive), after the Macro Button line's. */
+export const GR3X_HOLD_LINE_IDS = [0x020001c2, 0x020001c3, 0x020001c4, 0x020001c5, 0x020001c6] as const;
 /** The Macro button's handler (its native body after `mov ip,sp` at + 4), its key id. */
 export const GR3X_MACRO_KEY_HANDLER = 0x532961e0;
 const MACRO_KEY_ID = 9, MACRO_SHORT_PRESS = 4;
@@ -165,11 +167,13 @@ export function installGr3xMacroPress(p: Gr3xWbProgram) {
  * film-roll.ts's, which handles 42, 44 and 45). Returns the lists for the menu (datestamp.ts's
  * `fnLines`).
  */
-export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customize: number, macroText?: number, snap = false) {
+export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customize: number, macroText?: number, snap = false,
+  hold?: readonly { text: number; setting: number }[]) {
   const free = (at: number) => { if (p.sites.some(s => s.address === at)) fail(`${at.toString(16)} already patched`); };
   const expect = (at: number, w: number, what: string) => { free(at); if (p.u32(at) >>> 0 !== w >>> 0) fail(what); };
   const macro = macroText !== undefined;
   if (snap && !macro) fail('Snap DOF with the Macro button');
+  if (hold && (!macro || hold.length !== GR3X_HOLD_LINE_IDS.length)) fail('Hold lines with the Macro button, one per key');
   const max = snap ? GR3X_DOF_FUNCTION : macro ? GR3X_MACRO_FUNCTION : GR3X_WB_FUNCTION;
   // The stored byte r (0 or above max: the line's own function, branch to `label`) → the function.
   const choose = (r: string, own: number, label: string) => `cmp ${r},#0;beq ${label};cmp ${r},#${max};bhi ${label};cmp ${r},#${own};moveq ${r},#0;`;
@@ -230,8 +234,10 @@ export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customiz
   for (const [low, high, r] of SCREEN_SITES) {
     expect(low, movWord(r, lo(SCREEN_LINES)), 'Fn Button Setting lines (low)'); expect(high, movWord(r, hi(SCREEN_LINES), true), 'Fn Button Setting lines (high)');
   }
-  const added = [[SCREEN_ROWS, lineText], ...(macro ? [[SCREEN_ROWS + 1, macroText!]] : [])];
+  // Then the Hold lines (kinds 10..14), stored as the function itself (0 Off): `own` 0.
+  const added = [[SCREEN_ROWS, lineText], ...(macro ? [[SCREEN_ROWS + 1, macroText!]] : []), ...(hold ?? []).map((h, k) => [SCREEN_ROWS + 2 + k, h.text])];
   const rows = SCREEN_ROWS + added.length, lastKind = SCREEN_ROWS + added.length - 1;
+  if (rows > 16) fail('more than 16 Fn Button Setting rows');
   const table = p.append(Uint8Array.from([...lines.subarray(0, 12), ...added.flatMap(([k, t]) => [k, 0, t & 0xff, t >>> 8]), ...lines.subarray(12)]));
   for (const [low, high, r] of SCREEN_SITES) {
     p.patch(low, movWord(r, lo(SCREEN_LINES)), movWord(r, lo(table)), 'WB button: Fn Button Setting lines with WB Button, low half');
@@ -248,7 +254,7 @@ export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customiz
   // Opening: kinds 8, 9 → our lists (parent: the screen, as the others).
   expect(OPEN_DEFAULT, branchWord(OPEN_DEFAULT, OPEN_ASSERT), 'Fn Button Setting opening');
   if (p.u32(OPEN_DEFAULT - 4) !== 0x979ff103 || p.u32(OPEN_DEFAULT - 8) !== 0xe3530007) fail('Fn Button Setting opening switch');
-  const ids = [GR3X_WB_LINE_ID, ...(macro ? [GR3X_MACRO_LINE_ID] : [])];
+  const ids = [GR3X_WB_LINE_ID, ...(macro ? [GR3X_MACRO_LINE_ID] : []), ...(hold ? GR3X_HOLD_LINE_IDS : [])];
   entries.wbScreenOpen = p.code(ids.map((id, k) => `cmp r3,#${SCREEN_ROWS + k};movweq r1,#${lo(id)};movteq r1,#${hi(id)};beq #${OPEN_GO};`).join('') + `b #${OPEN_ASSERT};`);
   p.patch(OPEN_DEFAULT, branchWord(OPEN_DEFAULT, OPEN_ASSERT), branchWord(OPEN_DEFAULT, entries.wbScreenOpen), 'WB button: Fn Button Setting opens the WB Button list');
   // The values: the function's icon (as kinds 0..4, 0x531c97f0), this [fp - 0x30], row r10.
@@ -259,7 +265,8 @@ export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customiz
     got:${gr3xFnDecode('r1', own, max)}mov r0,r5;bl #${ICON_OF};mov r1,r0;mov r0,r4;pop {r4,r5,r6,lr};b #${ROW_ICON};`);
   entries.wbScreenValue = value(GR3X_WB_SETTING, GR3X_WB_FUNCTION);
   if (macro) entries.macroScreenValue = value(GR3X_MACRO_SETTING, GR3X_MACRO_FUNCTION);
-  const values = [entries.wbScreenValue, ...(macro ? [entries.macroScreenValue] : [])];
+  (hold ?? []).forEach((h, k) => { entries[`hold${k}ScreenValue`] = value(h.setting, 0); });
+  const values = [entries.wbScreenValue, ...(macro ? [entries.macroScreenValue] : []), ...(hold ?? []).map((_, k) => entries[`hold${k}ScreenValue`])];
   entries.wbScreenDraw = p.code(values.map((v, k) => `cmp r2,#${SCREEN_ROWS + k};bne n${k};ldr r0,[fp,#-0x30];mov r1,r10;bl #${v};b #${DRAW_NEXT};n${k}:`).join('') + `b #${DRAW_ASSERT};`);
   p.patch(DRAW_DEFAULT, branchWord(DRAW_DEFAULT, DRAW_ASSERT), branchWord(DRAW_DEFAULT, entries.wbScreenDraw), 'WB button: the WB Button line\'s value');
   p.patch(DRAW_COUNT, 0xe3540008, 0xe3540000 | rows, `WB button: Fn Button Setting draws ${rows} rows`);
@@ -281,6 +288,7 @@ export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customiz
   const wbList = list(GR3X_WB_SETTING, GR3X_WB_FUNCTION, 'wb');
   const lists = [{ id: GR3X_WB_LINE_ID, title: lineText, count: GR3X_FN_LIST_COUNT, draw: GR3X_FN_LIST_DRAW, ...wbList, controller: GR3X_FN_LINE_CONTROLLER }];
   if (macro) lists.push({ id: GR3X_MACRO_LINE_ID, title: macroText!, count: GR3X_FN_LIST_COUNT, draw: GR3X_FN_LIST_DRAW, ...list(GR3X_MACRO_SETTING, GR3X_MACRO_FUNCTION, 'macro'), controller: GR3X_FN_LINE_CONTROLLER });
+  (hold ?? []).forEach((h, k) => lists.push({ id: GR3X_HOLD_LINE_IDS[k], title: h.text, count: GR3X_FN_LIST_COUNT, draw: GR3X_FN_LIST_DRAW, ...list(h.setting, 0, `hold${k}`), controller: GR3X_FN_LINE_CONTROLLER }));
   return { entries, lines: lists };
 }
 

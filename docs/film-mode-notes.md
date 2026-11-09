@@ -3231,3 +3231,37 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   note plus les codes du déclenchement (5 à 8) ni une touche égale à la dernière notée (un maintien
   répété prend une case). Vérifié : `dial_probe.py` (31 cas), `snap_dof_probe.py`,
   `grain_tag_probe.py`, tests.
+- **Résultat T-HOLD0 (2026-11-09)** : Fn « 22 23 » (court comme long) ; haut « 26 28 » puis
+  « 26 27 28 » ; bas 29 31 / 29 30 31 ; gauche 32 34 / 32 33 34 ; droite 35 37 / 35 36 37.
+  Certitude forte : chaque touche du pavé a appui / maintien répété / relâchement ; **Fn n'a pas de
+  code de maintien** (22 appui, 23 relâchement).
+- Lecture statique de la traduction (`0x532231e4`) : type d'événement de Fn 0x1b ; état 2 avec
+  sous-état `[+4]` = 0 → 22, état 1 → 23 ; un sous-état non nul (maintien) part sur le retour
+  « rien » (`0x53223708`, `bne 0x53223424`). Wireless : le même sous-état donne 60 (Hold Wireless),
+  le pavé 27 / 30 / 33 / 36 (`0x53223738` : sous-état 0 → 26, sinon 27). Le maintien de Fn est
+  donc probablement envoyé, puis jeté (à confirmer sur le boîtier : code 99 dans l'anneau).
+- Visée : `OnEvent` aiguille par contrôleur (`0x53228c4c(0x5320aefc(0x5320ad88()))` = `[r0]`) ;
+  0x08000000 et 0x08000002 vont à `0x5320c844`, table des 64 codes, qui appelle le modèle des
+  touches de façon synchrone (`0x532a0d70`). D'où l'échange du réglage le temps de l'appel.
+- Octets des lignes Hold (`settings_layout_probe.py` repassé) : seuls `0xacf`, `0xae3`, `0x84a` sont
+  sans aucun accès d'écriture ; `0x806` : accès larges dans `0x5373xxxx` sur `[objet + 0x14] + 0x804`,
+  des champs de bits d'un bloc matériel (lecture `0x536e2298` aussi), pas l'enregistrement ;
+  `0x88e` : écritures de mot `+0x88c` dans `0x5355xxxx`, sur l'enregistrement de l'objet des valeurs
+  vivantes (disposition différente des réglages, vu en T-DOF4). Certitude moyenne pour ces deux.
+  `0xb26` / `0xb27` écartés (hors recopie des BOX). RAM : `0x558043be` (appui retenu), `0x558043bf`
+  (Hold exécuté), derniers octets libres de la zone remise à zéro.
+- **T-HOLD1** (`holdButtons`, `hold.ts`) :
+  - lignes « Hold Fn Button », « Hold Macro Button », « Hold WB Button », « Hold ISO Button »,
+    « Hold Drive Button » (noms des 21 langues formés sur « Hold Wireless Btn. » de chaque langue,
+    caractères vérifiés) après Macro Button : écran de 15 lignes, listes 0x020001c2 à 0x020001c6,
+    réglage = la fonction (0 Off) ;
+  - Fn maintenu : le retour « rien » de `0x53223708` devient le code 99 vers `OnEvent` ;
+  - filtre à l'entrée de `OnEvent` (après celui de la molette) : en visée, touche dont la ligne
+    Hold n'est pas Off, pavé hors déplacement du collimateur : appui retenu ; premier maintien →
+    appui et relâchement de la touche envoyés à `OnEvent` (après sa première instruction) avec son
+    propre réglage (0x922, 0xac5, 0xabb, 0x924, 0x926) mis à la fonction Hold puis rendu ;
+    relâchement sans Hold → l'appui court rejoué puis le relâchement continue. Une ligne Hold Off :
+    rien ne change.
+  - Vérifié : `hold_probe.py` (136 cas, avec et sans molette coupée, et la traduction de Fn),
+    `wb_button_probe.py` (15 lignes, listes, icônes, noms : 105 noms vérifiés), `dial_probe.py`,
+    `snap_dof_probe.py`, `grain_native_probe.py`, `grain_tag_probe.py`, tests.

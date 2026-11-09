@@ -44,7 +44,7 @@ export const GR3X_REAR_DIAL_KEYS = [24, 25] as const;
  * short and long presses) the shot's codes 5 to 8 and a key equal to the last noted are left out,
  * so that a held key's repeats take one slot.
  */
-export function installGr3xRearDialOff(p: Gr3xDialProgram, probe: boolean | 'hold' = false) {
+export function installGr3xRearDialOff(p: Gr3xDialProgram, probe: boolean | 'hold' = false, next?: number) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx rear dial off: ${m}`); };
   const at = GR3X_KEY_EVENT_ENTRY;
   if (p.u32(at) !== 0xe1a0c00d) fail('key entry');
@@ -53,7 +53,8 @@ export function installGr3xRearDialOff(p: Gr3xDialProgram, probe: boolean | 'hol
   const skip = probe === 'hold' ? 'sub r2,r1,#5;cmp r2,#3;bls hskip;subs r2,r0,#1;movmi r2,#6;ldrb r2,[ip,r2];cmp r2,r1;beq hskip;' : '';
   const ring = probe ? `push {r0,r2};${T}ldrb r0,[ip,#7];cmp r0,#7;movhs r0,#0;${skip}strb r1,[ip,r0];add r0,r0,#1;cmp r0,#7;moveq r0,#0;strb r0,[ip,#7];${probe === 'hold' ? 'hskip:' : ''}pop {r0,r2};` : '';
   const [a, b] = GR3X_REAR_DIAL_KEYS;
-  const filter = p.code(`${ring}cmp r1,#${a};cmpne r1,#${b};moveq r0,#1;bxeq lr;mov ip,sp;b #${at + 4};`);
+  // `next`: the hold buttons' filter (hold.ts), which goes on to OnEvent itself.
+  const filter = p.code(`${ring}cmp r1,#${a};cmpne r1,#${b};moveq r0,#1;bxeq lr;${next ? `b #${next};` : `mov ip,sp;b #${at + 4};`}`);
   p.patch(at, 0xe1a0c00d, branchWord(at, filter), 'rear dial off: its rotation ignored');
   return { rearDialFilter: filter, ...(probe ? { dialTable: GR3X_DIAL_TABLE } : {}) };
 }

@@ -54,7 +54,7 @@ def verify_off(data,manifest):
         c.reg_write(reg.UC_ARM_REG_SP,STACK);c.reg_write(reg.UC_ARM_REG_LR,LR);c.reg_write(reg.UC_ARM_REG_CPSR,0x13)
         from unicorn import UC_HOOK_CODE
         h=c.hook_add(UC_HOOK_CODE,lambda u,at,size,d:u.emu_stop() if at in (KEY+4,LR) else None)
-        c.emu_start(KEY,LR,count=60);c.hook_del(h)
+        c.emu_start(KEY,LR,count=2000);c.hook_del(h)
         pc=c.reg_read(reg.UC_ARM_REG_PC);got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]
         assert c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[1:12]==regs[1:12],(key,got)
         if pc==LR:assert got[0]==1;return 'handled'

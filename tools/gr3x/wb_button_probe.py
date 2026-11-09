@@ -36,6 +36,8 @@ LIVE_PTR=0x63057f00;LIVE_OBJ=0x0c0c0
 EVENTS=0x63057e00;OBJ=0x0e0e0;CTRL=0x63057e80
 ICON_OFF,ICON_ISO=0x113,365
 MACRO,MICON,MSETTING,MLINE_ID=45,381,0xac5,0x020001c1
+# Hold lines (hold.ts): Fn, Macro, WB, ISO, Drive; their bytes and list ids.
+HOLD_SETTINGS=(0x806,0x84a,0x88e,0xacf,0xae3);HOLD_IDS=(0x020001c2,0x020001c3,0x020001c4,0x020001c5,0x020001c6)
 MACRO_KEY,MACRO_BODY,ISO_KEY,OVERRIDE=0x532961e0,0x532961e4,0x5329e200,0x55804394
 
 class WbProbe(RollProbe):
@@ -90,7 +92,7 @@ def verify(data,manifest):
             assert not any(x[0].startswith('bad') for x in p.log),p.log
             count('wb open')
     # --- 2. GetEventCustomize's entry and GetEventSwitchWlan's switch with 44 (and 45: Macro Mode).
-    macro=manifest.get('macroButton')==True;snap=manifest.get('snapDof')==True
+    macro=manifest.get('macroButton')==True;snap=manifest.get('snapDof')==True;hold=manifest.get('holdButtons')==True
     MAX=46 if snap else 45 if macro else 44
     # With Snap DOF (46, snap_dof_probe.py runs it): 47 is the first function read as Off.
     OFF1=MAX+1
@@ -180,7 +182,7 @@ def verify(data,manifest):
             assert native==[] and calls==[(THIS,OBJ,CTRL,23,press,0xb,6)],(press,calls);count('iso button kept')
     # --- 4. The Fn Button Setting screen: WB Button (kind 8) and Macro Button (9) under Drive Button.
     SCR=0x63057000;LIST=0x63057c00;VIEW=0x63056000
-    K=[0,1,2,8]+([9] if macro else [])+[3,4,5,6,7];R=len(K)
+    K=[0,1,2,8]+([9] if macro else [])+([10,11,12,13,14] if hold else [])+[3,4,5,6,7];R=len(K)
     cpu.mem_write(SCR,bytes(0x200));put(cpu,SCR+0x16c,LIST)
     st={}
     st[0x53394610]=lambda c:p.log.append(('types',r(c,0),bytes(cpu.mem_read(r(c,1),r(c,2))),r(c,3))) or 0
@@ -190,18 +192,20 @@ def verify(data,manifest):
     lines=bytes(cpu.mem_read(e['wbScreenLines'],4*R))
     got=[struct.unpack_from('<HH',lines,4*k) for k in range(R)]
     wb_text=got[3][1];m_text=got[4][1] if macro else None
-    OFFICIAL={0:0x1b7,1:0x1bd,2:0x1bf,3:0x1c1,4:0x1c3,5:0x28,6:0x1c5,7:0x1cb,8:wb_text,9:m_text}
+    h_texts=[got[5+k][1] for k in range(5)] if hold else []
+    OFFICIAL={0:0x1b7,1:0x1bd,2:0x1bf,3:0x1c1,4:0x1c3,5:0x28,6:0x1c5,7:0x1cb,8:wb_text,9:m_text,**{10+k:t for k,t in enumerate(h_texts)}}
     assert got==[(k,OFFICIAL[k]) for k in K],got
     row=[0]
     for k in range(R):
         p.stub={0x53394820:lambda c:row[0],0x5316c9d8:lambda c:p.log.append(('open',r(c,0),r(c,1),r(c,2))) or 1,0x536b93d0:lambda c:p.log.append(('assert',)) or 0}
         row[0]=k;p.log=[];p.run(0x531c9220,STOP,{0:SCR})
-        want=LINE_ID if K[k]==8 else MLINE_ID if K[k]==9 else FN_LINE+K[k]
+        want=LINE_ID if K[k]==8 else MLINE_ID if K[k]==9 else HOLD_IDS[K[k]-10] if K[k]>=10 else FN_LINE+K[k]
         assert p.log==[('open',SCR,want,SCREEN_ID)],(k,p.log);count('screen open')
     # The values: every row's text, our rows' icons (the kinds' own draws stubbed).
     cases_v=[(0,0,ICON,MICON),(19,44,ICON_ISO,ICON),(44,45,ICON_OFF,ICON_OFF),(42,23,None,None)]+([(45,19,MICON,ICON_ISO)] if macro else [])
     for sw,sm,iw,im in cases_v:
         cpu.mem_write(REC+SETTING,bytes([sw]));cpu.mem_write(REC+MSETTING,bytes([sm]));put(cpu,RECORD_POINTER,REC)
+        for hs,hv in zip(HOLD_SETTINGS,(0,44,19,45,50)):cpu.mem_write(REC+hs,bytes([hv]))
         st={0x53394758:lambda c:VIEW+r(c,1),0x533a68a4:0,0x533a6904:lambda c:p.log.append(('text',r(c,0)-VIEW,r(c,1))) or 0,
             0x533a6a70:lambda c:p.log.append(('icon',r(c,0)-VIEW,r(c,1))) or 0,0x536b93d0:lambda c:p.log.append(('assert',)) or 0,
             0x5320b67c:0x62049000,APP:0xa0a0}
@@ -214,6 +218,7 @@ def verify(data,manifest):
         for (_,rw,ic),want in zip(icons,[iw,im] if macro else [iw]):
             if want is not None:assert ic==want,(sw,sm,icons)
             else:assert ic not in (ICON,ICON_OFF,MICON),icons
+        if hold:assert [i[2] for i in icons[2:]]==[ICON_OFF,ICON,ICON_ISO,MICON,ICON_OFF],icons
         count('screen values')
     # The help line: our rows as the plain lines (no assertion).
     for k in range(R):
@@ -232,7 +237,7 @@ def verify(data,manifest):
     LOBJ=0x63056800;VEC=0x63056900;FNS=[0,19,23,42,44]+([45] if macro else [])
     cpu.mem_write(VEC,bytes(FNS));put(cpu,LOBJ+0x1a4,VEC)
     O=0x63056c00
-    for name,setting,own,title,line_id in (('wb',SETTING,WB,wb_text,LINE_ID),)+((('macro',MSETTING,MACRO,m_text,MLINE_ID),) if macro else ()):
+    for name,setting,own,title,line_id in (('wb',SETTING,WB,wb_text,LINE_ID),)+((('macro',MSETTING,MACRO,m_text,MLINE_ID),) if macro else ())+tuple(('hold%d'%k,HOLD_SETTINGS[k],0,h_texts[k],HOLD_IDS[k]) for k in range(5) if hold):
         for i,f in enumerate(FNS):
             cpu.mem_write(REC+setting,b'\x77');p.stub={};p.run(e[name+'ListSet'],STOP,{0:LOBJ,1:i});assert r(cpu,0)==1
             assert cpu.mem_read(REC+setting,1)[0]=={own:0,0:own}.get(f,f),(name,f,cpu.mem_read(REC+setting,1)[0]);count('list set')
@@ -266,6 +271,9 @@ def verify(data,manifest):
         if macro:
             mname=text(roots_new,row,m_text);chars=set(''.join(text(ROOTS,row,i) for i in range(1,786)))
             assert mname and all(ch in chars for ch in mname),(row,mname);names.append(mname);count('macro line name')
+        for k in range(5 if hold else 0):
+            hname=text(roots_new,row,h_texts[k]);chars=set(' '+''.join(text(ROOTS,row,i) for i in range(1,786)))
+            assert hname and all(ch in chars for ch in hname),(row,hname,[ch for ch in hname if ch not in chars]);names.append(hname);count('hold line name')
     return dict(cases=cases,names=names,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False,
                 scope='Hooks and the touched camera functions run in the emulator, every call they make stubbed.')
 
