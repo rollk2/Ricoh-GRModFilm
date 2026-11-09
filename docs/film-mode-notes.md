@@ -3633,3 +3633,7 @@ Certitude : **statique** (lecture du code), sauf mention.
   envoyé. **0.9.4-RC1** construite par le moteur (réglages masqués de l'utilisateur, verrou, lecture,
   stabilisation, molette coupée) : auto-contrôle et inspection vérifiés ; sondes sur un build
   équivalent ; tests.
+- Correction de l'utilisateur : pas de case pour la stabilisation selon la vitesse. Elle est mise
+  dans tout build GR III / IIIx complet, comme la case AF Point de Mode Memory (1/4000, le On
+  d'usine : rien ne change tant qu'une autre vitesse n'est pas choisie). La RC1 est inchangée (elle
+  avait déjà `srSpeed`).

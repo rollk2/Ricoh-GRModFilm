@@ -69,8 +69,6 @@ export interface State {
   filmMode: boolean; noMovie: boolean;
   /** GR III / IIIx: the rear dial's rotation ignored everywhere. */
   rearDialOff: boolean;
-  /** GR III / IIIx: Shake Reduction's list Off, 1/4000 .. 30" (SR by shutter speed). */
-  srSpeed: boolean;
   /** GR III / IIIx (film mode): camera settings hidden, each with the value it keeps. */
   hiddenSettings: Record<string, number>;
   /** GR IV: Direct Flash, a fifth Flash Mode (GR III / IIIx have the GF-2 mode of their own). */
@@ -108,7 +106,7 @@ const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '',
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
   ready: false, page: 'ic', fwBusy: false, model: 'HDF', lang: 'zh-CN',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, srSpeed: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -221,7 +219,7 @@ function familyData(s: State): FamilyDoc {
     wall: s.wall.map((w) => ({ id: w.id, name: w.name, kind: 'image', width: w.width, height: w.height, crop: w.crop, ...(w.menuName !== undefined ? { menuName: w.menuName } : {}), ...(w.menuId ? { menuId: w.menuId } : {}) })),
     ratios: s.ratios.map((r) => ({ id: r.id, ratio: r.ratio, name: r.name })),
     soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, filmCount: s.filmCount,
-    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, srSpeed: s.srSpeed, hiddenSettings: s.hiddenSettings,
+    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, hiddenSettings: s.hiddenSettings,
   };
 }
 
@@ -251,7 +249,7 @@ function parseFamily(doc: FamilyDoc | null): Partial<State> {
     lookOrder3: gr3SavedKeys(doc?.lookOrder3), lookHidden3: gr3SavedKeys(doc?.lookHidden3),
     soft: doc?.soft === true || (!!doc?.softFocus && typeof doc.softFocus === 'object' && Object.keys(doc.softFocus).length > 0),
     dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true,
-    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true, srSpeed: doc?.srSpeed === true,
+    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true,
     hiddenSettings: Object.fromEntries(Object.entries(doc?.hiddenSettings && typeof doc.hiddenSettings === 'object' ? doc.hiddenSettings : {})
       .filter(([k, v]) => k in GR3X_HIDEABLE && (GR3X_HIDEABLE as Record<string, { values: readonly number[] }>)[k].values.includes(v as number))) as Record<string, number>,
     filmCount: Number.isInteger(doc?.filmCount) && doc!.filmCount >= 0 && doc!.filmCount <= GR3X_FILM_IDS.length ? doc!.filmCount : doc && doc.filmCount === undefined && doc.slots ? 9 : 0,
@@ -992,11 +990,6 @@ export function setNoMovie(noMovie: boolean): void {
   set({ noMovie }); scheduleSave();
 }
 export function rearDialOffOn(s: State = state): boolean { return !!s.rearDialOff && filmModeChoosable(s); }
-export function srSpeedOn(s: State = state): boolean { return !!s.srSpeed && filmModeChoosable(s); }
-export function setSrSpeed(srSpeed: boolean): void {
-  if (srSpeed && !filmModeChoosable()) return;
-  set({ srSpeed }); scheduleSave();
-}
 /** The settings hidden with the film mode (none without it). */
 export function hiddenSettingsOn(s: State = state): Record<string, number> { return filmModeOn(s) ? s.hiddenSettings : {}; }
 /** Hide a setting with that value, or show it again (`value` undefined). */
@@ -1021,7 +1014,7 @@ export function filmCodes(s: State = state): Partial<Record<SlotId, string>> {
 /** A film code being typed and not yet 4 characters long. */
 export function filmCodeProblem(id: SlotId, s: State = state): boolean { const c = s.slots[id]?.code; return !!c && !FILM_CODE.test(c); }
 /** Any addition that is not a slot or a ratio. */
-export function extrasOn(s: State = state): boolean { return softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s) || srSpeedOn(s); }
+export function extrasOn(s: State = state): boolean { return softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s); }
 const MINUS = '\u2212';
 const strengthLabel = (st: SoftFocusStrength | 'custom'): string => t(st === 'weak' ? 'softWeak' : st === 'medium' ? 'softMedium' : st === 'strong' ? 'softStrong' : 'softCustom');
 /** "−2 weak / −3 medium" (−1 first), for confirmations and the copies page. */
@@ -1261,7 +1254,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const dateStamp = !stock && !!state.dateStamp && !!state.info.features.dateStamp;
   const monoUnlock = !stock && monoUnlockOn();
   const directFlash = !stock && directFlashOn();
-  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn(), srSpeed = !stock && srSpeedOn();
+  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn();
   const hiddenSettings = stock ? {} : hiddenSettingsOn(), hiddenCount = Object.keys(hiddenSettings).length;
   if (filmMode && shownSlots().some((x) => filmCodeProblem(x.id))) { toast(t('filmCodeIncomplete'), 'error'); return; }
   if (!stock && (hasNameErrors() || hasRatioErrors())) return;
@@ -1274,7 +1267,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const pictures = noPictures ? [] : menuPictures();
   const films = filmCountChoosable() ? state.filmCount : 0;
   const lookLayout = stock ? undefined : lookLayoutSpec();
-  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !srSpeed) { toast(t('nothingToDo'), 'info'); return; }
+  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff) { toast(t('nothingToDo'), 'info'); return; }
   if (stock && !(await askOfficial([t('copyOfficial')]))) return;
   if (dest.kind === 'card' && !stock) {
     const lines = changes.map((c) => `${state.info?.family === 'gr3x' ? (state.slots[c.id].names[state.lang] || state.info.slots.find(s => s.id === c.id)?.defaultName || c.id) : t(('slot' + c.id) as Key)}  ·  ${c.labels.join(' / ')}`);
@@ -1288,7 +1281,6 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
     if (filmMode) lines.push(t('filmModeLine', { l: Object.values(filmCodes()).join(' / ') || '—' }));
     if (noMovie) lines.push(t('noMovieLine'));
     if (rearDialOff) lines.push(t('rearDialOffLine'));
-    if (srSpeed) lines.push(t('srSpeedLine'));
     if (hiddenCount) lines.push(t('hideLine', { n: hiddenCount }));
     if (extras.length) lines.push(t('extraLine', { n: extras.length, l: extras.map((x) => (x.halation ? `${x.name} (${t('halation')})` : x.name)).join(' / ') }));
     if (lookLayout) lines.push(t('lookOrderLine', { n: lookLayout.hidden.length }));
@@ -1310,9 +1302,10 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
           // the Hold lines of Fn and the 4-way pad (Snap DOF left out from 0.9.4: Fn + the front dial), the film lines
           // hidden from the menu while a roll is loaded, and the grain (Grain Off by default on every film's parameter screen).
           ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, holdButtons: true, rollLock: true, playLast: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
-          ...(rearDialOff ? { rearDialOff } : {}), ...(srSpeed ? { srSpeed } : {}), ...(hiddenCount ? { hiddenSettings } : {}),
-          // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked).
-          ...(filmModeChoosable() ? { afPoint: true, memoryU: true } : {}) });
+          ...(rearDialOff ? { rearDialOff } : {}), ...(hiddenCount ? { hiddenSettings } : {}),
+          // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked),
+          // and Shake Reduction's list of speeds (1/4000, the factory On: no change until another speed is chosen).
+          ...(filmModeChoosable() ? { afPoint: true, memoryU: true, srSpeed: true } : {}) });
       if (!Object.values(built.checks).every((v) => v === true)) throw new EngineError('selfcheck-failed', 'self-check');
       file = built.file;
       void recordBuild(file, changes);

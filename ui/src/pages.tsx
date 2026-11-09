@@ -13,7 +13,7 @@ import {
   addRatio, addWallFiles, askForOfficial, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
   maxRatios, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
-  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setSrSpeed, setHiddenSetting, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
+  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setHiddenSetting, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
   setDirectFlash,
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
@@ -713,7 +713,6 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
   const filmMode = useStore((s) => s.filmMode);
   const noMovie = useStore((s) => s.noMovie);
   const rearDialOff = useStore((s) => s.rearDialOff);
-  const srSpeed = useStore((s) => s.srSpeed);
   const hidden = useStore((s) => s.hiddenSettings);
   const filmOk = useStore((s) => filmModeChoosable(s));
   const own = useRef<HTMLDivElement | null>(null);
@@ -738,7 +737,6 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
       {filmOk && <FeatureRow icon={Ico.film} title={t('navFilmMode')} sub={t('filmModeSub')} on={filmMode} onChange={setFilmMode} />}
       {filmOk && <FeatureRow icon={Ico.noMovie} title={t('navNoMovie')} sub={t('noMovieSub')} on={noMovie} onChange={setNoMovie} />}
       {filmOk && <FeatureRow icon={Ico.dial} title={t('navRearDialOff')} sub={t('rearDialOffSub')} on={rearDialOff} onChange={setRearDialOff} />}
-      {filmOk && <FeatureRow icon={Ico.sr} title={t('navSrSpeed')} sub={t('srSpeedSub')} on={srSpeed} onChange={setSrSpeed} />}
       {filmOk && filmMode && <HiddenSettings hidden={hidden} />}
     </div>
   );

@@ -62,7 +62,7 @@ addresses, same emulator checks) but has **not been tested on a camera**.
   be taken out of the camera (menu, buttons, ADJ lever), held at the value you choose.
 - **Playback** (0.9.4) opens on the last picture taken, whatever the folder (before, it could show
   the roll's last frame after a photo in P).
-- **SR by shutter speed** (0.9.4, an option of its own): Shake Reduction's list becomes Off,
+- **SR by shutter speed** (0.9.4, every GR III / IIIx build): Shake Reduction's list becomes Off,
   1/4000, 1/3200 … 30". With a speed chosen, SR is on at that speed and slower, off when the shutter
   speed is faster. 1/4000 means always on (the factory On, so nothing changes until you choose
   another speed). The speed is kept per BOX like Shake Reduction (and once for P, Av, Tv, M). A
@@ -72,7 +72,7 @@ addresses, same emulator checks) but has **not been tested on a camera**.
   wanted, its menu line is hidden and nothing is printed on the photos (0.9.2: even when a date
   had been turned on before).
 
-In the program: switch **Film mode** (and **No movie**, **Rear dial off**, **SR by shutter speed** if wanted) on the GR III / IIIx page, and
+In the program: switch **Film mode** (and **No movie**, **Rear dial off** if wanted) on the GR III / IIIx page, and
 give each GR Mod film a 4-character **Film code** (A-Z, 0-9; the folder takes the first three).
 
 ## Install
