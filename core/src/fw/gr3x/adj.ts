@@ -44,6 +44,7 @@ import { GR3X_FN_CUSTOM } from './film-roll';
 import { installGr3xNativeGrainTest } from './grain-native';
 import { installGr3xDialProbe, installGr3xRearDialOff } from './dial-probe';
 import { GR3X_HOLD_KEYS, gr3xHoldLineName, installGr3xHoldButtons } from './hold';
+import { installGr3xPlayProbe } from './play-probe';
 import { gr3xHiddenPlan, installGr3xHiddenAdjLists, installGr3xHiddenValues, type Gr3xHiddenSettings } from './hidden-settings';
 import { GR3X_FILM_ADVANCE_NAMES, GR3X_FILM_ROLL_MODE_NAMES, installGr3xFilmAdvanceFn, installGr3xFilmRoll, installGr3xRetakeProbe, installGr3xFilmMessage, GR3X_FILM_NEW_ROLL_NAMES, GR3X_MESSAGE_CLEAR, GR3X_CANCEL_CLEAR, GR3X_REVIEW_ARM_CLEAR, GR3X_ADVANCE_ONCE_CLEAR, GR3X_FILM_REWIND_NAMES, GR3X_FILM_REWIND_QUESTIONS, installGr3xFilmRewind, GR3X_FILM_REWIND_ID, GR3X_FOLDER_DIALOG_ID, GR3X_REWIND_MODE, GR3X_MENU_IDS, installGr3xMenuRebuild, installGr3xHideMovieTab, installGr3xBlockMovie, installGr3xHideLines, installGr3xFilmFileNames, installGr3xAfReset, installGr3xAfPointMemory, GR3X_AF_POINT_NAMES, GR3X_MEMORY_U_NAMES, GR3X_HIDDEN_LINES, GR3X_FILM_TAB_NAMES, GR3X_MOVIE_ENTRY_IMAGE, GR3X_MOVIE_TAB, GR3X_FILM_ADVANCE_ICON, GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE, GR3X_SIDE_BUTTON_TEXTS, GR3X_SIDE_BUTTON_NAMES, GR3X_ROLL_LOCKED_LINES, installGr3xRollLockAdj } from './film-roll';
 
@@ -144,6 +145,8 @@ export interface Gr3xAdjFeatures {
   rollLock?: boolean;
   /** With the film mode: camera settings hidden, each held at the value chosen (hidden-settings.ts, T-HIDE1). */
   hiddenSettings?: Gr3xHiddenSettings;
+  /** Test builds (T-PLAY0): playback's opening noted in the key ring (with `grainTag: 'keys'`, no dial probe). */
+  playProbe?: boolean;
   /** T-GRAIN1 (test, film mode): the camera's own grain on the films, a fixed value per film (grain-native.ts). */
   grainTest?: readonly number[];
   /** Test builds: the films' Grain through the JPEG module (jpeg_grain.c, with a Size row) instead of the camera's own granulation. */
@@ -513,6 +516,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     ...(macroPress ? { macro: { function: GR3X_MACRO_FUNCTION, text: GR3X_MACRO_TEXT, icon: GR3X_MACRO_ICON, press: macroPress } } : {}),
     ...(snapStep ? { snap: { function: GR3X_DOF_FUNCTION, text: dofText, icon: GR3X_DOF_ICON, press: snapStep } } : {}) } : undefined, rollLock, hiddenPlan?.fns ?? []) : {};
   // T-LOCK2: the ADJ lever's locked functions as Off while a roll is loaded; T-HIDE1: hidden ones always.
+  if (features.playProbe && (features.grainTag !== 'keys' || features.dialProbe)) fail('IIIx play probe: with the keys tag, without the dial probe');
+  const playEntries = features.playProbe ? installGr3xPlayProbe({ code, patch, u32: word, sites }) : {};
   const rollLockAdj = rollLock || hiddenPlan?.adj.length ? installGr3xRollLockAdj({ code, sites, patch }, rollLock, hiddenPlan?.adj ?? []) : {};
   // T-HIDE1: the hidden ADJ functions out of ADJ Mode Setting's lists (after the soft focus's edit), their values at each load.
   const hiddenValues = hiddenPlan ? installGr3xHiddenValues({ code, patch, u32: word, sites }, hiddenPlan.bytes) : {};
@@ -666,12 +671,12 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     schema: 1, kind: 'gr3x-adj-patchset' as const, profile: profile.id,
     originalRtosSha256: profile.rtosSha256, originalLength: p.rtosLength, base: BASE,
     sites, append: { address: geometry.append.address, bytes: hex(payload) }, geometry,
-    entries: { ...geometry.entries, ...(holdEntries ?? {}), ...rollLockAdj, ...hiddenValues, ...scaffold, ratioText, ratioIcon, fnCycle, ...imageEntries, ...developEntries, ...afEntries, ...mapEntries, ...liveEntries, ...messageEntries, ...rawEntries, ...shadingEntries, ...fullRawEntries, ...softEntries, ...dateEntries, ...lookEntries, ...(probeEntries ?? {}), ...fnEntries, ...rewindEntries, ...movieEntries, ...afResetEntries, ...(filmIcons ? { filmIconBase: filmIcon } : {}), ...(wb ? { ...wb.entries, wbOpen, ...(macroPress ? { macroPress } : {}), ...(snapStep ? { snapStep } : {}) } : {}), ...grainEntries, ...dialEntries },
+    entries: { ...geometry.entries, ...(holdEntries ?? {}), ...playEntries, ...rollLockAdj, ...hiddenValues, ...scaffold, ratioText, ratioIcon, fnCycle, ...imageEntries, ...developEntries, ...afEntries, ...mapEntries, ...liveEntries, ...messageEntries, ...rawEntries, ...shadingEntries, ...fullRawEntries, ...softEntries, ...dateEntries, ...lookEntries, ...(probeEntries ?? {}), ...fnEntries, ...rewindEntries, ...movieEntries, ...afResetEntries, ...(filmIcons ? { filmIconBase: filmIcon } : {}), ...(wb ? { ...wb.entries, wbOpen, ...(macroPress ? { macroPress } : {}), ...(snapStep ? { snapStep } : {}) } : {}), ...grainEntries, ...dialEntries },
     catalogs: { order, textRoots, textColumns: columns, iconRoot, iconCount },
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rollLock ? { rollLock: true } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.playProbe ? { playProbe: true } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

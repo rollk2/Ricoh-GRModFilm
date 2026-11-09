@@ -3429,3 +3429,13 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   `MoveToLastFile` existe). Les dossiers de rouleau, créés après, ont des numéros plus grands que le
   dossier unique des modes libres. Piste : à l'ouverture de la lecture, se placer sur la **dernière
   photo prise** (le boîtier la connaît : `RequestDeleteLastShot`) au lieu du dernier fichier DCF.
+- Lecture, statique : les noms de fonctions du service des fichiers (`0x53c5e6e8` ...) servent aux
+  messages d'erreur ; `MoveToLastFile` = `0x534e3e04`, `MoveToCreationFile` = `0x534e4030` (recherche
+  `0x534e91c4`, 0 si trouvé). Ouverture `0x534e40c8(this, kind)` (appelée par `0x534e0a80`,
+  `0x534e0aa0`) : contrôle du fichier en cours `0x534e3e84` (repli sur MoveToLastFile s'il n'est plus
+  valable), puis, si `this[2]` est nul et `this[3]` (« un fichier a été créé ») levé,
+  MoveToCreationFile, et `this[3]` remis à 0.
+- **T-PLAY0** (diagnostic, `playProbe`, `play-probe.ts`) : l'anneau des touches note à l'ouverture
+  10 + this[2], 20 + this[3], 30 + (this[6] & 7) ; MoveToCreationFile 50, sa recherche 60 (trouvé)
+  ou 61 ; MoveToLastFile 77. Imprimé par la photo suivante. Vérifié : `play_probe.py`,
+  `grain_tag_probe.py`.
