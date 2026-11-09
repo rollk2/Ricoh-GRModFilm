@@ -3198,3 +3198,5 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   `snap_dof_probe.py` (cycle 4 cas avec la valeur vivante 3 + DOF envoyée, 6 cas « rien »,
   GetEventCustomize, GetEventSwitchWlan, listes Wireless), `wb_button_probe.py`, `dial_probe.py`,
   `grain_native_probe.py`, tests.
+- **Résultat T-DOF6 sur le boîtier (2026-11-09) : validé par l'utilisateur.** Snap DOF fait
+  DOF1 → DOF2 → DOF3 → DOF1 depuis une touche, sans toucher la distance ; molette arrière coupée.
