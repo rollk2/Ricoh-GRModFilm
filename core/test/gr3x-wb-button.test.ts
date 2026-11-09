@@ -113,7 +113,7 @@ describe.skipIf(!input)('GR III WB button', () => {
     const engine = await Engine.open(raw);
     const ratios = [{ ratio: '65:24', name: 'XPan' }];
     const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
-    const hiddenSettings = { faceEye: 0, afc: 2, flash: 1, gf2: 0 };
+    const hiddenSettings = { faceEye: 0, afc: 2, flash: 1, gf2: 0, flashComp: 3 };
     const built = await engine.buildFirmware([], ratios, [], { ...base, hiddenSettings });
     expect(await (await Engine.open(raw)).inspect(built.file)).toMatchObject({ verified: true });
     const plain = await engine.buildFirmware([], ratios, [], base);

@@ -21,7 +21,9 @@ from film_roll_check import RollProbe
 from native_probe import STACK,STOP
 
 HIDEABLE={'faceEye':(0x0200005e,0x12c,(8,),()),'afAssist':(0x0200005f,0x12e,(),()),'afc':(0x02000063,0x13c,(),()),
-          'mfMag':(0x02000065,0x140,(),()),'flash':(0x020000dd,0x164,(20,),(8,)),'gf2':(0x02000070,0xb22,(41,),(0x13,))}
+          'mfMag':(0x02000065,0x140,(),()),'flash':(0x020000dd,0x164,(20,),(8,)),'gf2':(0x02000070,0xb22,(41,),(0x13,)),
+          'flashComp':(0,0x168,(21,),(9,))}   # flashComp: no line; a float from 0x53b592e0 (index); its ADJ 9 is the soft focus in round 10
+COMP_TABLE=0x53b592e0
 ADJ_LISTS=(0x53b4eba0,0x53b5a430,0x53b5a404,0x53b58fb0,0x53b5a4b4);ADJ_COUNTS=(0x531b3bac,0x531b3bb4,0x531b3bbc,0x531b3bc4,0x531b3bcc)
 MODEL=0x55063f30;MODEB=0x6304a100;REC=0x63040000;IDW=0x6304a200;VISIBLE=0x5319a720
 def r(c,n):return c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%n))
@@ -30,7 +32,8 @@ def verify(data,manifest):
     hs=manifest.get('hiddenSettings');assert hs
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc;cases={}
     count=lambda k:cases.__setitem__(k,cases.get(k,0)+1)
-    lines=[HIDEABLE[k][0] for k in hs];fns=[f for k in hs for f in HIDEABLE[k][2]];adj=[f for k in hs for f in HIDEABLE[k][3]]
+    soft='softFocusSlot0' in e
+    lines=[HIDEABLE[k][0] for k in hs if HIDEABLE[k][0]];fns=[f for k in hs for f in HIDEABLE[k][2]];adj=[f for k in hs for f in HIDEABLE[k][3] if not (soft and f==9)]
     def state(mode=3,flags=0,frame=0):
         c.mem_write(MODEB,bytes([mode]));c.mem_write(REC,bytes(0xb28));c.mem_write(REC+0x9b1,bytes([flags]));c.mem_write(REC+0x9b2,bytes([frame]))
         c.mem_write(MODEL,struct.pack('<II',MODEB,REC))
@@ -92,7 +95,11 @@ def verify(data,manifest):
         for k,v in regs.items():
             if k>3:assert r(c,k)==v,k
         recs=[(REC,0xa5)]+[(BOX+k*0x1000,0x5a) for k in range(8) if k!=bad]
-        offs={HIDEABLE[k][1]:v for k,v in hs.items()}
+        offs={}
+        for k,v in hs.items():
+            if k=='flashComp':
+                for j,bb in enumerate(data[COMP_TABLE-0x53000000+4*v:COMP_TABLE-0x53000000+4*v+4]):offs[HIDEABLE[k][1]+j]=bb
+            else:offs[HIDEABLE[k][1]]=v
         for base,fill in recs:
             b=bytes(c.mem_read(base,0xb28))
             for o in range(0xb28):assert b[o]==offs.get(o,fill),(hex(base),hex(o),b[o])

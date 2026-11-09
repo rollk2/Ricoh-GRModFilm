@@ -504,7 +504,7 @@ def verify(data,manifest,seed=3101):
         # T-LOCK2 (rollLock): a locked function is Off while the record holds a loaded roll (lock_probe.py checks it).
         def locked(mode,cur,fn):
             # T-HIDE1: a hidden setting's function is Off always.
-            if fn in {f for k in (manifest.get('hiddenSettings') or {}) for f in {'faceEye':(8,),'flash':(20,),'gf2':(41,)}.get(k,())}:return True
+            if fn in {f for k in (manifest.get('hiddenSettings') or {}) for f in {'faceEye':(8,),'flash':(20,),'gf2':(41,),'flashComp':(21,)}.get(k,())}:return True
             return manifest.get('rollLock')==True and fn in (10,11,12,13,14,15,23,24,25,27) and 1<=mode<=6 and cur[FLAGS]&3==3 and cur[FRAME]!=0
         # The lists' constructor (native loop, table and count patched): the vector it fills.
         VEC=0x63055000;OBJF=0x63056000
@@ -513,7 +513,7 @@ def verify(data,manifest,seed=3101):
             p.run(0x531be67c,STOP,{0:OBJF});count('fn list')
             end=struct.unpack('<I',bytes(cpu.mem_read(OBJF+0x1a8,4)))[0]
             got=bytes(cpu.mem_read(VEC,end-VEC))
-            HIDDEN_FNS={'faceEye':(8,),'flash':(20,),'gf2':(41,)};hidden_fns={f for k in (manifest.get('hiddenSettings') or {}) for f in HIDDEN_FNS.get(k,())}
+            HIDDEN_FNS={'faceEye':(8,),'flash':(20,),'gf2':(41,),'flashComp':(21,)};hidden_fns={f for k in (manifest.get('hiddenSettings') or {}) for f in HIDDEN_FNS.get(k,())}
             want=bytes(f for f in TABLE_OFF+ADDED if not (model!=0 and f==0x16) and not (model!=1 and f==0x28) and not (vid3 and f==17) and not (vid4 and f==16) and f not in hidden_fns)
             assert got==want,(model,got.hex(),want.hex())
         # Text and icon: 42 ours, the others the camera's.
@@ -1194,7 +1194,7 @@ def verify(data,manifest,seed=3101):
         p.menu_stubs=True;p.model_no=1;cpu.ctl_flush_tb()
         for f in range(43):
             p.call(0x531b9410,f);r=cpu.reg_read(reg.UC_ARM_REG_R0);count('fn filter')
-            if f==17 or (vid4 and f==16) or f in {x for k in (manifest.get('hiddenSettings') or {}) for x in {'faceEye':(8,),'flash':(20,),'gf2':(41,)}.get(k,())}:assert r==0
+            if f==17 or (vid4 and f==16) or f in {x for k in (manifest.get('hiddenSettings') or {}) for x in {'faceEye':(8,),'flash':(20,),'gf2':(41,),'flashComp':(21,)}.get(k,())}:assert r==0
             elif f not in (0x16,0x28):assert r==1,f
         p.menu_stubs=False;cpu.ctl_flush_tb()
     # 38. Form 'vid4': the side button's texts (0x1c1..0x1c4) without the movie, in the camera's rows.

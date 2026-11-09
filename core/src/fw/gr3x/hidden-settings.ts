@@ -23,10 +23,11 @@ const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 const fail = (what: string): never => { throw new FirmwareError('unexpected-layout', `IIIx hidden settings: ${what}`); };
 
 export interface Gr3xHideable {
-  /** The Still Image Settings line. */ line: number;
+  /** The Still Image Settings line (0: none, the setting has no line of its own). */ line: number;
   /** The settings record's byte. */ byte: number;
   /** The values in the menu's order (the program's choices), as stored. */ values: readonly number[];
   /** Button functions (0x53292ed0's numbers) and ADJ lever functions (0x53292810's). */ fn: readonly number[]; adj: readonly number[];
+  /** A 4-byte setting: the value is an index into this table of words (its menu's values). */ table?: number;
 }
 export const GR3X_HIDEABLE = {
   /** Off, Face Detection, Eye Detection (3 values; writer 0x53273064). */
@@ -41,12 +42,17 @@ export const GR3X_HIDEABLE = {
   flash: { line: 0x020000dd, byte: 0x164, values: [0, 1, 2, 3], fn: [20], adj: [8] },
   /** Off, On (writer 0x532734ec). */
   gf2: { line: 0x02000070, byte: 0xb22, values: [0, 1], fn: [41], adj: [0x13] },
+  /** Flash Exposure Comp. (no line of its own; list record 13): a float at + 0x168 (writer 0x5324bf68)
+   * from the table 0x53b592e0 (+1.0, +0.7, +0.3, 0.0, -0.3 ... -2.0: indexes 0..9; 0.0 first here,
+   * the default). Its ADJ function 9 is GR Mod's soft focus in round 10 (adj-softfocus.ts): only
+   * taken out without it. */
+  flashComp: { line: 0, byte: 0x168, values: [3, 0, 1, 2, 4, 5, 6, 7, 8, 9], fn: [21], adj: [9], table: 0x53b592e0 },
 } as const satisfies Record<string, Gr3xHideable>;
 export type Gr3xHideableKey = keyof typeof GR3X_HIDEABLE;
 export type Gr3xHiddenSettings = Partial<Record<Gr3xHideableKey, number>>;
 
 /** Checks a choice and returns the lines, functions and ADJ functions it hides, and its bytes. */
-export function gr3xHiddenPlan(hidden: Gr3xHiddenSettings) {
+export function gr3xHiddenPlan(hidden: Gr3xHiddenSettings, adjSoftFocus = false) {
   const entries = Object.entries(hidden) as [string, number][];
   for (const [k, v] of entries) {
     const s = (GR3X_HIDEABLE as Record<string, Gr3xHideable>)[k];
@@ -54,7 +60,9 @@ export function gr3xHiddenPlan(hidden: Gr3xHiddenSettings) {
     if (!s.values.includes(v)) fail(`${k}: value ${v} is not one of ${s.values.join(', ')}`);
   }
   const ss = entries.map(([k, v]) => [(GR3X_HIDEABLE as Record<string, Gr3xHideable>)[k], v] as const);
-  return { lines: ss.map(([s]) => s.line), fns: ss.flatMap(([s]) => s.fn), adj: ss.flatMap(([s]) => s.adj), bytes: ss.map(([s, v]) => [s.byte, v] as const) };
+  return { lines: ss.map(([s]) => s.line).filter(l => l), fns: ss.flatMap(([s]) => s.fn),
+    adj: ss.flatMap(([s]) => s.adj).filter(f => !(adjSoftFocus && f === 9)),
+    bytes: ss.map(([s, v]) => [s.byte, v, (s as Gr3xHideable).table ?? 0] as const) };
 }
 
 export interface Gr3xHiddenProgram {
@@ -92,11 +100,12 @@ export function installGr3xHiddenAdjLists(p: Gr3xHiddenProgram, adj: readonly nu
 }
 
 /** At each settings load (the scaffold's hook): the values into the record in use and the eight stored ones. */
-export function installGr3xHiddenValues(p: Gr3xHiddenProgram, bytes: readonly (readonly [number, number])[]) {
+export function installGr3xHiddenValues(p: Gr3xHiddenProgram, bytes: readonly (readonly [number, number, number])[]) {
   if (!bytes.length) return {};
   const prior = gr3xSettingsPrior(p, 'load');
   const ram = (r: string, label: string) => `cmp ${r},#0x40000000;blo ${label};cmp ${r},#0xc0000000;bhs ${label};tst ${r},#3;bne ${label};`;
-  const put = (r: string) => bytes.map(([o, v]) => `mov r1,#${v};strb r1,[${r},#${o}];`).join('');
+  // A byte, or a word from the setting's table (read from the firmware: its exact float).
+  const put = (r: string) => bytes.map(([o, v, t]) => t ? `movw r1,#${lo(p.u32(t + 4 * v))};movt r1,#${hi(p.u32(t + 4 * v))};str r1,[${r},#${o}];` : `mov r1,#${v};strb r1,[${r},#${o}];`).join('');
   const load = p.code(`push {r4,r5,r6,lr};bl #${prior};mov r5,r0;
     movw r4,#${lo(RECORD_POINTER)};movt r4,#${hi(RECORD_POINTER)};ldr r2,[r4];${ram('r2', 'stored')}${put('r2')}
     stored:mov r6,#0;each:movw r4,#${lo(STORED_RECORDS)};movt r4,#${hi(STORED_RECORDS)};ldr r2,[r4,r6,lsl #2];${ram('r2', 'next')}${put('r2')}

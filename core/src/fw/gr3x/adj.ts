@@ -263,7 +263,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const snapButton = features.snapDof === true;
   const holdButtons = features.holdButtons === true;
   const rollLock = features.rollLock === true;
-  const hiddenPlan = features.hiddenSettings && Object.keys(features.hiddenSettings).length ? gr3xHiddenPlan(features.hiddenSettings) : undefined;
+  const hiddenPlan = features.hiddenSettings && Object.keys(features.hiddenSettings).length ? gr3xHiddenPlan(features.hiddenSettings, !!(softFocus && round10)) : undefined;
   if (hiddenPlan && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx hidden settings: only with the film mode');
   if (rollLock && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx roll lock: only with the film mode');
   if (holdButtons && !macroButton) fail('IIIx hold buttons: with the Macro button');

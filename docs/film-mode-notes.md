@@ -3387,3 +3387,13 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   `grain_native_probe.py`, tests. Build T-HIDE1 : Face/Eye Off, AF Assist Off, AF.C Focus-priority,
   MF Auto Magnification Off, Flash Mode Flash On, GF-2 Off (valeurs des menus par l'ordre des
   tables, noms à confirmer sur le boîtier : les listes dessinent des icônes).
+- **Résultat T-HIDE1 (2026-11-09)** : « tout m'a l'air d'avoir disparu » (protocole détaillé non
+  suivi ; noms des valeurs Face/Eye et GF-2 non confirmés). Demande : sortir aussi Flash Exposure
+  Comp.
+- Flash Exposure Comp. : fiche de liste 13 (titre 0x7f, 10 valeurs) ; flottant en `+0x168`
+  (écrivain `0x5324bf68`, `vstr s0`), table `0x53b592e0` : +1.0, +0.67, +0.33, 0, -0.33 ... -2.0 ;
+  aucune ligne propre dans Still Image Settings ; fonction Fn 21 ; fonction ADJ 9, qui est le flou de
+  GR Mod en round 10 (retirée de l'ADJ seulement sans le flou).
+- **T-HIDE2** : `flashComp` ajouté (valeur = index de la table, 0.0 par défaut ; le mot exact lu
+  dans la table du firmware est écrit en 4 octets au chargement). Vérifié : `hidden_probe.py`,
+  `film_roll_check.py`, `lock_probe.py`, autres sondes, tests.
