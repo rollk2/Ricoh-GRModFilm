@@ -308,7 +308,7 @@ def verify(data,manifest,seed=3101):
                 # The record in use and the seven stored ones (0..6); the factory record (index 7) untouched.
                 for b in [want_c]+want_b[:7]:struct.pack_into('<H',b,PF,n)
             return n,want_c,want_b
-        play_cur=manifest.get('filmRoll') in ('name2','film')
+        play_cur=False   # T-PLAY1 (withdrawn): + 0x11c is the pending new folder's, not playback's folder
         INFO,CURBLK=0x6304a600,0x6304a700
         if play_cur:
             cpu.mem_write(INFO+0x248,struct.pack('<I',CURBLK))

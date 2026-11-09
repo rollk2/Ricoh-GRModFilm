@@ -3419,3 +3419,13 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   libres), si le dossier de la photo est fixé (rouleau, mode libre ou donné), le dossier en cours le
   prend. Vérifié : `film_roll_check.py` (678 cas « folder in use » : le dossier en cours suit la photo,
   inchangé quand le boîtier choisit seul), autres sondes, tests. Build sans réglages masqués.
+- **Résultat T-PLAY1 (2026-11-09) : échec.** 1 : l'avant-dernière photo ; 2, 3 : la vue ; 4 : la
+  dernière vue du rouleau au lieu de la photo de P. Relecture du code : `+0x118` / `+0x11c` sont la
+  mémoire d'une **demande de nouveau dossier** (création `0x535b2ac4` : si `+0x117`, `0x53585188`
+  les remplit, sinon `0x5358519c` les remet à (−1, 0)), pas le dossier de la lecture. Correctif
+  retiré.
+- Lecture révisée (supposé, cohérent avec les quatre réponses) : la lecture s'ouvre sur le dernier
+  fichier dans l'ordre DCF, c'est-à-dire du dossier de plus grand numéro (une fonction nommée
+  `MoveToLastFile` existe). Les dossiers de rouleau, créés après, ont des numéros plus grands que le
+  dossier unique des modes libres. Piste : à l'ouverture de la lecture, se placer sur la **dernière
+  photo prise** (le boîtier la connaît : `RequestDeleteLastShot`) au lieu du dernier fichier DCF.
