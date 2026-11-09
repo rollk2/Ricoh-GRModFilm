@@ -3286,3 +3286,6 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   Les touches du pavé gardent le premier code de maintien. Build sans sonde, avec No movie.
   Vérifié : `hold_probe.py` (Fn chronométré, y compris le retour à zéro de l'horloge),
   `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`, `grain_native_probe.py`, tests.
+- **Résultat T-HOLD3 (2026-11-09) : validé par l'utilisateur** (« C'est parfait ») : Hold Fn
+  chronométré (600 ms, au relâchement), Hold des touches du pavé, lignes rangées par paires,
+  No movie.

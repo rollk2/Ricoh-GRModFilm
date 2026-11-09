@@ -116,7 +116,7 @@ describe.skipIf(!input)('GR III WB button', () => {
     const engine = await Engine.open(raw);
     const ratios = [{ ratio: '65:24', name: 'XPan' }];
     const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
-    const built = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true, rearDialOff: true });
+    const built = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true, holdButtons: true, rearDialOff: true });
     const seen = await (await Engine.open(raw)).inspect(built.file);
     expect(seen).toMatchObject({ verified: true });
     const plain = await engine.buildFirmware([], ratios, [], base);
@@ -125,5 +125,6 @@ describe.skipIf(!input)('GR III WB button', () => {
     expect(new Set([plain.sha256, snap.sha256, dial.sha256, built.sha256]).size).toBe(4);
     for (const b of [snap, dial]) expect(await (await Engine.open(raw)).inspect(b.file)).toMatchObject({ verified: true });
     await expect(engine.buildFirmware([], ratios, [], { ...base, macroButton: false, snapDof: true })).rejects.toThrow(/Snap DOF/);
+    await expect(engine.buildFirmware([], ratios, [], { ...base, macroButton: false, holdButtons: true })).rejects.toThrow(/Hold lines/);
   }, 900000);
 });

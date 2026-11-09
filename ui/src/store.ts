@@ -1285,8 +1285,8 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
         { adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
           ...(films ? { filmCount: films } : {}), ...(lookLayout ? { lookLayout } : {}),
           // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed),
-          // Snap DOF among the buttons' functions and the grain (Grain Off by default on every film's parameter screen).
-          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, snapDof: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
+          // Snap DOF among the buttons' functions, the Hold lines of Fn and the 4-way pad, and the grain (Grain Off by default on every film's parameter screen).
+          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, snapDof: true, holdButtons: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
           ...(rearDialOff ? { rearDialOff } : {}),
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked).
           ...(filmModeChoosable() ? { afPoint: true, memoryU: true } : {}) });
