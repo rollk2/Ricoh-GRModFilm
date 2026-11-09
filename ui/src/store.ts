@@ -1301,7 +1301,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
           // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed),
           // Snap DOF among the buttons' functions, the Hold lines of Fn and the 4-way pad, the film lines
           // hidden from the menu while a roll is loaded, and the grain (Grain Off by default on every film's parameter screen).
-          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, snapDof: true, holdButtons: true, rollLock: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
+          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, snapDof: true, holdButtons: true, rollLock: true, playLast: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
           ...(rearDialOff ? { rearDialOff } : {}), ...(hiddenCount ? { hiddenSettings } : {}),
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked).
           ...(filmModeChoosable() ? { afPoint: true, memoryU: true } : {}) });

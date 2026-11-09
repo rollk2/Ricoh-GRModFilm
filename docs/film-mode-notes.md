@@ -3455,3 +3455,13 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **T-PLAY0b** (diagnostic, `playProbe: 'ref'`) : à l'ouverture, la référence du fichier courant
   (octet de type `+6`, demi-mots `+8` et `+0xa`) en groupes de deux chiffres (+ 100 pour imprimer
   « 00 ») ; MoveToLastFile 77. Vérifié : `play_probe.py`.
+- **Résultat T-PLAY0b (2026-11-09)** : photo 115 / 7404 affichée, imprint « 74 04 00 01 15 74 04 » :
+  la référence de la lecture est **type `+6` = 0, dossier `+8` = 115, numéro `+0xa` = 7404**
+  (certitude forte).
+- Requête d'enregistrement (`0x535a87a0`, r7) : `+0x10` dossier (rangé en `+6` du support, lu avec
+  100 par défaut par `0x535b2e64`), `+0x12` numéro (rangé en `+2`, comparé à 9999 par `0x535b2188`).
+- **T-PLAY2** (`playLast`, `play-last.ts`) : en `0x535a88ac`, dossier et numéro de chaque photo
+  retenus en `0x558043a8` avec un drapeau ; à l'ouverture (`0x534e40c8`), drapeau levé : référence
+  de la lecture = cette photo, this[3] = 0, drapeau baissé ; puis le contrôle natif (repli
+  MoveToLastFile si le fichier n'est pas là). Vérifié : `play_last_probe.py`, `film_roll_check.py`,
+  `lock_probe.py`, `hold_probe.py`, tests. Application : envoyé avec le mode pellicule.
