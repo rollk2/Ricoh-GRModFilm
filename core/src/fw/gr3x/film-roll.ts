@@ -508,6 +508,13 @@ const keyClear = `push {r0};movw ip,#${lo(KEY_LAST)};movt ip,#${hi(KEY_LAST)};mo
  * the button functions run by GetEventCustomize (Fn, ISO, Drive: 0x5329bcc8(this, out, f, ...)) and
  * GetEventSwitchWlan (Movie/Wireless, Hold: function in r6 at 0x5329a0a0, `cmp r6,#0x29`). */
 export const GR3X_FN_TABLE = 0x53b4eb7c, GR3X_FN_COUNT = 36, GR3X_FN_LOOP_LOW = 0x531be684, GR3X_FN_LOOP_END = 0x531be698;
+/** The two shorter tables of the Movie/Wireless lists (the controller's vectors + 0x1bc and + 0x1b0,
+ * builders 0x531be5f8 and 0x531be700): the camera's functions without Enable AF, AF+AE Lock, AE
+ * Lock and One Push AE in M Mode (5, 6, 7, 29), with Wireless LAN Setting and Preview (32, 33). */
+export const GR3X_FN_WLAN_TABLES = [
+  { table: 0x53b4ebcc, count: 34, low: 0x531be600, end: 0x531be614, end_word: 0xe2846022 },
+  { table: 0x53b4ebf4, count: 32, low: 0x531be708, end: 0x531be71c, end_word: 0xe2846020 },
+] as const;
 export const GR3X_FN_TEXT = 0x53292ed0, GR3X_FN_ICON = 0x53293e6c, GR3X_FN_CUSTOM = 0x5329bcc8, GR3X_FN_WLAN = 0x5329a0a0;
 /** Film Advance's function number (the camera's are 0..41; 0 is Off). */
 export const GR3X_FILM_ADVANCE = 42;
@@ -546,11 +553,13 @@ export interface Gr3xFnProgram extends Gr3xRollProgram {
 export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake: false | 'event' | 'action' | 'probe' | 'cancel' = false, clamp = false, once = false, icon = GR3X_FILM_ADVANCE_ICON,
   wb?: { open: number; function: number; text: number; icon: number;
     /** Macro Mode (45): runs the Macro button's own handler as a short press (`press`: (this, events)). */
-    macro?: { function: number; text: number; icon: number; press: number } }) {
+    macro?: { function: number; text: number; icon: number; press: number };
+    /** Snap Focus Distance (46, wb-button.ts): the next distance (`press`), with the Macro button. */
+    snap?: { function: number; text: number; icon: number; press: number } }) {
   // clamp (T13-FN7): a function above the last one (43 saved by an earlier build) reads as Off.
   // wb (WB button, wb-button.ts): White Balance is 44, so 43 and above 44 read as Off.
-  if (wb && (retake || !clamp || wb.function !== GR3X_FILM_ADVANCE + 2 || (wb.macro && wb.macro.function !== wb.function + 1))) throw new FirmwareError('unexpected-layout', 'IIIx film advance: White Balance needs the release form');
-  const top = wb?.macro ? wb.macro.function : wb?.function;
+  if (wb && (retake || !clamp || wb.function !== GR3X_FILM_ADVANCE + 2 || (wb.macro && wb.macro.function !== wb.function + 1) || (wb.snap && (!wb.macro || wb.snap.function !== wb.macro.function + 1)))) throw new FirmwareError('unexpected-layout', 'IIIx film advance: White Balance needs the release form');
+  const top = wb?.snap ? wb.snap.function : wb?.macro ? wb.macro.function : wb?.function;
   const high = (r: string) => wb ? `cmp ${r},#${top};movhi ${r},#0;cmp ${r},#${GR3X_FILM_ADVANCE + 1};moveq ${r},#0;` : clamp ? `cmp ${r},#${GR3X_FILM_ADVANCE + 1};movhs ${r},#0;` : '';
   const fail = (what: string) => { throw new FirmwareError('unexpected-layout', `IIIx film advance: ${what}`); };
   const free = (at: number) => { if (p.sites.some(s => s.address === at)) throw new FirmwareError('unexpected-instruction', `IIIx film advance: ${at.toString(16)} already patched`); };
@@ -562,17 +571,29 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     free(at); if (p.u32(at) !== w) fail(`instruction at ${at.toString(16)}`);
   }
   const entries: Record<string, number> = {};
-  const added = retake ? [GR3X_FILM_ADVANCE, GR3X_FILM_RETAKE] : wb ? [GR3X_FILM_ADVANCE, wb.function, ...(wb.macro ? [wb.macro.function] : [])] : [GR3X_FILM_ADVANCE];
+  const added = retake ? [GR3X_FILM_ADVANCE, GR3X_FILM_RETAKE] : wb ? [GR3X_FILM_ADVANCE, wb.function, ...(wb.macro ? [wb.macro.function] : []), ...(wb.snap ? [wb.snap.function] : [])] : [GR3X_FILM_ADVANCE];
   const table = p.append(Uint8Array.from([...official, ...added]));
   entries.filmFnTable = table;
   for (const at of [GR3X_FN_LOOP_LOW, GR3X_FN_LOOP_LOW + 4, GR3X_FN_LOOP_END]) free(at);
   p.patch(GR3X_FN_LOOP_LOW, movWord(4, lo(GR3X_FN_TABLE)), movWord(4, lo(table)), 'film advance: the functions table with Film Advance, low half');
   p.patch(GR3X_FN_LOOP_LOW + 4, movWord(4, hi(GR3X_FN_TABLE), true), movWord(4, hi(table), true), 'film advance: the functions table with Film Advance, high half');
   p.patch(GR3X_FN_LOOP_END, 0xe2846024, 0xe2846024 + added.length, `film advance: the functions table has ${GR3X_FN_COUNT + added.length} entries`);
+  // With the WB button (release builds): the Movie/Wireless lists get GR Mod Film's functions too
+  // (Film Advance, White Balance, Macro Mode, Snap DOF): GetEventSwitchWlan already runs them.
+  if (wb) GR3X_FN_WLAN_TABLES.forEach(({ table: at, count, low, end, end_word }, k) => {
+    const own = p.read(at, count);
+    if ([...own].some(f => added.includes(f)) || own[0] !== 0 || p.u32(low) !== movWord(4, lo(at)) || p.u32(low + 4) !== movWord(4, hi(at), true) || p.u32(end) !== end_word) fail(`wireless list ${k}`);
+    for (const a of [low, low + 4, end]) free(a);
+    const t = p.append(Uint8Array.from([...own, ...added]));
+    entries[`filmFnWlanTable${k}`] = t;
+    p.patch(low, movWord(4, lo(at)), movWord(4, lo(t)), 'film advance: the Wireless list with GR Mod Film\'s functions, low half');
+    p.patch(low + 4, movWord(4, hi(at), true), movWord(4, hi(t), true), 'film advance: the Wireless list with GR Mod Film\'s functions, high half');
+    p.patch(end, end_word, end_word + added.length, `film advance: the Wireless list has ${count + added.length} entries`);
+  });
   const retakeText = retake ? `cmp r1,#${GR3X_FILM_RETAKE};movweq r0,#${GR3X_RETAKE_TEXT};bxeq lr;` : '';
-  const M = wb?.macro;
-  const wbText = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.text};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.text};bxeq lr;` : ''}` : '';
-  const wbIcon = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.icon};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.icon};bxeq lr;` : ''}` : '';
+  const M = wb?.macro, N = wb?.snap;
+  const wbText = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.text};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.text};bxeq lr;` : ''}${N ? `cmp r1,#${N.function};movweq r0,#${N.text};bxeq lr;` : ''}` : '';
+  const wbIcon = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.icon};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.icon};bxeq lr;` : ''}${N ? `cmp r1,#${N.function};movweq r0,#${N.icon};bxeq lr;` : ''}` : '';
   entries.filmFnText = p.code(`${high('r1')}cmp r1,#${GR3X_FILM_ADVANCE};movweq r0,#${text};bxeq lr;${retakeText}${wbText}cmp r1,#0;b #${GR3X_FN_TEXT + 4};`);
   p.patch(GR3X_FN_TEXT, 0xe3510000, branchWord(GR3X_FN_TEXT, entries.filmFnText), 'film advance: its text');
   const retakeIcon = retake ? `cmp r1,#${GR3X_FILM_RETAKE};movweq r0,#${icon};bxeq lr;` : '';
@@ -596,9 +617,12 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
   const retakeWlan = retake ? `cmp r6,#${GR3X_FILM_RETAKE};bne go;${retakeCode('rkept')}mov r6,#0;b go;` : '';
   // White Balance (44), pressed (r3 = 0, as the camera's functions): opened into the events (r1), then as Off.
   // Macro Mode (45), pressed: the Macro button's short press (this r0, the events r1).
-  const macroCustom = M ? `b native;mc:cmp r2,#${M.function};bne native;cmp r3,#0;bne mcoff;push {r0,r1,r2,r3,ip,lr};bl #${M.press};pop {r0,r1,r2,r3,ip,lr};mcoff:mov r2,#0;` : '';
+  // Snap Focus Distance (46), pressed: the next distance.
+  const snapCustom = N ? `b native;sc:cmp r2,#${N.function};bne native;cmp r3,#0;bne scoff;push {r0,r1,r2,r3,ip,lr};bl #${N.press};pop {r0,r1,r2,r3,ip,lr};scoff:mov r2,#0;` : '';
+  const macroCustom = M ? `b native;mc:cmp r2,#${M.function};bne ${N ? 'sc' : 'native'};cmp r3,#0;bne mcoff;push {r0,r1,r2,r3,ip,lr};bl #${M.press};pop {r0,r1,r2,r3,ip,lr};mcoff:mov r2,#0;${snapCustom}` : '';
   const wbCustom = wb ? `cmp r2,#${wb.function};bne ${M ? 'mc' : 'native'};cmp r3,#0;bne wboff;push {r0,r1,r2,r3,ip,lr};mov r0,r1;bl #${wb.open};pop {r0,r1,r2,r3,ip,lr};wboff:mov r2,#0;${macroCustom}` : '';
-  const macroWlan = M ? `b go;mw:cmp r6,#${M.function};bne go;push {r0,r1,r2,r3,ip,lr};mov r0,r10;mov r1,r8;bl #${M.press};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;` : '';
+  const snapWlan = N ? `b go;sw:cmp r6,#${N.function};bne go;push {r0,r1,r2,r3,ip,lr};bl #${N.press};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;` : '';
+  const macroWlan = M ? `b go;mw:cmp r6,#${M.function};bne ${N ? 'sw' : 'go'};push {r0,r1,r2,r3,ip,lr};mov r0,r10;mov r1,r8;bl #${M.press};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;${snapWlan}` : '';
   const wbWlan = wb ? `cmp r6,#${wb.function};bne ${M ? 'mw' : 'go'};push {r0,r1,r2,r3,ip,lr};mov r0,r8;bl #${wb.open};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;${macroWlan}` : '';
   entries.filmFnCustom = p.code(`${high('r2')}cmp r2,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'native'};${advance('kept')}mov r2,#0;${retake ? `b native;other:${retakeCustom}` : wb ? `b native;wb:${wbCustom}` : ''}native:mov ip,sp;b #${GR3X_FN_CUSTOM + 4};`);
   p.patch(GR3X_FN_CUSTOM, 0xe1a0c00d, branchWord(GR3X_FN_CUSTOM, entries.filmFnCustom), 'film advance: Fn, ISO and Drive buttons');

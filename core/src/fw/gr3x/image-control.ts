@@ -23,10 +23,12 @@ import { GR3X_SLOTS3_NATIVE } from './slots3-native';
 import { GR3X_SLOTS4_NATIVE } from './slots4-native';
 import { isGr3xFactoryLayout } from './look-layout';
 import { installGr3xHalationRows } from './halation-rows';
+import { gr3xMonoTable } from './datestamp';
 import { installGr3xGuardCode, installGr3xGuardRecall } from './guard';
 import { gr3xMaxId } from './geometry';
 import { monoLook } from '../aspect/lookstash';
 import { installGr3xHalationScreen } from './halation-screen';
+import { installGr3xNativeGrainFilms } from './grain-native';
 import { GR3X_DEVELOP_LOOK_READ, GR3X_FIRST_FILM, GR3X_HALATION_STASH, GR3X_MATRIX_CALL, GR3X_MATRIX_PROCESS, installGr3xJpegStage } from './jpeg-stage';
 import { HALATION_COLOUR_NAMES, HALATION_NAMES, halationColourIcon, halationColourScale, halationIcon, halationLight, PLAIN_LIGHT } from '../aspect/halation';
 import { halationLightR6, halationScaleR6, PLAIN_LIGHT_R6 } from './halation-r6';
@@ -88,6 +90,23 @@ export const GR3X_MAX_FILMS = 20;
 const hex = (b: Uint8Array) => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
 const unhex = (s: string) => Uint8Array.from(s.match(/../g) ?? [], x => parseInt(x, 16));
 const addr = (r: number, a: number) => `movw r${r},#${a & 65535};movt r${r},#${a >>> 16};`;
+
+/** The picture's own look word (round 10 with the grain; jpeg-stage.ts `photo`). */
+export const GR3X_PHOTO_WORD = 0x558043a4;
+const recordCheck = (r: string, fb: string) => `cmp ${r},#0x40000000;blo ${fb};cmp ${r},#0xc0000000;bhs ${fb};tst ${r},#3;bne ${fb};`;
+/** The word, as the development step's stash adapter makes it (round 10, grain), from the shooting
+ * record at Execute's configuration + 0x34 (its year at +0x944 in 2000..2099), else the stash; every
+ * register and the flags kept. */
+export function gr3xPhotoLookAsm(capacity: number): string {
+  return `push {r0-r5,ip,lr};mrs r4,cpsr;ldr r3,[r1,#8];${recordCheck('r3', 'pfb')}ldr r3,[r3,#0x34];${recordCheck('r3', 'pfb')}
+    add r2,r3,#0x900;ldrh r2,[r2,#0x44];sub r2,r2,#2000;cmp r2,#99;bhi pfb;
+    ldrb r2,[r3,#0x77c];mov r0,#0;sub ip,r2,#${GR3X_FIRST_FILM};cmp ip,#${capacity - 1};bhi pnolevel;
+    ldrb r5,[r3,#0x786];and r5,r5,#0xf0;orr r0,r0,r5,lsl #16;ldrb r1,[r3,#0x786];and r1,r1,#15;cmp r1,#7;movhs r1,#0;cmp r1,#4;subhs r1,r1,#3;orrhs r0,r0,#0x20000;bhs plevel;
+    cmp r1,#3;moveq r1,#2;beq plevel;cmp r1,#2;moveq r1,#3;plevel:orr r0,r0,r1,lsl #8;
+    pnolevel:cmp r2,#${GR3X_FIRST_FILM};subhs ip,r2,#${GR3X_FIRST_FILM - GR3X_STASH_FILM};movlo ip,r2;orr ip,ip,r0;orr ip,ip,#0x10000;b pstore;
+    pfb:${addr(1, GR3X_HALATION_STASH)}ldr ip,[r1];
+    pstore:${addr(1, GR3X_PHOTO_WORD)}str ip,[r1];msr cpsr_f,r4;pop {r0-r5,ip,lr};`;
+}
 const DEFAULTS = [
   [0x532c34e8, 0x77d], [0x532c3b54, 0x77e], [0x532c41c0, 0x77f],
   [0x532c494c, 0x780], [0x532c50d8, 0x781], [0x532c5864, 0x782],
@@ -142,6 +161,10 @@ const REPLICAS = [
 /** The Halation row's name in GR III's Chinese menus: their fonts have no 晕 / 暈 (GR IV's 光晕 /
  * 光暈). Round 6 (red only): "red light diffusion"; round 7 (red or white): "light diffusion". */
 export const GR3X_HALATION_ZH_R6 = ['紅光漫射', '红光漫射'] as const;
+/** The grain's Size row name per text row (characters of each row's own texts: Grain Effect's, Resize's). */
+export const GR3X_GRAIN_SIZE_NAMES = ['粒状感サイズ', 'Grain Size', 'Taille du grain', 'Korngröße', 'Tamaño del grano', 'Tamanho do grão', 'Dimensione grana',
+  'Korrelgrootte', 'Kornstørrelse', 'Kornstorlek', 'Rakeisuuden koko', 'Wielkość ziarna', 'Velikost zrna', 'Szemcseméret', 'Gren Boyutu', 'Μέγεθος Κόκκου',
+  'Размер зерна', '입자 크기', '粒紋尺寸', '颗粒尺寸', 'ขนาดเกรน'] as const;
 export const GR3X_HALATION_ZH = ['光漫射', '光漫射'] as const;
 /** The Halation row's name per text row: GR IV's, Chinese as GR III's fonts allow. */
 export function gr3xHalationNames(round7: boolean): string[] {
@@ -153,7 +176,7 @@ export function gr3xHalationNames(round7: boolean): string[] {
  * (GR IV's pictures; the scale drawn on GR III's own three-position scale 211, 400 x 60).
  * Round 7: the Halation and Colour rows' names (GR IV's), the halation icon, the colour scale
  * (GR IV's red and white lights drawn on scale 211) and the red and white light icons. */
-function halationResources(decoded: Uint8Array, round7: boolean, round8 = false) {
+function halationResources(decoded: Uint8Array, round7: boolean, round8 = false, grain = false) {
   const view = new DataView(decoded.buffer, decoded.byteOffset, decoded.byteLength);
   const icons = sectionsOf(decoded).find(s => s.name === 'ICONBIN');
   if (!icons) throw new FirmwareError('unexpected-layout', 'IIIx icon section missing');
@@ -164,7 +187,7 @@ function halationResources(decoded: Uint8Array, round7: boolean, round8 = false)
   const scale = decoded.slice(icons.offset + at, icons.offset + at + 400 * 60 * 4);
   // Round 8: GR IV's names (光晕 / 光暈 too: GR III's fonts are GR IV's, byte for byte).
   const names = round8 ? [...HALATION_NAMES] : gr3xHalationNames(round7);
-  if (round7) return { texts: [names, [...HALATION_COLOUR_NAMES]], icons: [{ w: 40, h: 40, pixels: halationIcon() },
+  if (round7) return { texts: [names, [...HALATION_COLOUR_NAMES], ...(grain ? [[...GR3X_GRAIN_SIZE_NAMES]] : [])], icons: [{ w: 40, h: 40, pixels: halationIcon() },
     { w: 400, h: 60, pixels: halationColourScale(scale) }, { w: 40, h: 40, pixels: halationColourIcon('red') }, { w: 40, h: 40, pixels: halationColourIcon('white') }] };
   return { texts: [names], icons: [{ w: 40, h: 40, pixels: halationIcon() }, { w: 400, h: 60, pixels: halationScaleR6(scale) }] };
 }
@@ -192,6 +215,15 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
   if (round9 && !round8) throw new FirmwareError('bad-edit', 'IIIx round 9 builds on round 8');
   // Round 10 (films-r10.ts): the films as looks of their own, GR IV's way.
   const round10 = features.round10 === true;
+  // The Grain and Size rows of a film (round 10, with the film mode): halation-rows.ts, films.c -DGRAIN.
+  const grain = round10 && features.grain === true;
+  if (features.grain && !grain) throw new FirmwareError('bad-edit', 'IIIx grain: round 10 only');
+  // The films' Grain goes through the camera's own granulation (grain-native.ts, T-GRAIN8b): fast,
+  // light only, three levels, no size. Test builds (grainSoftware): the JPEG module instead
+  // (jpeg_grain.c, T-GRAIN6), with its Size row.
+  const grainSoftware = grain && features.grainSoftware === true;
+  const grainNative = grain && !grainSoftware;
+  if (features.grainSoftware && !grain) throw new FirmwareError('bad-edit', 'IIIx software grain: with the grain rows');
   if (round10 && !round9) throw new FirmwareError('bad-edit', 'IIIx round 10 builds on round 9');
   if (round6 && (!extended || options.ownParameters !== true || options.jpegDiagnostics || !Number.isInteger(options.filmCount) ||
       options.filmCount! < 1 || options.filmCount! > GR3X_MAX_FILMS || options.films?.some(f => f.halation !== undefined)))
@@ -222,7 +254,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
   // Round 8: the films' names for the date imprint, as the camera's English menu shows them.
   const filmNames = round8Date ? films.map(f => f.names?.en || f.name) : undefined;
   const menu = await buildGr3xLookMenuResearch(raw, specs as Gr3xResearchLook[], displayIcons, ratioMenu, features,
-    round6 ? halationResources(decoded, round7, round8) : undefined, monoFilms, filmNames);
+    round6 ? halationResources(decoded, round7, round8, grainSoftware) : undefined, monoFilms, filmNames);
   const p = GR3X_160;
   const rtos = decoded.subarray(p.rtosOffset, p.rtosOffset + p.rtosLength);
   const originalRead = (va: number, size: number) => {
@@ -336,7 +368,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
       // development also GR IV's frame look and orientation words. Registers and flags as before, but
       // r2 (the look, a film as Standard).
       return code(`push {r0-r5,ip,lr};mrs r4,cpsr;ldrb r2,[r3,#0x77c];mov r0,#0;sub ip,r2,#${GR3X_FIRST_FILM};cmp ip,#${capacity - 1};bhi nolevel;
-        ldrb r1,[r3,#0x786];cmp r1,#7;movhs r1,#0;cmp r1,#4;subhs r1,r1,#3;orrhs r0,r0,#0x20000;bhs level;
+        ${grain ? 'ldrb r5,[r3,#0x786];and r5,r5,#0xf0;orr r0,r0,r5,lsl #16;' : ''}ldrb r1,[r3,#0x786];${grain ? 'and r1,r1,#15;' : ''}cmp r1,#7;movhs r1,#0;cmp r1,#4;subhs r1,r1,#3;orrhs r0,r0,#0x20000;bhs level;
         cmp r1,#3;moveq r1,#2;beq level;cmp r1,#2;moveq r1,#3;level:orr r0,r0,r1,lsl #8;
         nolevel:cmp r2,#${GR3X_FIRST_FILM};subhs ip,r2,#${GR3X_FIRST_FILM - GR3X_STASH_FILM};movlo ip,r2;orr ip,ip,r0;orr ip,ip,#0x10000;
         ${addr(1, GR3X_HALATION_STASH)}str ip,[r1];` +
@@ -445,7 +477,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     const layout = features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, capacity) ? features.lookLayout : undefined;
     const hiddenMask = (layout?.hidden ?? []).filter(id => id >= GR3X_FIRST_FILM && id < GR3X_FIRST_FILM + capacity).reduce((m, id) => (m | (1 << (id - GR3X_FIRST_FILM))) >>> 0, 0);
     const tables = installGr3xR10Tables(r10Program, slots.filter(s => s.record).map(s => ({ id: s.id, record: s.record, iconId: s.iconId, print: s.print })));
-    const params = installGr3xR10Parameters(r10Program, { films: capacity, prints: slots.slice(0, capacity).map(s => s.print >>> 0), hiddenMask, setterSites: GR3X_PARAMETER_SETTER_LOOKS });
+    const params = installGr3xR10Parameters(r10Program, { films: capacity, prints: slots.slice(0, capacity).map(s => s.print >>> 0), hiddenMask, setterSites: GR3X_PARAMETER_SETTER_LOOKS, ...(grain ? { grain } : {}) });
     const guard = installGr3xGuardR10({ code, patch, u32, sites }, { films: capacity, maxRatio: gr3xMaxId(menu.menu), ...(layout ? { hidden: layout.hidden, order: layout.order } : {}),
       ...(features.adjSoftFocus ? { softFocusR10: true } : {}),
       // T23: the film mode's recall (Save Interim Images off, multi-exposure) after the guard's.
@@ -454,7 +486,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
         : (menu.entries as Record<string, number>).filmRollRecall ? { recallAfter: (menu.entries as Record<string, number>).filmRollRecall } : {}) }, params.moduleSymbols.sp_before_recall);
     const order = (layout ? layout.order.filter(id => !layout.hidden.includes(id)) : gr3xFactoryLookOrder(capacity));
     const raw = installGr3xR10Raw(r10Program, { films: capacity, order, module: params.moduleSymbols });
-    const info = installGr3xR10PictureInfo(r10Program, capacity, slots[0].iconId);
+    const info = installGr3xR10PictureInfo(r10Program, capacity, slots[0].iconId, grain);
     return { ...tables, ...params, ...guard, ...raw, ...info };
   })() : undefined;
   const own = adjustable && options.ownParameters === true && !round10 ? (() => {
@@ -505,7 +537,9 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
       colourScale: menu.extraIconIds[1], redIcon: menu.extraIconIds[2], whiteIcon: menu.extraIconIds[3],
       ...(sym ? { hal: sym.sp_hal, halPut: sym.sp_hal_put, halText: sym.sp_hal_text, col: sym.sp_col, colPut: sym.sp_col_put }
         : { hal: own2Entry('sp_hal'), halPut: own2Entry('sp_hal_put'), halText: own2Entry('sp_hal_text'), col: own2Entry('sp_col'), colPut: own2Entry('sp_col_put'),
-          backup: own2Entry('sp_hal_backup'), restore: own2Entry('sp_hal_restore') }) }) : undefined;
+          backup: own2Entry('sp_hal_backup'), restore: own2Entry('sp_hal_restore') }),
+      ...(grain && sym ? { grain: { grain: sym.sp_grain, grainPut: sym.sp_grain_put, grainText: sym.sp_grain_text,
+        ...(grainSoftware ? { size: { text: menu.extraTextIds[2], get: sym.sp_size, put: sym.sp_size_put, valueText: sym.sp_size_text } } : {}) } } : {}) }) : undefined;
   // Round 6: the Halation line of a film on the parameter screen (halation-screen.ts).
   const halationScreen = round6 && !round7 ? installGr3xHalationScreen({ code, append, patch, u32: (a: number) => u32(a), read: originalRead },
     { films: capacity, textId: menu.extraTextIds[0], iconId: menu.extraIconIds[0], scaleIconId: menu.extraIconIds[1],
@@ -538,6 +572,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     if (!site || !site.reason.startsWith('date imprint')) throw new FirmwareError('unexpected-instruction', 'IIIx JPEG entry is not the date imprint');
     site.replacement = hex(wordsToBytes([replacement])); site.reason = reason;
   };
+  const nativeGrain = grainNative ? installGr3xNativeGrainFilms({ code, append, patch, u32, sites }, capacity) : {};
   const jpeg = installGr3xJpegStage({ code, append, patch, u32, retarget }, {
     after: dateStage,
     halation: halationSlots.length && !round7 ? { levels: round6 ? slots.map(() => 1) : slots.slice(0, 9).map(s => s.halation),
@@ -545,6 +580,14 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     // Round 7: 0.8.2's halation (soft start, Weak / Medium / Strong, red or white) for every film.
     ...(round7 ? { halation7: { light: slots.slice(0, capacity).map(s => s.quantizedCurves ? halationLight(s.quantizedCurves, s.postQ9) : PLAIN_LIGHT) } } : {}),
     diagnostics: options.jpegDiagnostics === true,
+    // The grain on the JPEG (jpeg_grain.c): the black-and-white films take the black-and-white profile.
+    ...(grainSoftware ? { grain: { mono: gr3xMonoTable(monoFilms ?? []) } } : {}),
+    // The picture's own look word (T-GRAIN7): the JPEG is encoded after later shots may have been
+    // developed, and the stash then holds their look. Execute's configuration + 0x34 is the shooting
+    // record of the picture (SetShootingInfoResultBeforeExpose's, its date at +0x944, the settings
+    // copy the maker note reads: look +0x77c, Toning +0x786); the word is made from it as the stash
+    // adapter does, else (no record, a year outside 2000..2099) the stash is copied.
+    ...(grain ? { photo: { address: GR3X_PHOTO_WORD, asm: gr3xPhotoLookAsm(capacity) } } : {}),
   });
   // Round 10: the film's record comes from the descriptor's own table (films-r10.ts).
   const descriptor = round10 ? undefined : code(`push {r1-r3,ip};ldrb r2,[r7,#0x77c];` +
@@ -572,7 +615,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     append: { address: menu.append.address, bytes: hex(payload) },
     addedLooks: slots, renderingImplemented: true as const,
     lookEntries: { aggregate, rawEnum, restriction, enforce, descriptor, gamma, defaults, adapters, setters, activeChecks, activeChecksSet0, ...(liveGamma ? { liveGamma } : {}),
-      ...(own ? { ownParameters: own } : {}), ...(r10 ? { films: r10 } : {}), ...(postMatrix ? { postMatrix } : {}), ...(jpeg ? { jpeg } : {}),
+      ...(own ? { ownParameters: own } : {}), ...(r10 ? { films: r10 } : {}), ...(postMatrix ? { postMatrix } : {}), ...(jpeg ? { jpeg } : {}), ...(grainNative ? { nativeGrain } : {}),
       ...(halationScreen ? { halationScreen } : {}), ...(halationRows ? { halationRows } : {}) },
     ...(round6 ? { filmCount: capacity, halationInCamera: true } : {}),
     ...(round7 ? { round7: true, monoFilms } : {}),

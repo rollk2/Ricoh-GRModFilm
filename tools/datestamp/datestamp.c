@@ -63,6 +63,30 @@ struct ctx {
    * (0..63) its name as glyphs: {count, glyph...} (u16), or 0. */
   const volatile u32 *frame_look;
   const u16 *const *names;
+#ifdef GRAIN_TAG
+  /* GR Mod Film test builds (GR III round 10, grain): per Grain / Size nibble of the look word
+   * (bits 20..23: grain 0..3, size code 0 M, 1 S, 2 L) the setting as glyphs, {count, glyph...},
+   * or 0. Printed after the name for a film; with the date off, printed alone. */
+  const u16 *const *grain_tags;
+#ifdef DIFF_DIAG
+  /* Research (T-DOF5): which bytes of the settings record in use change from one picture to the
+   * next. `copy` is the RAM word holding the copy's address (0: none yet), `alloc` the camera's heap. */
+  u8 *volatile *copy;
+  void *(*alloc)(u32 n);
+#endif
+#ifdef KEY_DIAG
+  /* Research (T-DIAL2, T-DOF): a ring of seven bytes (bytes 0..6, byte 7 the next slot): the last
+   * keys seen, or the bytes noted at the exposure. */
+  volatile u8 *keys;
+#endif
+#ifdef GRAIN_DIAG
+  /* Diagnostic (T-GRAIN6D): the same glyphs with E for the setting queued at the exposure, and the
+   * queue: byte 0 the exposures (written by the exposure hook), byte 1 the encodes (this module),
+   * bytes 4..11 the last eight exposures' Grain / Size nibble (| 0x80: the look word was valid). */
+  const u16 *const *exposure_tags;
+  volatile u8 *queue;
+#endif
+#endif
 #ifdef DFDIAG
   /* Test builds only: the RAM word holding the Direct Flash planner's diagnostic buffer (see
    * tools/directflash/directflash.c, DIAG), printed on the 720x480 picture. */
@@ -78,6 +102,10 @@ struct ctx {
 #define SETTING_MAX 15u
 /* Longest name drawn (in glyphs; GR Mod's names are at most 16). */
 #define MAXNAME 24u
+#ifdef DIFF_DIAG
+#define DIFF_SIZE 0xb28u
+#define DIFF_MINUS (G_LETTER | 0xc0u)
+#endif
 
 /* Glyph codes besides the digits 0..15. */
 #define G_APOSTROPHE 16
@@ -704,18 +732,72 @@ static u32 two_digits(u32 v, glyph *out) {
   return 2;
 }
 
+#ifdef GRAIN_FIND
+/* Research (T-GRAIN6F): the shooting record of the picture being encoded (SetShootingInfoResult-
+ * BeforeExpose's record: the frame's year at +0x944, month and day at +0x946, a copy of the user
+ * settings with the look at +0x77c and the Toning byte at +0x786), looked for two pointers deep
+ * from the encoder's own words. Only pointers into 0x55000000..0x5fff0000 are read. */
+static int find_ptr(u32 a) { return a >= 0x55000000u && a < 0x5fff0000u && (a & 3) == 0; }
+static int is_record(u32 a, u32 year, u32 month, u32 day) {
+  const u8 *q = (const u8 *)a;
+  return find_ptr(a) && *(const u16 *)(q + 0x944) == year && q[0x946] == month && q[0x947] == day && q[0x77c] >= 11u && q[0x77c] < 100u;
+}
+/* Appends "  r.ii.jj gs" per record found (root 0 the process, 1 its argument, 2 the configuration;
+ * word ii of the root, then word jj of what it points at, 99 when the root's word is the record;
+ * g s the record's Grain and size code), at most three. */
+static u32 find_records(const struct ctx *k, u32 *roots[3], glyph *out) {
+  u8 time[16];
+  u32 n = 0, found = 0, r, i, j, year, month, day;
+  void *platform;
+  for (i = 0; i < 16; i++) time[i] = 0;
+  platform = k->platform();
+  if (!platform) return 0;
+  k->get_time(((void **)platform)[1], time);
+  year = time[0] | (u32)time[1] << 8; month = time[2]; day = time[3];
+  for (r = 0; r < 3 && found < 3; r++) {
+    u32 *root = roots[r];
+    if (!find_ptr((u32)root)) continue;
+    for (i = 0; i < 64 && found < 3; i++) {
+      u32 a = root[i];
+      if (!find_ptr(a)) continue;
+      if (is_record(a, year, month, day)) j = 99;
+      else {
+        for (j = 0; j < 64; j++) if (is_record(((u32 *)a)[j], year, month, day)) { a = ((u32 *)a)[j]; break; }
+        if (j == 64) continue;
+      }
+      out[n++] = G_SPACE; out[n++] = G_SPACE; out[n++] = (glyph)r; out[n++] = G_DOT;
+      n += two_digits(i, out + n); out[n++] = G_DOT; n += two_digits(j, out + n);
+      out[n++] = G_SPACE; out[n++] = (glyph)((((const u8 *)a)[0x786] >> 4) & 3u); out[n++] = (glyph)(((const u8 *)a)[0x786] >> 6);
+      found++;
+    }
+  }
+  return n;
+}
+#endif
+
 /* Entry: k = context, config = JpegEncodeMacroProcess configuration. */
+#ifdef GRAIN_FIND
+void datestamp(const struct ctx *k, u32 *config, u32 *process, u32 *arg) {
+#else
 void datestamp(const struct ctx *k, u32 *config) {
+#endif
   u8 time[16];
   glyph glyphs[MAXGLYPH];
   u32 n = 0, nd, nn = 0, i, j, setting;
+#ifdef GRAIN_DIAG
+  u32 queued = 0, seen_w = 0, seen_r = 0;
+#endif
   struct picture *seen[4];
   void *cache, *platform;
 #ifdef SETTING_RECORD
   {
     const u8 *r = *k->record;
+#ifdef GRAIN_TAG
+    setting = (!ram(r) || k->offset >= 0x1000u) ? 0u : r[k->offset];
+#else
     if (!ram(r) || k->offset >= 0x1000u) return;
     setting = r[k->offset];
+#endif
   }
 #else
   setting = *k->setting;
@@ -723,10 +805,28 @@ void datestamp(const struct ctx *k, u32 *config) {
 #ifdef DFDIAG
   if (ram(config)) df_diag(k, k->cache(), config);
 #endif
+#ifdef GRAIN_TAG
+  /* The date off: the grain's tag alone. */
+  if (setting > SETTING_MAX || !(setting & SETTING_ON)) setting = 0;
+  if (!ram(config)) return;
+#ifdef GRAIN_DIAG
+  {
+    u32 w = k->queue[0], r = k->queue[1];
+    queued = r != w ? k->queue[4 + (r & 7u)] : 0u;
+    seen_w = w; seen_r = r;
+    if (r != w) k->queue[1] = (u8)(r + 1u);
+  }
+#endif
+#else
   if (setting > SETTING_MAX || !(setting & SETTING_ON) || !ram(config)) return;
+#endif
 #ifdef DIAG
   diag(k, k->cache(), config);
 #endif
+#ifdef GRAIN_TAG
+  if (setting)
+#endif
+  {
   for (i = 0; i < 16; i++) time[i] = 0;
   platform = k->platform();
   if (!platform) return;
@@ -755,6 +855,7 @@ void datestamp(const struct ctx *k, u32 *config) {
       n += two_digits(day, glyphs + n);
     }
   }
+  }
   nd = n;
   /* The look's name: the look of the picture being made (left at the start of the exposure, or in
    * RAW development), else the look the development step last saw. */
@@ -771,6 +872,90 @@ void datestamp(const struct ctx *k, u32 *config) {
       }
     }
   }
+#ifdef GRAIN_TAG
+  /* The grain's setting, as the grain module (run just before) read it from the look word. */
+  if (k->grain_tags && k->look) {
+    u32 v = *k->look;
+    if ((v & LOOK_VALID) && (v & 0xffu) >= 32u && (v & 0xffu) < 64u) {
+      const u16 *t = k->grain_tags[(v >> 20) & 15u];
+      if (ram(t) && t[0] > 0 && t[0] <= 8u) {
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+        for (i = 0; i < t[0]; i++) glyphs[n++] = t[1 + i];
+#ifdef GRAIN_FIND
+        {
+          u32 *roots[3];
+          roots[0] = process; roots[1] = arg; roots[2] = config;
+          n += find_records(k, roots, glyphs + n);
+        }
+#endif
+#ifdef GRAIN_DIAG
+        /* "  E3 M" (the queued setting; "E" alone when the queue was empty or the word not valid),
+         * then "  ww.rr" the exposures and encodes counted before this one. */
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+        t = k->exposure_tags[queued & 15u];
+        if ((queued & 0x80u) && ram(t) && t[0] > 0 && t[0] <= 8u) for (i = 0; i < t[0]; i++) glyphs[n++] = t[1 + i];
+        else glyphs[n++] = k->exposure_tags[0] && ram(k->exposure_tags[0]) ? k->exposure_tags[0][1] : G_SPACE;
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE;
+        n += two_digits(seen_w, glyphs + n); glyphs[n++] = G_DOT; n += two_digits(seen_r, glyphs + n);
+#endif
+        nn = n - nd;
+      }
+    }
+  }
+#ifdef DIFF_DIAG
+  /* The record's bytes that changed since the previous picture (" ooo.aa.bb" in hex: offset, old,
+   * new; at most four), then " nn" their number (hex, up to ff); the first picture: "  ---". The
+   * copy then follows the record. */
+  {
+    const u8 *r = *k->record;
+    u8 *c = *k->copy;
+    if (ram(r)) {
+      if (!ram(c)) {
+        c = (u8 *)k->alloc(DIFF_SIZE);
+        if (ram(c)) { for (i = 0; i < DIFF_SIZE; i++) c[i] = r[i]; *k->copy = c; }
+        glyphs[n++] = G_SPACE; glyphs[n++] = G_SPACE; glyphs[n++] = DIFF_MINUS; glyphs[n++] = DIFF_MINUS; glyphs[n++] = DIFF_MINUS;
+      } else {
+        u32 changed = 0;
+        for (i = 0; i < DIFF_SIZE; i++) {
+          u32 a = c[i], b = r[i];
+          if (a == b) continue;
+          if (changed < 4u) {
+            glyphs[n++] = G_SPACE;
+            glyphs[n++] = (glyph)((i >> 8) & 15u); glyphs[n++] = (glyph)((i >> 4) & 15u); glyphs[n++] = (glyph)(i & 15u);
+            glyphs[n++] = G_DOT; glyphs[n++] = (glyph)(a >> 4); glyphs[n++] = (glyph)(a & 15u);
+            glyphs[n++] = G_DOT; glyphs[n++] = (glyph)(b >> 4); glyphs[n++] = (glyph)(b & 15u);
+          }
+          changed++;
+          c[i] = (u8)b;
+        }
+        if (changed > 255u) changed = 255u;
+        glyphs[n++] = G_SPACE; glyphs[n++] = (glyph)(changed >> 4); glyphs[n++] = (glyph)(changed & 15u);
+      }
+      nn = n - nd;
+    }
+  }
+#endif
+#ifdef KEY_DIAG
+  /* The ring in order ("  kk" each, oldest first, zeros left out; bytes 0..6, byte 7 the next slot),
+   * written by its hook only (no clearing from here). */
+  {
+    volatile u8 *t = k->keys;
+    if (ram((const void *)t)) {
+      u32 at = t[7] < 7u ? t[7] : 0u;
+      if (!nn) { glyphs[n++] = G_SPACE; }
+      for (i = 0; i < 7; i++) {
+        u32 c = t[at];
+        at = at + 1u == 7u ? 0u : at + 1u;
+        if (!c) continue;
+        glyphs[n++] = G_SPACE;
+        n += two_digits(c, glyphs + n);
+      }
+      nn = n - nd;
+    }
+  }
+#endif
+  if (!nd && !nn) return;
+#endif
   cache = k->cache();
   /* The pictures, one per buffer. The first one is the main picture the encoder compresses: for
    * sizes below L the camera has already scaled the photo down into the top left of the sensor

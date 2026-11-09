@@ -13,7 +13,7 @@ import {
   addRatio, addWallFiles, askForOfficial, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
   maxRatios, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
-  setDateStamp, setFilmMode, setNoMovie, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
+  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
   setDirectFlash,
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
@@ -689,6 +689,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
   const flashOk = useStore((s) => !!s.info?.features.directFlash);
   const filmMode = useStore((s) => s.filmMode);
   const noMovie = useStore((s) => s.noMovie);
+  const rearDialOff = useStore((s) => s.rearDialOff);
   const filmOk = useStore((s) => filmModeChoosable(s));
   const own = useRef<HTMLDivElement | null>(null);
   // Moved to the other column: glide from where it was (FLIP). Rectangles are in window pixels,
@@ -711,6 +712,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
       {flashOk && <FeatureRow icon={Ico.flash} title={t('navFlash')} sub={t('flashSub')} on={flash} onChange={setDirectFlash} />}
       {filmOk && <FeatureRow icon={Ico.film} title={t('navFilmMode')} sub={t('filmModeSub')} on={filmMode} onChange={setFilmMode} />}
       {filmOk && <FeatureRow icon={Ico.noMovie} title={t('navNoMovie')} sub={t('noMovieSub')} on={noMovie} onChange={setNoMovie} />}
+      {filmOk && <FeatureRow icon={Ico.dial} title={t('navRearDialOff')} sub={t('rearDialOffSub')} on={rearDialOff} onChange={setRearDialOff} />}
     </div>
   );
 }

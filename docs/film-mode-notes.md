@@ -2513,7 +2513,8 @@ Demande de l'utilisateur : que Mode Memory puisse s'appliquer aussi aux modes U.
 - **BOX suivante** (fonction Fn, plan T25-BOX1).
 - Réglages ADJ supplémentaires, Image Control custom supplémentaires, palier de crop 40 mm.
 - **Bogue (moyen, non traité)** : avec No movie, le bouton Wireless affiche encore au démarrage
-  l'icône de bascule photo / vidéo (signalé le 2026-11-02).
+  l'icône de bascule photo / vidéo (signalé le 2026-11-02). **Retiré le 2026-11-09** (décision de
+  l'utilisateur : purement esthétique, hors 0.9.3).
 - ~~**Touche WB dans Fn Button Settings**~~ : fait le 2026-11-02 (build WB-RC1, voir « Touche WB »
   plus bas), à valider sur le boîtier.
 
@@ -2729,3 +2730,570 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   réglables dans Fn Button Settings (WB-RC2 validé sur le boîtier le 2026-11-03) ; outils de la
   spec développement / diptyque / grain (étapes 1 et 2, sans effet sur le firmware).
 - Reste ouvert : l'icône photo / vidéo du bouton Wireless au démarrage (liste v2).
+
+## Grain au déclenchement : le grain natif du boîtier (2026-11-03, build T-GRAIN1)
+
+- Demande : du grain sur le JPEG à la prise de vue, réglable dans l'écran Fn de l'Image Control
+  d'un film (intensité et taille). Remarque de l'utilisateur : le grain noir et blanc du boîtier
+  ne ralentit pas le JPEG. Piste suivie avant le module logiciel de `tools/develop`.
+- Le grain natif (Grain Effect, « Particle ») : réglage par look (Monotone, Soft, Hard,
+  Hi-Contrast B&W) ; **Negative Film**, look couleur, a aussi le sien
+  (`AfterReleaseStillImageControlNo0ParamNegativeFilmParticle`) sans ligne de menu. Valeur en
+  direct à `+0x795` des valeurs de prise de vue (lecteur `0x53551634`).
+- Étape de développement, paramètres du look (`0x536db7d8`, lecture du look en `0x536db7f8`,
+  déjà adaptée par GR Mod qui rend un film comme Standard) : un cas par look (11 à 22) écrit des
+  demi-mots en `+0x1e0 .. +0x1fe` du premier argument, fin commune `0x536db9c0`. **`+0x1f8` est le
+  grain** : les looks 13 à 16 et Negative Film (22) y copient `+0x795` ; Standard et les autres y
+  mettent 0. Pas de second paramètre de grain (taille) : `+0x1fa`, `+0x1fc`, `+0x1fe` servent à
+  d'autres looks (Bleach Bypass, Retro, HDR Tone). Valeurs de Grain Effect : 0 off, puis 3, 2, 1
+  pour « 1 », « 2 », « 3 ». Consommateur de `+0x1f8` non trouvé statiquement.
+- Build de test T-GRAIN1 (`grainTest`, `grain-native.ts`) : à la fin commune, pour un film du
+  build (look réel `+0x77c` = 64 + k), `+0x1f8` reçoit une valeur fixe : film 1 = 3 (faible),
+  film 2 = 2 (moyen), film 3 = 1 (fort). Vérifié en émulateur (`grain_native_probe.py`, cas
+  Standard et Monotone exécutés nativement, contre-épreuve détectée) ; sondes existantes repassées.
+- À voir sur le boîtier : le grain apparaît-il sur les films couleur, quel aspect, quel temps de
+  traitement ; ensuite seulement, la ligne Grain dans l'écran Fn (et la question de la taille, que
+  le natif ne règle pas).
+- **Résultat T-GRAIN1 sur le boîtier (2026-11-04) : aucun effet.** Le pipeline choisit aussi ses
+  tables de traitement selon le look (descripteur `0x536dc0f4`, tables par look) : la valeur de
+  `+0x1f8` ne suffit pas pour un look rendu comme Standard. Piste abandonnée ; retour au grain
+  logiciel (`tools/develop`), plan validé.
+
+## Grain logiciel, étape 1 : lignes Grain et Taille de l'écran Fn d'un film (2026-11-04, T-GRAIN2)
+
+- Écran des paramètres (ImageControlDetailController, `halation-rows.ts`), en plus de Halation
+  (genre 15) et Couleur (genre 10) : **Grain** sur le genre 12 (le filtre des looks noir et blanc,
+  cinq positions ramenées à quatre pour un film : Off / 1 / 2 / 3 ; échelle de Grain Effect 0x39,
+  icône 0x1de, nom = texte de l'appareil « Grain Effect » 0x133) et **Taille** sur le genre 8 (le
+  Toning de Bleach Bypass, trois positions S / M / L ; échelle 0xd3, icône 0x1de, nom ajouté en 21
+  langues, caractères de l'appareil). Adresses : genre 12 constructeur `0x531adf20` (getter
+  `0x532c7520`, carte `0x531ac7a8`, échelle `0x531adf3c`, positions `0x531adf60`), position
+  `0x531b0534`, texte `0x531af584`, icône `0x531af598`, réglage `0x531b0d64` ; genre 8 constructeur
+  `0x531ada20` (carte `0x531ac654`, échelle `0x531ada3c`), position `0x531b04f4`, texte
+  `0x531af3a4`, icône `0x531af3b8`, réglage `0x531b0db4` (natif `0x532c056c`, le réglage du Toning
+  que l'écran utilise aussi pour Annuler).
+- Rangement (round 10) : quartet haut de l'octet Toning des films (Bleach Bypass `+0x242` ...),
+  dont le quartet bas reste l'état Halation (0..11) : bits 4..5 le grain, bits 6..7 la taille
+  (0 moyenne, 1 fine, 2 grosse). Le setter du champ et la valeur en direct ne bornent pas l'octet
+  (vérifié : `0x5325d3cc`). `films.c` compilé avec `-DGRAIN` (`GR3X_FILMS_MODULE_GRAIN`, sans
+  l'option le module est identique à l'octet près) ; masque à 4 bits dans la note EXIF (Toning) et
+  dans l'adaptateur du développement, qui met aussi le quartet haut dans les bits 20..23 du mot du
+  look (`0x55804378`) pour l'étape 2 (le module de halation et la date ne lisent que les bits 0..17).
+  Annuler remet l'octet entier (grain compris) par `0x532c056c`.
+- Vérifié en émulateur : `halation_rows_probe.py` (11 660 cas avec le grain, contre-épreuves
+  détectées), `films_r10_verify.py` (mot du look et note EXIF avec le quartet haut) ; sans l'option
+  les deux sondes passent comme avant. Option `grain` (mode pellicule, round 10).
+- **Résultat T-GRAIN2 sur le boîtier (2026-11-04)** : les deux dernières lignes visibles sont
+  Clarity et Halation ; ni Grain, ni Taille (ni Couleur). Cause (certaine, lue puis vérifiée en
+  émulation) : à l'ouverture, l'écran (`0x531afbe0`) fixe sa capacité de lignes à la plus longue
+  liste des looks de l'appareil (colonnes 0 à 11 de chaque jeu, `cmp r4,#0xc` en `0x531afc30`,
+  compte des lignes valides `0x531afab8`) : 10 ou 11 lignes ; la liste d'un film (colonnes 36,
+  25, 14) était coupée. Correctif (T-GRAIN3) : en `0x531afc48`, pour un film, la capacité prend
+  aussi la longueur de ses propres listes (jusqu'à 14 lignes avec le grain). Vérifié en émulateur
+  (`halation_rows_probe.py` section 3b, contre-épreuve détectée).
+- **Résultat T-GRAIN3 sur le boîtier : toujours rien.** Cause complète : l'écran est construit une
+  seule fois (constructeur, `0x531afe38` appelle la mise en place `0x531afd44` → `0x531afbe0`)
+  avec le look Standard (`+0x198` = 11, écrit en `0x531afe24`), puis gardé pour tous les looks ; le
+  vrai look n'arrive qu'ensuite (`0x531acbe4`). Le test « est-ce un film » de T-GRAIN3 ne jouait
+  donc jamais. Correctif (T-GRAIN4) : la capacité vaut toujours au moins la plus longue liste d'un
+  film (14 lignes avec le grain), quel que soit le look et le mode à la construction ; pour un
+  look plus court, la boucle d'affichage (`0x531affa0`) masque les lignes au delà (`0x531b0080`),
+  comme pour les looks de l'appareil. Vérifié en émulateur (capacité 14 pour Standard comme pour
+  un film, en photo comme en vidéo ; contre-épreuve détectée).
+- **Résultat T-GRAIN4 sur le boîtier (2026-11-04) : les lignes Grain Effect et Grain Size
+  s'affichent.** Étape 1 validée.
+
+## Grain logiciel, étape 2 : le grain sur le JPEG (2026-11-04, T-GRAIN5)
+
+- Module `tools/develop/jpeg_grain.c` (avec `grain.c`, la bibliothèque de l'étape 2 de la spec),
+  compilé par `tools/develop/gen_jpeg_grain.py` en un bloc indépendant de l'adresse (9 112 octets,
+  sans données, vérifié lié à deux adresses) → `core/src/fw/gr3x/grain-module.ts`, avec les
+  quatre recettes de textures et deux profils calculés sur PC (couleur : archétype NEG400 de la
+  spec ; noir et blanc : BW400 ; un film noir et blanc par la table du build, comme la date).
+- Chaîne JPEG (`jpeg-stage.ts`) : Execute → halation → **grain** → date. Le module lit le mot du
+  look (`0x55804378`) : bits 20..21 le Grain (0 off, 1..3 = intensité faible / profil / forte),
+  22..23 la Taille (0 moyenne, 1 fine, 2 grosse). À chaque photo : textures faites dans le tas de
+  l'appareil (650 770 octets + 525 312 de travail, rendus après), graine = empreinte FNV de 64
+  échantillons de l'image (différente à chaque vue), grain sur l'image pleine et sur chacune des
+  plus petites (pas de texture mis à l'échelle de la largeur : même taille de grain sur la photo),
+  cache invalidé avant et nettoyé après. Image non reconnue, allocation refusée, Grain off : rien.
+- Vérifié : `tools/develop/jpeg_grain_probe.py` (module du firmware dans Unicorn, 32 cas × 3
+  images identiques au PC au bit près, cas « rien » et libérations) ; `tools/gr3x/grain_stage_probe.py`
+  (chaîne, contexte, registres, suite vers la date) ; sondes existantes repassées.
+- **Coût estimé** (émulateur) : textures 198 M instructions, puis 287 instructions par pixel :
+  environ 7,3 G instructions pour 24 Mpx et ses aperçus, quelques secondes de traitement en plus
+  par photo avec du grain (à mesurer sur le boîtier ; NEON non utilisé, piste d'accélération).
+- L'application envoie `grain` avec le mode pellicule (Grain off par défaut sur chaque film).
+
+## Grain : mesures de la série T-GRAIN5 et étiquette de diagnostic (2026-11-08, T-GRAIN5T)
+
+- Série de 8 photos en pleine résolution (R0017259 à R0017266, ISO 100, f/2.8, même mur),
+  prises dans l'ordre du protocole (confirmé par l'utilisateur) : Off, 1 M, 2 M, 3 M, 3 S, 3 L,
+  Off, plus une photo. Écart type du passe haut de la luminance (rayon 1 / rayon 3) : Off 0,36 /
+  0,94 ; 1 M 0,42 / 1,0 ; 2 M 0,6 / 1,5 ; 3 M 0,86 / 2,1 ; **3 S 0,41 / 1,0 (comme Off)** ;
+  3 L 1,7 / 3,4 ; Off 0,42 / 1,0. Chroma en 3 L : 2,4 / 2,45, presque autant que la luminance :
+  la part colorée du grain est trop forte (impression de bruit numérique).
+- La référence PC (`tools/develop/host/grain_ref.c`, gris uniforme 6000 px, niveau 3) donne en S
+  autant de grain qu'en M (écart type 3,81 contre 3,82, plus fin) : le module, identique au PC au
+  bit près, aurait dû marquer la photo 3 S. **Le défaut est en amont** (valeur de taille gardée ou
+  transmise), cause non trouvée en émulateur : les positions de l'écran, l'octet et le mot du look
+  y sont justes.
+- Diagnostic : option de test `grainTag`. Le module de la date (`datestamp.c -DGRAIN_TAG`,
+  `GR3X_DATESTAMP_R10_GRAIN_CODE`) imprime, pour un film, le réglage tel que le module de grain l'a
+  lu dans le mot du look (« G3 S » : Grain 0 à 3, Taille M / S / L), après le nom du film, ou seul
+  en bas à droite si la date est éteinte ou masquée (dateHidden). Rien pour un look de l'appareil
+  ou un mot sans bit de validité. Les autres modules de date restent identiques à l'octet.
+  Vérifié : `tools/gr3x/grain_tag_probe.py` (table des 16 étiquettes, 36 cas film dessinés en bas
+  à droite de l'image et de l'aperçu, vignette intacte, image différente pour chaque réglage,
+  6 cas sans rien, registres gardés ; build avec date : date plus étiquette).
+- **Résultat T-GRAIN5T sur le boîtier (2026-11-08, R0017274 à R0017280, ISO 200, 1/50).** Les
+  7 étiquettes sont celles du protocole : G0 S, G1 M, G2 M, G3 M, G3 S, G3 L, G0 S (le Off garde
+  la taille S réglée avant). La chaîne écran, octet Toning, mot du look, module est juste sur le
+  boîtier. Écart type du passe haut de la luminance (rayon 1 / 3 / 8) dans les tons moyens
+  (70 à 130) : G0 1,02 / 1,81 / 2,08 ; G1 M 1,18 / 2,12 / 2,53 ; G2 M 1,24 / 2,45 / 3,06 ;
+  G3 M 1,51 / 3,16 / 4,01 ; **G3 S 1,84 / 3,42 / 4,09** ; G3 L 1,28 / 2,85 / 3,84 ; G0 0,94 /
+  1,71 / 1,97. Chroma (Cb, rayon 3) : 0,58 sans grain, 1,97 en G3 M.
+- Lecture : la taille S marque bien la photo cette fois (la plus forte au rayon 1). L'absence de
+  grain en 3 S de la série T-GRAIN5 (même module) n'est pas reproduite et reste inexpliquée.
+  Comme sur PC, les trois tailles ont la même énergie totale : L ne fait que déplacer le grain
+  vers les grandes échelles, elle paraît donc moins granuleuse que M (à revoir dans T-GRAIN6 :
+  un grain plus gros devrait aussi être plus visible). La part colorée reste forte (chroma
+  environ 0,6 fois la luminance au rayon 3).
+
+## Grain : T-GRAIN6, le profil argentique (2026-11-08)
+
+- Profil couleur du JPEG (`gen_jpeg_grain.py`, plus l'archétype NEG400) : taille 2,0 (contre 1,4),
+  octave grossière 65 % (contre 45 : grain en amas), chroma 8 (contre 25), courbe de tons centrée
+  sur les gris moyens (bosse à 0,45, largeur 0,25, ombres 110, blancs 10). Noir et blanc : BW400
+  en taille 2,2 et octave 65 %. `-DDIGITAL` redonne les profils de T-GRAIN5.
+- Les quantités suivent la taille (`jpeg_grain.c`, idem `grain_ref.c`) : S 0,85, M 1, L 1,35. Un
+  grain plus gros se voit donc plus, au lieu de garder la même énergie que M.
+- Référence PC sur un recadrage de R0017274 (sans grain), en G3 M : chroma (Cb, rayon 3) 1,47
+  avec T-GRAIN5, 0,75 avec T-GRAIN6 (0,64 sans grain) ; luminance au rayon 8 : 3,77 avec T-GRAIN5,
+  4,13 avec T-GRAIN6 (G3 L 4,47).
+- Vérifié : `jpeg_grain_probe.py` (module de 9 160 octets identique au PC au bit près, 32 cas,
+  même coût), `grain_stage_probe.py`, `grain_tag_probe.py` sur le build T-GRAIN6 (avec étiquette).
+
+## Grain : le réglage appliqué à l'encodage et non au déclenchement (2026-11-08, T-GRAIN6D)
+
+- Constat de l'utilisateur (mode libre, Affichage immédiat Off) : deux photos prises l'une après
+  l'autre avec deux réglages de grain différents reçoivent toutes les deux le dernier réglage,
+  sauf si chaque photo est ouverte dans le viewer avant de changer le réglage. C'est la cause de
+  la photo 3 S sans grain de la série T-GRAIN5.
+- Hypothèse : le JPEG est encodé en différé, alors que les modules de la chaîne JPEG (halation,
+  grain, étiquette, nom du film) lisent le mot du look `0x55804378`. Ce mot est réécrit par chaque
+  passage du développement, visée et aperçu de l'écran Image Control compris. À l'encodage, il
+  porte donc le réglage en cours, plus celui de la photo.
+- Diagnostic (option `grainTag: 'diag'`) : file de réglages dans les mots remis à zéro au
+  démarrage, `0x55804398` (octet 0 les expositions, octet 1 les encodages, octets 4 à 11 les huit
+  dernières expositions : quartet Grain / Size, | 0x80 si le mot était valide). Le crochet
+  d'exposition (`0x534322d8`) y dépose le quartet du mot du look, et chaque encodage reprend le
+  plus ancien (module de la date `-DGRAIN_DIAG`). L'étiquette devient « G0 M  E3 S  05.04 » : le
+  réglage lu à l'encodage, celui mis en file au déclenchement, puis les compteurs d'expositions et
+  d'encodages avant cette photo. Le grain lui-même suit encore le mot du look (inchangé).
+- Vérifié : `grain_tag_probe.py` (10 expositions en file, registres gardés, 4 encodages dont un
+  sur file vide, image qui suit la valeur en file).
+- **Résultat T-GRAIN6D sur le boîtier (2026-11-08, 5 photos, mode libre, Affichage immédiat Off).**
+  Étiquettes : « G0 S E3 M 02.00 », « G0 S E0 S 02.01 », « G1 S E3 M 04.00 », « G1 S E0 S
+  04.01 », « G3 L E3 M 07.00 » (la dernière prise avec ouverture du viewer).
+  - Photo 1 : 2 expositions comptées avant son encodage. Sa vue suivante était déjà prise :
+    **l'encodage d'une photo est en retard sur les déclenchements**.
+  - Photo 1 : du grain visible alors que l'étiquette lit G0. Le grain lit le mot du look au début
+    de l'encodage, la date à la fin, plusieurs secondes plus tard (grain lent). Entre les deux, le
+    développement de la vue suivante a réécrit le mot. Le mot du look est global : il porte le
+    réglage de la **dernière photo développée**, pas celui de la photo encodée.
+  - Le compteur d'encodages revient à 0 (04.00, 07.00) alors que celui des expositions continue.
+    Hypothèse : le crochet d'exposition et l'encodage tournent dans des contextes dont les
+    caches ne sont pas cohérents (réécriture d'une ligne de cache périmée). Une file en RAM
+    partagée n'est donc pas fiable : abandonnée comme correctif.
+- Piste de correctif : lire le réglage dans la copie des réglages **propre à la photo**, celle que
+  l'écrivain de la note constructeur lit pendant l'encodage (`r1`, octets `+0x77c` look et
+  `+0x786` Toning, voir `films-r10.ts`, TONING_WRITER). À trouver : comment l'atteindre depuis
+  `JpegEncodeMacroProcess::Execute` (`0x535047d4`).
+
+## Grain : la copie des réglages propre à chaque photo (2026-11-08, recherche T-GRAIN6F)
+
+- La note constructeur est écrite par `PentaxMakernoteEntryDataSetter` (vtable `0x53d31360`,
+  typeinfo `0x53d3134c`). Sa méthode 8 (`0x53603f18`) prend l'enregistrement de la photo dans un
+  objet source S (`[this+4]`) : octet 0 un index, puis un tableau de pointeurs
+  (`0x535fc2f8` : `S[idx + 2]`), gardé en `[this+0x18]`. Le Toning de la note (`0x535c5e34`,
+  appelé par `0x535c81c8` et `0x5362715c`) lit `+0x77c` et `+0x786` de cet enregistrement :
+  c'est la copie des réglages de la photo, avec le quartet du grain.
+- Cet enregistrement est celui de `SetShootingInfoResultBeforeExpose` (`0x534322d8`, `r2`) :
+  l'année en `+0x944`, le mois et le jour en `+0x946` / `+0x947` (chaînes « ShootingInfo Buffer
+  NULL / Over » : un tampon d'enregistrements, un par vue).
+- Le constructeur EXIF (`0x535faa50`, appelé par `0x535cb48c` et `0x535fb720`) donne S aux
+  setters. Le lien statique entre `JpegEncodeMacroProcess::Execute` et S n'est pas trouvé.
+- Recherche sur le boîtier (option `grainTag: 'find'`, module `-DGRAIN_FIND`) : à l'encodage, le
+  module de la date cherche, à deux pointeurs au plus du processus (`r0` d'Execute), de son
+  argument (`r1`) et de la configuration (`[r1+8]`), un enregistrement daté du jour avec un look
+  en `+0x77c` (pointeurs lus seulement entre `0x55000000` et `0x5fff0000`). Il imprime « r.ii.jj
+  gs » : racine (0 processus, 1 argument, 2 configuration), mot ii de la racine, mot jj de ce qu'il
+  désigne (99 : le mot de la racine est l'enregistrement), Grain et code de taille trouvés.
+  Vérifié : `grain_tag_probe.py` (enregistrement direct et à un pointeur, image qui suit son
+  Toning), `grain_stage_probe.py`.
+- **Résultat T-GRAIN6F sur le boîtier (2026-11-08, R0017297 à R0017300, 4 vues rapides sans
+  viewer : 3 M, Off, 3 L, 1 S).** Étiquettes G (mot du look global) : G3 L, G1 S, G1 S, G1 S
+  (fausses). Enregistrements trouvés, sur chaque photo : « 1.02.13 », « 1.05.18 », « 1.14.13 »,
+  avec Grain / Size 3 0, 0 1, 3 2, 1 1 : **exactement le protocole**. « 1.02.13 » = mot 2 de
+  l'argument d'Execute (la configuration, `[r1+8]`), puis son mot 13 : **l'enregistrement de prise
+  de vue de la photo est en configuration + 0x34** (certitude forte : 4 photos sur 4).
+
+## Grain : le mot du look de la photo (2026-11-08, T-GRAIN7, correctif)
+
+- Premier maillon de la chaîne JPEG (avant la halation) : `gr3xPhotoLookAsm` (image-control.ts)
+  lit l'enregistrement en configuration + 0x34 (pointeur en RAM aligné, année `+0x944` entre 2000
+  et 2099) et fabrique le mot comme l'adaptateur du développement (film 64 + k en 32 + k, Grain /
+  Size en bits 20 à 23, niveau et blanc de la halation ; looks de l'appareil tels quels), sinon il
+  recopie le mot du look global. Il le range en `0x558043a4` (`GR3X_PHOTO_WORD`, remis à zéro au
+  démarrage), qui n'est écrit que par la chaîne d'encodage.
+- La halation, le grain et la date (look, nom du film, étiquette) lisent ce mot au lieu du mot
+  global `0x55804378` (qui reste celui du développement et du crochet d'exposition).
+- Vérifié : `grain_stage_probe.py` (chaîne Execute, mot de la photo, halation, grain, date ;
+  54 cas du mot : 7 looks × 7 Toning, 5 replis ; registres et drapeaux gardés),
+  `grain_tag_probe.py` ; `npm test` (hors données privées du GR IV).
+- **Résultat T-GRAIN7 sur le boîtier (2026-11-08, R0017301 à R0017304, 4 vues rapides, boîtier
+  éteint au lieu du viewer) : étiquettes G3 M, G0 S, G3 L, G1 S, justes, grain conforme.** À
+  l'extinction, le boîtier a mis plusieurs secondes à s'éteindre : il a fini d'encoder les 4 vues
+  (le module logiciel). D'où la priorité au grain natif.
+- Reste ouvert : l'orientation de l'empreinte vient toujours du crochet d'exposition (mot global),
+  sujette au même décalage si le boîtier tourne entre deux vues rapides.
+
+## Grain natif, deuxième essai : la granulation de l'étape JPEG (2026-11-08, T-GRAIN8)
+
+- Chaîne « [Granulation] Short of work buffer(%d/%d). » (`0x53d5732c`) : fonction de granulation
+  `0x5367ad3c` (tampon de travail, cache nettoyé : traitement matériel ou optimisé). Elle fait
+  partie d'une passe d'effets `0x53680dbc` / `0x53680dc0`, qui enchaîne des effets selon une
+  structure de demi-mots : `[0]` (`0x5367b540`), `[2]` (`0x5367c158`), **`[4]` la granulation**,
+  `[6]`.
+- Cette structure est remplie par `0x5350304c` depuis **l'enregistrement de prise de vue de la
+  photo** (configuration `+0x34`, comme pour le correctif T-GRAIN7) : `+0x793` → `[0]`, `+0x794`
+  → `[2]`, `+0x796` → `[6]`, **`+0x795` → `[4]`** (0 à 3). Appelée par deux processus de la même
+  famille qu'Execute (`0x535032b4`, `0x535036cc`).
+- Le développement (paramètres du look `0x536db7d8`) réécrit `+0x795` de l'enregistrement en
+  `0x536db9c8` (`r6`) : 0 pour Standard, sous lequel un film est rendu. T-GRAIN1 ne changeait que
+  `+0x1f8` du bloc : la granulation restait à 0. Explication probable de son échec.
+- T-GRAIN8 (option de test `grainNative`, `installGr3xNativeGrainFilms`) : pour un film, `r6`
+  et `+0x1f8` reçoivent le Grain du film (bits 4 et 5 de l'octet Toning) codé comme Grain Effect
+  (0 arrêt, « 1 » 3, « 2 » 2, « 3 » 1). Le module logiciel n'est pas installé ; le mot du look de
+  la photo, la halation et l'étiquette restent. La taille n'a pas d'équivalent natif.
+- Inconnu : si la passe d'effets tourne pour un look Standard (son déclenchement n'est pas
+  trouvé ; Negative Film, look couleur, a un grain natif, donc la granulation sait traiter la
+  couleur). Vérifié : `grain_native_probe.py` (49 cas Standard, 4 monochromes), `grain_tag_probe.py`.
+- **Résultat T-GRAIN8 sur le boîtier (2026-11-08, R0017305 à R0017308, ISO 100, ciel).** Film G3
+  (étiquette G3 M) : aucun grain (luminance rayon 1 : 0,30, contre 0,29 en Off). Monotone Grain
+  Effect 3 : grain natif très fort (15,3). Vitesse jugée acceptable.
+- **Déclencheur trouvé** : `0x535131c0` (appelée par `0x53513500` en `0x5351361c`, objet + 0x24,
+  depuis l'enregistrement de la photo) décide si la passe d'effets tourne. Looks 11, 12, 17, 18,
+  19, 21 : seulement si `+0x793` ou `+0x794` diffère de 4 (Clarity) ; 13, 15, 16, 22 : aussi si
+  `+0x795` (grain) n'est pas 0 ; 14 : toujours ; 20 : selon `+0x796`. Sa lecture du look est déjà
+  l'adaptateur des films (un film y est Standard) : le grain y était ignoré.
+- T-GRAIN8b (`grainNative`, `installGr3xNativeGrainFilms`) : accroche en `0x535131c4` (après
+  l'adaptateur) : pour un film dont le Grain n'est pas Off, la passe tourne ; sinon la règle de
+  Standard. Accroche en `0x535031b0` (lecture de `+0x795` par `0x5350304c`) : pour un film, le
+  niveau est son Grain codé comme Grain Effect (0, « 1 » 3, « 2 » 2, « 3 » 1). Le développement
+  n'est plus modifié. Vérifié : `grain_native_probe.py` (décision : 21 cas film, Clarity
+  conservée, 11 cas des looks de l'appareil ; niveau : 15 cas film, 16 autres).
+- **Résultat T-GRAIN8b sur le boîtier (2026-11-08, R0017309 à R0017312, ISO 800, mur clair) : le
+  grain natif s'applique aux films.** Luminance au rayon 1 / 3 / 8 : film G1 3,79 / 5,19 / 6,20 ;
+  film G3 11,97 / 14,10 / 15,39 ; film Off 0,45 / 1,16 / 1,30 ; Monotone Grain Effect 3 16,05 /
+  18,34 / 18,53. Chroma inchangée (Cb rayon 3 : 0,38 en G1, 0,37 en G3, 0,58 en Off) : **le grain
+  natif ne touche que la luminance**, comme un grain argentique. Grain fin (l'essentiel au rayon 1),
+  pas de réglage de taille. Vitesse jugée acceptable (traitement natif).
+
+## Grain : version finale, le grain natif (2026-11-08, T-GRAIN9)
+
+- Décision de l'utilisateur : on garde le grain natif (« très bien »), une seule ligne Grain Effect
+  à 4 crans (Off, 1, 2, 3), la ligne Grain Size retirée.
+- Option `grain` : ligne Grain seule (`halation-rows.ts`, `grain.size` absent : pas de ligne de
+  type 8 ni de ses six accroches, pas de texte « Grain Size »), grain natif
+  (`installGr3xNativeGrainFilms`), mot du look de la photo pour la halation et la date. Le module
+  `jpeg_grain.c` n'est plus installé ; il reste en option de test `grainSoftware` (avec la ligne
+  Grain Size). Le manifeste porte `grainNative` ou `grainSoftware`.
+- Vérifié : `halation_rows_probe.py` (build natif : Grain seule, accroches de la taille absentes ;
+  build logiciel : Grain et Size), `grain_native_probe.py`, `grain_stage_probe.py` (build
+  logiciel), tests unitaires (10 accroches ajoutées par le grain natif : 8 de la ligne Grain, 2 du
+  grain natif ; 14 avec le grain logiciel).
+- **Résultat T-GRAIN9 sur le boîtier (2026-11-08, R0017313 à R0017320, ISO 800 à 1000) : validé.**
+  Portra puis Gold, Grain 1, 2, 3 puis Off. Luminance au rayon 1 : Portra 2,64 / 3,65 / 5,21 /
+  0,35 ; Gold 2,71 / 3,89 / 5,24 / 0,32. Chroma inchangée (Cb rayon 3 de 0,34 à 0,44). Vitesse et
+  extinction normales. Les looks de l'appareil n'ont pas la ligne Grain Effect (comme d'origine :
+  seuls les looks monochromes l'ont).
+
+## Molette arrière : désactivation depuis GR Mod (2026-11-08, plan et sonde T-DIAL1)
+
+- Demande : une option de GR Mod (pas un réglage du boîtier) qui neutralise la rotation de la
+  molette arrière **partout** (prise de vue, menus, lecture), en gardant ses quatre boutons et OK.
+  Remarque de l'utilisateur : le mode **Snap** (trois distances) se règle à la molette ; il lui
+  faudra un autre moyen de choisir la distance.
+- Plan validé : (1) sonde T-DIAL1 pour identifier les codes de la rotation sur le boîtier ;
+  (2) recenser où la rotation agit ; (3) un filtre unique (codes de rotation ignorés, ou les deux
+  sens de l'aiguillage) en option de build `rearDialOff` ; (4) sonde d'émulation, contre-épreuve,
+  tests ; (5) test T-DIAL2.
+- Sonde T-DIAL1 (`dialProbe`, `dial-probe.ts`, avec `grainTag: 'keys'`) : table de quatre
+  { touche, nombre } en `0x55804398` remplie à l'entrée de `ActionModel::OnEvent` (`0x53221a1c`),
+  appels de l'aiguillage de la molette en visée (`0x53295da0`) comptés selon le sens (`r3` : octet
+  + 8 sens 0, + 9 autre). Le module de date (`-DKEY_DIAG`) imprime « kk.cc » par touche puis
+  « mm.pp » pour l'aiguillage, et remet la table à zéro : chaque photo montre les gestes faits
+  depuis la précédente. Vérifié : `dial_probe.py` (19 cas, registres et drapeaux gardés),
+  `grain_tag_probe.py` (impression et remise à zéro).
+- Première série T-DIAL1 (R0017321 à R0017329) prise avec T-GRAIN9 encore flashé : aucune
+  impression, à refaire. Précision de l'utilisateur : la molette est défaillante (elle saute,
+  revient en arrière) ; c'est la raison de la demande. Les deux sens peuvent donc apparaître
+  mêlés pour un même geste. Choix pour Snap : la distance réglée par un bouton.
+- **Résultat T-DIAL1 sur le boîtier (2026-11-08, R0017330 à R0017338).** Code propre à chaque
+  geste (premier de la table) : aucun 58, **molette horaire 19** (avec 9 et 14), **antihoraire 25**
+  (avec 7 et 6), haut 26, bas 29, gauche 32, droite 35, OK 50, Snap + molette 58, 60 et 14. Codes 5
+  à 8 sur toutes les photos (prise de vue). L'aiguillage `0x53295da0` est appelé sans cesse (99 dans
+  les deux sens partout) : ce n'est pas un point d'écoute de la molette. Les nombres à 00 d'un code
+  vu montrent que la remise à zéro par l'encodage et le crochet des touches se partagent mal la
+  mémoire.
+- T-DIAL2 : anneau des onze dernières touches (`0x55804398`, octet 11 la place suivante), écrit
+  par le seul crochet ; le module de date les imprime dans l'ordre, sans rien effacer. Vérifié :
+  `dial_probe.py` (14 cas), `grain_tag_probe.py` (anneau imprimé dans l'ordre, laissé intact).
+- **Résultat T-DIAL2 sur le boîtier (2026-11-08, R0017339 à R0017345).** Sans geste : 05 08 06.
+  Molette, dans un sens comme dans l'autre (molette défaillante) : **25** répété, une fois **24** ;
+  en mode Snap aussi (25 25 25 24). Levier ADJ enfoncé : 14, ouvre le menu ADJ. Déclenchement :
+  05 07 08 06. Conclusion (forte) : la rotation de la molette arrive à `ActionModel::OnEvent` sous
+  les codes **24 et 25** ; Snap règle sa distance avec les mêmes codes.
+- T-DIAL3 (`rearDialOff`, `installGr3xRearDialOff`) : à l'entrée de `0x53221a1c`, les codes 24 et
+  25 rendent 1 (traité) sans rien faire ; les autres touches continuent. Avec la sonde, l'anneau
+  note toutes les touches avant le filtre. Vérifié : `dial_probe.py` (17 touches : 24 et 25
+  traitées, les 15 autres continuent, registres gardés, anneau complet ; contre-épreuve sur T-DIAL2
+  détectée), `grain_tag_probe.py`. Snap : un bouton à prévoir pour la distance.
+- **Résultat T-DIAL3 sur le boîtier (2026-11-08)** : photo « G0 M 24 24 24 25 05 07 08 06 » : la
+  rotation arrive toujours (24, 25 notés par la sonde) et l'utilisateur valide (« Super »).
+  Suite validée : la case « Désactiver la molette arrière » dans l'application. Question de
+  l'utilisateur : des fonctions « Hold » (appui long) pour Fn et les autres touches, comme
+  « Hold Wireless Btn. » (champ `0x92a`) ; à étudier (les touches du pavé ont des codes espacés de
+  3, 26 / 29 / 32 / 35 : peut-être appui, appui long, relâchement).
+- **Appuis longs (T-DIAL3, 2026-11-08, R0017347 à R0017352 : Fn, haut, bas, gauche, droite,
+  Wireless, chacun environ 2 s).** Anneau des touches : Fn « 22 » ; haut « 27 » répété ; bas : rien
+  de nouveau après 26 28 (l'appui haut qui sort du mode Macro) et 29 ; gauche : aucun code 32 à 34 ;
+  droite « 36 » répété ; Wireless « 58 60 ». Lecture (moyenne) : chaque touche du pavé a trois
+  codes, appui / maintien répété / relâchement (haut 26 / 27 / 28, droite 35 / 36 / 37 ; bas 29 /
+  30 / 31 et gauche 32 / 33 / 34 attendus). Appui long Fn : 22 ; Wireless : 58 puis 60. Les appuis
+  longs sur bas et gauche n'ont rien donné : à refaire en notant l'écran.
+- Demande (2b) : dans Fn Button Settings, des lignes pour les appuis longs des touches et une
+  fonction « distance Snap » à leur associer.
+
+## Distance Snap par un bouton (2026-11-08, T-SNAP1)
+
+- Décision : une fonction « Snap Distance » assignable aux boutons dans Fn Button Settings (les
+  lignes Hold plus tard).
+- Firmware : mode de mise au point = octet `+0xc6` de l'enregistrement des réglages (lecteur
+  `0x5326c5f8`, 10 = Snap, 11 = infini) ; distance Snap photo = mot `+0x130` en cm (lecteur
+  `0x53244008`, écrivain `0x53242680`), vidéo `+0x504` ; liste des distances `0x53b591e0` (photo)
+  et `0x53b59150` (vidéo) : 30, 100, 150, 200, 250, 350, 500 cm, −1 (infini). Un cran de molette :
+  `0x53225c74(x, sens)` → `0x532af864(aux, sens)` : position suivante ou précédente dans la liste,
+  bornée aux extrémités, puis application `0x532af660(aux, 0)` ; `ApplySnapDistance` (`0x532af3d4`)
+  convertit en mm. La fonction native 3 « Set Snap » (texte `0x1ba`, icône `0x142`) poste
+  l'événement 0x76 (réglage à la molette). Texte natif « Snap Focus Distance » : `0x3c`.
+- T-SNAP1 (`snapButton`, avec `macroButton`) : fonction 46 (texte `0x3c`, icône `0x142`) dans la
+  table des fonctions (40 entrées) et ses chemins (GetEventCustomize : appui seulement ;
+  GetEventSwitchWlan). Appuyée en mise au point Snap : un cran vers la distance suivante, et après
+  l'infini la première (30 cm) écrite puis appliquée ; autre mode : rien. Vérifié :
+  `snap_button_probe.py` (table, texte, icône, 7 crans, retour au début, 12 cas hors Snap,
+  registres gardés sauf ip, aiguillages Fn / ISO / Drive et Wireless), `wb_button_probe.py`
+  (avec et sans Snap), `dial_probe.py` (molette coupée sans sonde).
+- **Appuis longs, deuxième série (2026-11-08, R0017353 à R0017358, bas et gauche désassignés).**
+  Fn : 22 ; haut : 27 répété puis 28 ; bas : 30 répété puis 31 ; gauche : 33 répété puis 34 ;
+  droite : 36 répété puis 37 ; Wireless : 58 (sans 60 cette fois). **Confirmé (fort)** : chaque
+  touche du pavé a trois codes, appui / maintien répété / relâchement (haut 26-27-28, bas
+  29-30-31, gauche 32-33-34, droite 35-36-37) ; l'appui long de Fn donne 22. Une touche dont la
+  fonction ouvre un écran ne laisse plus passer ses codes de maintien.
+- **Correction de l'utilisateur (2026-11-08)** : T-SNAP1 visait le mauvais réglage. La distance
+  Snap se règle à la molette avant et ne doit pas changer ; en mode Snap, la molette arrière choisit
+  le type de profondeur de champ **DOF1 / DOF2 / DOF3**. T-SNAP1 n'est pas flashé, sa fonction est
+  retirée.
+
+## Snap DOF par un bouton (2026-11-08, T-DOF1)
+
+- Firmware : « Snap Distance Priority » est la fonction native 39 de Fn Button Settings (texte
+  `0x46`, icône `0x19`, chaîne « ToggleSnapFocusPriority » qui règle Fn sur 39) : elle poste
+  l'événement 0x78 (bascule de l'indicateur `+0x110` des réglages, lecteur `0x53243f84`). Le choix
+  DOF est l'octet `+0x798` (lecteur `0x53245f00`, écrivain de tous les enregistrements `0x5327b70c`,
+  valeurs vivantes `0x53559ab0`) : 3 DOF1, 4 DOF2, 5 DOF3 (chaînes à `0x53b22308`). L'utilisateur :
+  la fonction 39 active le mode, le DOF se choisit à la molette arrière.
+- T-DOF1 (`snapDof`, avec `macroButton` et `rearDialOff`) : fonction 46 « Snap DOF » (texte propre,
+  icône `0x19`). Le filtre de la molette garde l'objet de chaque touche (`0x558043a8`) et donne un
+  contournement (le corps d'`ActionModel::OnEvent`) ; appuyée avec Snap Distance Priority actif, la
+  fonction envoie un cran de molette, code 25, à cet objet ; sinon rien. But du test : le sens du
+  code 25 et le comportement en bout de liste. Vérifié : `snap_dof_probe.py` (table, texte en 21
+  lignes, icône, objet gardé, cran envoyé ou non, aiguillages), `wb_button_probe.py`,
+  `dial_probe.py`.
+- **Résultat T-DOF1 (2026-11-08)** : « Snap DOF » absent des listes de Wireless Button et Hold
+  Wireless Btn. (listes réduites d'origine) ; assigné à la touche gauche, avec Snap Distance
+  Priority en DOF3 : pas de retour à DOF1 (code 25 vers le haut et borné, ou sans effet).
+- Listes Wireless (statique) : deux tables propres, `0x53b4ebcc` (34, vecteur `+0x1bc`, bâtisseur
+  `0x531be5f8`) et `0x53b4ebf4` (32, vecteur `+0x1b0`, bâtisseur `0x531be700`) : les fonctions du
+  boîtier sans Enable AF, AF+AE Lock, AE Lock, One Push AE in M Mode (5, 6, 7, 29), avec Wireless
+  LAN Setting et Preview (32, 33), et aucune fonction de GR Mod Film. Demande : lever la limite
+  (note de version). Fait (T-DOF2) : avec le bouton WB, les deux tables reçoivent 42, 44, 45 et 46
+  (GetEventSwitchWlan les exécute déjà) ; 5, 6, 7, 29 restent exclues (liées au déclencheur à
+  mi-course ; risque d'assertion dans l'aiguillage).
+- T-DOF2 : le cran de Snap DOF en code 24, pour connaître l'autre sens. Vérifié :
+  `snap_dof_probe.py` (listes Wireless comprises), `wb_button_probe.py`, `dial_probe.py`, tests.
+- **Note de version à prévoir** : Wireless Button et Hold Wireless Btn. proposent désormais les
+  fonctions de GR Mod Film (Film Advance, White Balance, Macro Mode, Snap DOF) : une limite du
+  boîtier levée.
+- **Résultat T-DOF2 (2026-11-08)** : Snap DOF (code 24) ne produit rien. L'envoi d'un cran à
+  `ActionModel::OnEvent` ne marche pas (ou le test de priorité `+0x110` est faux) : abandonné.
+- Écriture directe, étude : `0x53559ab0` écrit `+0x798` de l'objet **réel** des valeurs vivantes
+  (changement noté 0xc6) ; l'objet donné par `0x53525d5c` est un **intermédiaire** qui envoie des
+  messages à une autre tâche (`0x5354b564`, table des gestionnaires `0x540927e8`, 530 entrées =
+  2 × 265 : opération 1, élément 0xc6 → `0x53542008`, qui prend `+0x518` puis `0x53559ab0`).
+  L'envoi natif de l'élément 0xc6 : `0x5354c60c(intermédiaire, valeur)`, appelé par
+  `0x53251fc0` (réglages `+0x46e`, photo) et `0x53257e78` (`+0x79a` de tous les enregistrements,
+  vidéo). Or `+0x46e` vaut On / Off (commande de débogage, table du menu `0x53b5908c` = 1, 0) :
+  le champ du DOF dans les réglages n'est pas établi. T-DOF3 (écriture directe) non construit.
+- T-DOF3 (diagnostic, `grainTag: 'settings'`, molette non coupée) : à chaque exposition, les
+  octets `+0xc6, +0x110, +0x46e, +0x798, +0x79a, +0x799, +0x797` de l'enregistrement en cours,
+  plus 10, sont imprimés sur la photo dans cet ordre. Vérifié en émulateur (valeurs, registres,
+  drapeaux) et `grain_tag_probe.py`.
+- **Résultat T-DOF3 (2026-11-08)** : photos en DOF2, DOF3, DOF1 : mêmes valeurs « 23 01 01 11 10 10 »
+  (priorité coupée : « 23 01 11 10 »). Mode de mise au point `+0xc6` = 13 (Snap Distance Priority
+  est un mode de mise au point). **Relevé faussé** : l'anneau (`0x55804398`) recouvrait les
+  indicateurs du rouleau (`film-roll.ts`, KEY_LAST + 8 à + 14 : annulation, aperçu armé, avance
+  unique, vue en attente, message, rembobinage), et le crochet d'exposition du rouleau efface
+  + 9 à + 11 : les cases de `+0x110`, `+0x46e`, `+0x798` ne sont pas lisibles. Les sondes de
+  touches T-DIAL1 à T-DIAL3 et le diagnostic T-GRAIN6D écrivaient aussi sur ces indicateurs (tests
+  seulement ; la version de la molette coupée n'y écrit pas). Le mot du look de la photo
+  (`0x558043a4`) n'est effacé que par des formes de test du rouleau (REVIEW_LOG, 'dg2' / 'dg3') :
+  T-GRAIN9 n'est pas concerné.
+- Correctifs : anneau de recherche déplacé en `0x558043a8` (7 octets et l'indice, octets libres) ;
+  module de date `-DKEY_DIAG` à 7 cases ; contournement du filtre (objet gardé) retiré ; Snap DOF
+  bloqué à la construction tant que le champ n'est pas établi.
+- T-DOF4 (diagnostic) : à l'exposition, `+0xc6, +0x110, +0x46e, +0x798, +0x79a` de
+  l'enregistrement de la photo (r2 de SetShootingInfoResultBeforeExpose), puis `+0x46e, +0x798` de
+  l'enregistrement des réglages, chacun + 10. Vérifié en émulateur avec le banc complet du rouleau
+  (anneau intact, registres gardés), `dial_probe.py`, `grain_tag_probe.py`, `wb_button_probe.py`.
+- **Résultat T-DOF4 (2026-11-09)** : 4 photos (priorité coupée, DOF1, DOF2, DOF3) identiques :
+  « 95 10 10 11 10 11 10 ». Enregistrement de la photo : `+0xc6` = 85 (structure différente des
+  réglages), `+0x110` 0, `+0x46e` 0, `+0x798` 1, `+0x79a` 0 ; réglages : `+0x46e` = 1, `+0x798` = 0,
+  inchangés. Aucun de ces octets ne suit le DOF ni la priorité.
+- T-DOF5 (diagnostic, `grainTag: 'diff'`, module `-DDIFF_DIAG`) : à chaque encodage, le module de
+  la date compare l'enregistrement des réglages en cours (0xb28 octets) à sa copie (tas du boîtier,
+  operator new `0x536af2a8`, adresse gardée en `0x558043a0`, mot des seules formes de test du
+  rouleau) et imprime les octets changés depuis la photo précédente, « ooo.aa.bb » en hexadécimal
+  (au plus 4), puis leur nombre ; la première photo : « --- ». Vérifié : `grain_tag_probe.py`
+  (copie créée, rien, un changement, retour, 16 changements), tests.
+- **Résultat T-DOF5 (2026-11-09)** : 5 photos dans l'ordre (DOF1, DOF1, DOF2, DOF3, priorité
+  coupée) : « --- », « 00 », « a3e.00.01 01 », « a3e.01.02 01 », « a3c.00.01 01 ». Certitude
+  forte : **le DOF est l'octet `+0xa3e` des réglages, 0 / 1 / 2 pour DOF1 / DOF2 / DOF3**, et
+  `+0xa3c` passe de 0 à 1 quand Snap Distance Priority est coupé. Aucun autre octet ne bouge.
+- Code du boîtier autour de `+0xa3e` (lecture statique, puis émulateur) :
+  - lecture `0x532468e8` (`ldr r3,[r0,#4]; ldrb r0,[r3,#0xa3e]`), `r0` l'objet des réglages
+    `0x5320b31c(0x5320ad88())`, dont `+4` est l'enregistrement en cours ;
+  - **écriture `0x532720e4(objet, valeur)`** : range `+0xa3e`, puis `0x53272090` calcule la valeur
+    vivante de mise au point et l'envoie aux valeurs vivantes (`0x5354bff8` sur `*0x53525d5c()`) ;
+  - valeur vivante `0x532711e4` : 3 + le DOF (3, 4, 5 : les chaînes DOF de `0x53b22308`) si
+    `+0xa40` non nul, `+0x44` différent de 1, `+0x110` et `+0xa3c` nuls ; sinon `+0x170` (le mode
+    de mise au point ordinaire) ;
+  - gestionnaire natif de la molette `0x53225c9c(?, sens)` (appelé par `0x53228358` / `0x53228368`) :
+    ordre `0x53b5931c` = 0, 1, 2, s'arrête à DOF1 et à DOF3, puis appelle `0x532720e4`.
+- T-DOF6 : Snap DOF (fonction 46) refait sur ce chemin : si le DOF est en usage (même condition
+  que `0x532711e4`, enregistrement en RAM), valeur suivante, 2 (ou plus) revient à 0, puis
+  `0x532720e4`. Sinon rien. Tous les registres gardés. Le blocage de construction est levé ;
+  Snap DOF ne demande plus que la touche Macro (la molette coupée n'est plus requise). Vérifié :
+  `snap_dof_probe.py` (cycle 4 cas avec la valeur vivante 3 + DOF envoyée, 6 cas « rien »,
+  GetEventCustomize, GetEventSwitchWlan, listes Wireless), `wb_button_probe.py`, `dial_probe.py`,
+  `grain_native_probe.py`, tests.
+- **Résultat T-DOF6 sur le boîtier (2026-11-09) : validé par l'utilisateur.** Snap DOF fait
+  DOF1 → DOF2 → DOF3 → DOF1 depuis une touche, sans toucher la distance ; molette arrière coupée.
+
+## Release 0.9.3, étape A : l'application (2026-11-09)
+
+- Contenu décidé de la 0.9.3 : grain natif, Snap DOF, molette arrière désactivable, appuis longs
+  (lignes Hold pour Fn et les quatre touches du pavé), correction de l'icône Wireless au démarrage,
+  listes Wireless étendues.
+- Application : case « Rear dial off » (avec No movie, mêmes conditions : GR III / IIIx complet en
+  round 10), ligne de confirmation, sauvegarde du projet (`rearDialOff`). Snap DOF suit le mode
+  pellicule comme les touches WB et Macro (pas de case : une fonction de plus dans les listes).
+- Moteur : options `snapDof` (demande `macroButton`) et `rearDialOff` (round 10) ; recette du
+  firmware (`ratio-recipe.ts`) avec les deux, relue et vérifiée à l'inspection (reconstruction à
+  l'octet près). Test : construction par le moteur avec, sans, et chacune seule (4 fichiers
+  différents, tous reconnus).
+
+## Appuis longs, étape C (2026-11-09)
+
+- Décision : lignes Hold pour Fn et les quatre touches du pavé. L'icône Wireless est retirée de la 0.9.3.
+- Lecture statique : la traduction des événements matériels en codes de `ActionModel::OnEvent`
+  est en `0x532231e4` (type de l'événement en `[r1]`, état en `[[r1+4]]` : 1, 2, ...) ; chaque
+  touche y reçoit ses codes (par exemple un type donnant 0x15 à l'état 1, 0x13 à l'état 2). Les
+  codes de Fn ne sont pas établis (seul 22 vu à l'appui long).
+- Piste retenue pour le comportement : au point d'entrée de OnEvent (déjà crocheté par la molette
+  coupée), une touche dont la ligne Hold n'est pas Off voit son appui retenu ; au premier code de
+  maintien, la fonction Hold s'exécute par un appui et un relâchement injectés avec le réglage de
+  la touche échangé le temps de l'appel ; au relâchement sans maintien, l'appui court est rejoué.
+  Une touche dont la ligne Hold est Off garde le comportement natif.
+- T-HOLD0 (diagnostic, `dialProbe: 'hold'`, avec la molette coupée) : l'anneau de 7 touches ne
+  note plus les codes du déclenchement (5 à 8) ni une touche égale à la dernière notée (un maintien
+  répété prend une case). Vérifié : `dial_probe.py` (31 cas), `snap_dof_probe.py`,
+  `grain_tag_probe.py`, tests.
+- **Résultat T-HOLD0 (2026-11-09)** : Fn « 22 23 » (court comme long) ; haut « 26 28 » puis
+  « 26 27 28 » ; bas 29 31 / 29 30 31 ; gauche 32 34 / 32 33 34 ; droite 35 37 / 35 36 37.
+  Certitude forte : chaque touche du pavé a appui / maintien répété / relâchement ; **Fn n'a pas de
+  code de maintien** (22 appui, 23 relâchement).
+- Lecture statique de la traduction (`0x532231e4`) : type d'événement de Fn 0x1b ; état 2 avec
+  sous-état `[+4]` = 0 → 22, état 1 → 23 ; un sous-état non nul (maintien) part sur le retour
+  « rien » (`0x53223708`, `bne 0x53223424`). Wireless : le même sous-état donne 60 (Hold Wireless),
+  le pavé 27 / 30 / 33 / 36 (`0x53223738` : sous-état 0 → 26, sinon 27). Le maintien de Fn est
+  donc probablement envoyé, puis jeté (à confirmer sur le boîtier : code 99 dans l'anneau).
+- Visée : `OnEvent` aiguille par contrôleur (`0x53228c4c(0x5320aefc(0x5320ad88()))` = `[r0]`) ;
+  0x08000000 et 0x08000002 vont à `0x5320c844`, table des 64 codes, qui appelle le modèle des
+  touches de façon synchrone (`0x532a0d70`). D'où l'échange du réglage le temps de l'appel.
+- Octets des lignes Hold (`settings_layout_probe.py` repassé) : seuls `0xacf`, `0xae3`, `0x84a` sont
+  sans aucun accès d'écriture ; `0x806` : accès larges dans `0x5373xxxx` sur `[objet + 0x14] + 0x804`,
+  des champs de bits d'un bloc matériel (lecture `0x536e2298` aussi), pas l'enregistrement ;
+  `0x88e` : écritures de mot `+0x88c` dans `0x5355xxxx`, sur l'enregistrement de l'objet des valeurs
+  vivantes (disposition différente des réglages, vu en T-DOF4). Certitude moyenne pour ces deux.
+  `0xb26` / `0xb27` écartés (hors recopie des BOX). RAM : `0x558043be` (appui retenu), `0x558043bf`
+  (Hold exécuté), derniers octets libres de la zone remise à zéro.
+- **T-HOLD1** (`holdButtons`, `hold.ts`) :
+  - lignes « Hold Fn Button », « Hold Macro Button », « Hold WB Button », « Hold ISO Button »,
+    « Hold Drive Button » (noms des 21 langues formés sur « Hold Wireless Btn. » de chaque langue,
+    caractères vérifiés) après Macro Button : écran de 15 lignes, listes 0x020001c2 à 0x020001c6,
+    réglage = la fonction (0 Off) ;
+  - Fn maintenu : le retour « rien » de `0x53223708` devient le code 99 vers `OnEvent` ;
+  - filtre à l'entrée de `OnEvent` (après celui de la molette) : en visée, touche dont la ligne
+    Hold n'est pas Off, pavé hors déplacement du collimateur : appui retenu ; premier maintien →
+    appui et relâchement de la touche envoyés à `OnEvent` (après sa première instruction) avec son
+    propre réglage (0x922, 0xac5, 0xabb, 0x924, 0x926) mis à la fonction Hold puis rendu ;
+    relâchement sans Hold → l'appui court rejoué puis le relâchement continue. Une ligne Hold Off :
+    rien ne change.
+  - Vérifié : `hold_probe.py` (136 cas, avec et sans molette coupée, et la traduction de Fn),
+    `wb_button_probe.py` (15 lignes, listes, icônes, noms : 105 noms vérifiés), `dial_probe.py`,
+    `snap_dof_probe.py`, `grain_native_probe.py`, `grain_tag_probe.py`, tests.
+- **Résultat T-HOLD1 (2026-11-09)** : Hold Fn ne marche pas (les autres ne sont pas signalés en
+  défaut). Le build n'avait pas No movie (Movie Settings revenu en P, « Movie / Wireless Button ») :
+  oubli de ma part dans les options du build de test (T-DOF6 aussi). Demande : ranger les lignes
+  par paires (Fn Button puis Hold Fn Button, etc.).
+- T-HOLD2 : No movie remis ; lignes dans l'ordre Fn, Hold Fn, ISO, Hold ISO, Drive, Hold Drive,
+  WB, Hold WB, Macro, Hold Macro, puis Wireless, Hold Wireless, Focus, Keep AE Lock, One Push AE.
+  Sonde des touches gardée pour voir si le maintien de Fn (99) arrive. Vérifié : `wb_button_probe.py`
+  (ordre), `hold_probe.py`, `dial_probe.py`, `snap_dof_probe.py`, tests.
+- **Résultat T-HOLD2 (2026-11-09)** : après un appui long sur Fn, l'anneau ne montre que 22 et 23 :
+  certitude forte, **le boîtier n'envoie aucun maintien pour Fn** (le crochet du code 99 est retiré).
+- Horloge : le noyau est T-Kernel (chaînes `tk_ext_tsk`). Enveloppes `svc #6` avec le code de
+  fonction en `ip` ; par l'ordre et le nombre d'arguments (0x804f à 0x8052 : un argument chacun,
+  puis les minuteries cycliques 0x8053 à 0x8057 : 1, 1, 1, 1, 2, et les alarmes 0x8058 à 0x805c :
+  1, 1, 2, 1, 2), **`tk_get_otm` = code 0x80510100, enveloppe `0x53050b7c`** (appelée par
+  `0x5304df20` et `0x536afc84`, qui relisent SYSTIM { haut en + 0, bas en + 4 }, en ms).
+  Certitude forte. (`0x55375fb4`, très lu, est l'index d'un journal circulaire, pas une horloge.)
+- **T-HOLD3** : Fn chronométré. À l'appui, le mot bas de `tk_get_otm` est noté en `0x558043a0` ;
+  au relâchement, 600 ms ou plus lancent la fonction Hold (au relâchement), sinon l'appui court.
+  Les touches du pavé gardent le premier code de maintien. Build sans sonde, avec No movie.
+  Vérifié : `hold_probe.py` (Fn chronométré, y compris le retour à zéro de l'horloge),
+  `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`, `grain_native_probe.py`, tests.
+- **Résultat T-HOLD3 (2026-11-09) : validé par l'utilisateur** (« C'est parfait ») : Hold Fn
+  chronométré (600 ms, au relâchement), Hold des touches du pavé, lignes rangées par paires,
+  No movie.
+
+## Release 0.9.3, étape D (2026-11-09)
+
+- Version 0.9.3 (package.json), README : grain, Snap DOF, lignes Hold, listes Wireless complètes,
+  molette arrière désactivable. Contenu : tout ce qui a été validé sur le boîtier depuis la 0.9.2.
+- **0.9.3-RC1** construit par le moteur de l'application avec les options qu'elle envoie (mode
+  pellicule : WB, Macro, Snap DOF, Hold, grain ; No movie et Rear dial off cochés ; 3 films, XPan) :
+  autocontrôle complet vrai, reconnu et reconstruit à l'octet près par l'inspection.
