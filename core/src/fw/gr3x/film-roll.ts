@@ -59,7 +59,7 @@ const bl = (at: number, target: number) => (0xeb000000 | (((target - (at + 8)) >
 import { FirmwareError } from '../types';
 import type { Gr3xSite } from './round10';
 import type { Gr3xMenuRatio } from './geometry';
-import { GR3X_FOLDER_MARK, GR3X_GET_TIME, GR3X_SET_FILE_PATH } from './film-probe';
+import { GR3X_FILE_INFO, GR3X_FOLDER_MARK, GR3X_GET_TIME, GR3X_SET_FILE_PATH } from './film-probe';
 
 export const GR3X_ROLL_FLAGS = 0x9b1, GR3X_ROLL_FRAME = 0x9b2, GR3X_ROLL_FOLDER = 0x9b3;
 export const GR3X_ROLL_STARTED = 2;
@@ -366,6 +366,10 @@ function installFolders(p: Gr3xRollProgram, free: (at: number) => void, entries:
     pstored:mov r1,#0;pl:movw ip,#${lo(STORED)};movt ip,#${hi(STORED)};ldr ip,[ip,r1,lsl #2];${ram('ip', 'pn')}add ip,ip,#${GR3X_FREE_FOLDER & 0xf00};strh r2,[ip,#${GR3X_FREE_FOLDER & 0xff}];
     pn:add r1,r1,#1;cmp r1,#6;bls pl;
     puse:strh r2,[r4,#4];b native;`;
+  // T-PLAY1: the camera's folder in use ([0x53584c74() + 0x248] + 0x11c, which it changes only when it
+  // creates a folder, and where playback opens) follows the folder of every picture: else, after a
+  // roll made a newer folder, a picture of P going to its own older folder left playback on the roll.
+  const current = `ldrh r6,[r4,#4];cmp r6,#0;beq cur;bl #${GR3X_FILE_INFO};${ram('r0', 'cur')}ldr r0,[r0,#0x248];${ram('r0', 'cur')}add r0,r0,#0x100;strh r6,[r0,#0x1c];cur:`;
   entries.filmRollFolder = p.code(`push {r0,r1,r2,r3,r4,r5,r6,lr};mov r4,r2;mov r5,r0;${enter}${lenter}
     ldrh r0,[r4,#4];cmp r0,#0;bne given;
     ${late ? lateFolder : ''}${records('free', film)}ldrb r0,[r2,#${GR3X_ROLL_FLAGS}];tst r0,#${GR3X_ROLL_STARTED};beq free;
@@ -386,7 +390,7 @@ function installFolders(p: Gr3xRollProgram, free: (at: number) => void, entries:
     fresh:${lcode(6)}ldr r0,[r5,#8];bl #${GR3X_NEXT_FOLDER};${next('r0')}cmp r0,#0;strhne r0,[r4,#4];${code(6)}b native;`}
     given:${code(5)}${lcode(5)}b native;
     nonext:${code(4)}${lcode(4)}
-    native:pop {r0,r1,r2,r3,r4,r5,r6,lr};${exit}`);
+    native:${pFolder ? current : ''}pop {r0,r1,r2,r3,r4,r5,r6,lr};${exit}`);
   p.patch(GR3X_SET_FILE_PATH, 0xe1a0c00d, branchWord(GR3X_SET_FILE_PATH, entries.filmRollFolder), 'film roll: the roll\'s folder at SetFilePath');
   // The date (r1 the time, record in use at POINTER): year 2000 + calls, month the path (12: none),
   // day 1 no table entry, else 2 + its state's low nibble; hour its state's high nibble; minute the

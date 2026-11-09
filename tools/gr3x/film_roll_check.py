@@ -308,7 +308,14 @@ def verify(data,manifest,seed=3101):
                 # The record in use and the seven stored ones (0..6); the factory record (index 7) untouched.
                 for b in [want_c]+want_b[:7]:struct.pack_into('<H',b,PF,n)
             return n,want_c,want_b
+        play_cur=manifest.get('filmRoll') in ('name2','film')
+        INFO,CURBLK=0x6304a600,0x6304a700
+        if play_cur:
+            cpu.mem_write(INFO+0x248,struct.pack('<I',CURBLK))
+            def info_stub(u,at,size,d):u.reg_write(reg.UC_ARM_REG_R0,INFO);u.reg_write(reg.UC_ARM_REG_PC,u.reg_read(reg.UC_ARM_REG_LR))
+            cpu.hook_add(UC_HOOK_CODE,info_stub,begin=0x53584c74,end=0x53584c74)
         def run(given):
+            if play_cur:cpu.mem_write(CURBLK+0x11c,struct.pack('<H',0xbeef))
             path=bytearray(rng.randrange(256) for _ in range(16));path[4:6]=struct.pack('<H',given);cpu.mem_write(PATH,bytes(path))
             regs={0:SVC,1:0x1111,2:PATH,3:0x3333,4:0x44,5:0x55,6:0x66};p.next_calls=0
             if folders:
@@ -317,7 +324,12 @@ def verify(data,manifest,seed=3101):
                 assert cpu.reg_read(reg.UC_ARM_REG_R0)==p.sfp_ret and cpu.reg_read(reg.UC_ARM_REG_LR)==STOP
                 for k in (4,5,6):assert cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==regs[k]
             else:p.run(SET_FILE_PATH,SET_FILE_PATH+4,regs);count('folder');kept(regs,True)
-            return path,struct.unpack_from('<H',bytes(cpu.mem_read(PATH,16)),4)[0],bytes(cpu.mem_read(PATH,16))
+            got_=struct.unpack_from('<H',bytes(cpu.mem_read(PATH,16)),4)[0]
+            # T-PLAY1 (film modes with the free modes' folder): the camera's folder in use follows the picture's folder.
+            if play_cur:
+                cur_=struct.unpack('<H',bytes(cpu.mem_read(CURBLK+0x11c,2)))[0]
+                assert cur_==(got_ if got_ else 0xbeef),(got_,hex(cur_));count('folder in use')
+            return path,got_,bytes(cpu.mem_read(PATH,16))
         log_n=cpu.mem_read(0x558043b8,1)[0]
         for mode in range(8):
             for started in (False,True):

@@ -3406,3 +3406,16 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   seul les valeurs imposées d'un build de test ; les demander à l'utilisateur.
 - Les écrivains GF-2 (`0xb22`) et Snap Distance Priority (`0xa3c`, 0 = actif) s'excluent : activer
   l'un écrit 1 (inactif) dans l'autre.
+
+## Bogue de la lecture (2026-11-09, T-PLAY1)
+
+- Protocole de l'utilisateur : P (tasse), U rouleau (livre), Lecture : livre ; extinction, Lecture :
+  livre ; U (clé), Lecture : clé ; P (stylo), Lecture : **clé** au lieu du stylo.
+- Lecture (certitude moyenne, cohérente avec la brique 5 de la phase 2) : la lecture s'ouvre dans
+  le « dossier en cours » `[0x53584c74() + 0x248] + 0x11c`, que le boîtier ne change qu'en créant un
+  dossier. Le dossier unique des modes libres (T22-NAME2) est plus ancien que ceux des rouleaux :
+  une photo de P y va sans création, le dossier en cours reste celui du rouleau.
+- **T-PLAY1** : à la sortie du crochet de SetFilePath du mode pellicule (forme du dossier des modes
+  libres), si le dossier de la photo est fixé (rouleau, mode libre ou donné), le dossier en cours le
+  prend. Vérifié : `film_roll_check.py` (678 cas « folder in use » : le dossier en cours suit la photo,
+  inchangé quand le boîtier choisit seul), autres sondes, tests. Build sans réglages masqués.
