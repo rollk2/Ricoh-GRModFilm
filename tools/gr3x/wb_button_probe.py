@@ -182,7 +182,7 @@ def verify(data,manifest):
             assert native==[] and calls==[(THIS,OBJ,CTRL,23,press,0xb,6)],(press,calls);count('iso button kept')
     # --- 4. The Fn Button Setting screen: WB Button (kind 8) and Macro Button (9) under Drive Button.
     SCR=0x63057000;LIST=0x63057c00;VIEW=0x63056000
-    K=[0,1,2,8]+([9] if macro else [])+([10,11,12,13,14] if hold else [])+[3,4,5,6,7];R=len(K)
+    K=([0,10,1,13,2,14,8,12,9,11] if hold else [0,1,2,8]+([9] if macro else []))+[3,4,5,6,7];R=len(K)
     cpu.mem_write(SCR,bytes(0x200));put(cpu,SCR+0x16c,LIST)
     st={}
     st[0x53394610]=lambda c:p.log.append(('types',r(c,0),bytes(cpu.mem_read(r(c,1),r(c,2))),r(c,3))) or 0
@@ -191,8 +191,8 @@ def verify(data,manifest):
     assert p.log==[('types',LIST,bytes([0x22]*R),0x3a)],p.log;count('screen rows')
     lines=bytes(cpu.mem_read(e['wbScreenLines'],4*R))
     got=[struct.unpack_from('<HH',lines,4*k) for k in range(R)]
-    wb_text=got[3][1];m_text=got[4][1] if macro else None
-    h_texts=[got[5+k][1] for k in range(5)] if hold else []
+    T={k:t for k,t in got};wb_text=T[8];m_text=T.get(9)
+    h_texts=[T[10+k] for k in range(5)] if hold else []
     OFFICIAL={0:0x1b7,1:0x1bd,2:0x1bf,3:0x1c1,4:0x1c3,5:0x28,6:0x1c5,7:0x1cb,8:wb_text,9:m_text,**{10+k:t for k,t in enumerate(h_texts)}}
     assert got==[(k,OFFICIAL[k]) for k in K],got
     row=[0]
@@ -215,10 +215,11 @@ def verify(data,manifest):
         assert texts==[('text',k,OFFICIAL[K[k]]) for k in range(R)],texts
         assert [k[2] for k in kinds]==[k for k in range(R) if K[k]<8] and ('assert',) not in p.log,p.log
         assert [i[1] for i in icons]==[k for k in range(R) if K[k]>=8],icons
-        for (_,rw,ic),want in zip(icons,[iw,im] if macro else [iw]):
-            if want is not None:assert ic==want,(sw,sm,icons)
-            else:assert ic not in (ICON,ICON_OFF,MICON),icons
-        if hold:assert [i[2] for i in icons[2:]]==[ICON_OFF,ICON,ICON_ISO,MICON,ICON_OFF],icons
+        by_kind={K[rw]:ic for _,rw,ic in icons}
+        for kind,want in ((8,iw),)+(((9,im),) if macro else ()):
+            if want is not None:assert by_kind[kind]==want,(sw,sm,icons)
+            else:assert by_kind[kind] not in (ICON,ICON_OFF,MICON),icons
+        if hold:assert [by_kind[10+k] for k in range(5)]==[ICON_OFF,ICON,ICON_ISO,MICON,ICON_OFF],icons
         count('screen values')
     # The help line: our rows as the plain lines (no assertion).
     for k in range(R):

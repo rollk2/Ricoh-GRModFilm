@@ -238,7 +238,14 @@ export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customiz
   const added = [[SCREEN_ROWS, lineText], ...(macro ? [[SCREEN_ROWS + 1, macroText!]] : []), ...(hold ?? []).map((h, k) => [SCREEN_ROWS + 2 + k, h.text])];
   const rows = SCREEN_ROWS + added.length, lastKind = SCREEN_ROWS + added.length - 1;
   if (rows > 16) fail('more than 16 Fn Button Setting rows');
-  const table = p.append(Uint8Array.from([...lines.subarray(0, 12), ...added.flatMap(([k, t]) => [k, 0, t & 0xff, t >>> 8]), ...lines.subarray(12)]));
+  // Rows: Fn, ISO, Drive, WB, Macro, then the camera's others; with the Hold lines each button's
+  // line followed by its Hold line (kinds 10..14: Fn, Macro, WB, ISO, Drive).
+  const native = (k: number) => Array.from(lines.subarray(k * 4, k * 4 + 4));
+  const ours = new Map(added.map(([k, t]) => [k, [k, 0, t & 0xff, t >>> 8]]));
+  const H = SCREEN_ROWS + 2;
+  const order = hold ? [0, H, 1, H + 3, 2, H + 4, SCREEN_ROWS, H + 2, SCREEN_ROWS + 1, H + 1, 3, 4, 5, 6, 7]
+    : [0, 1, 2, ...added.map(([k]) => k), 3, 4, 5, 6, 7];
+  const table = p.append(Uint8Array.from(order.flatMap(k => k < SCREEN_ROWS ? native(k) : ours.get(k)!)));
   for (const [low, high, r] of SCREEN_SITES) {
     p.patch(low, movWord(r, lo(SCREEN_LINES)), movWord(r, lo(table)), 'WB button: Fn Button Setting lines with WB Button, low half');
     p.patch(high, movWord(r, hi(SCREEN_LINES), true), movWord(r, hi(table), true), 'WB button: Fn Button Setting lines with WB Button, high half');

@@ -3265,3 +3265,11 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   - Vérifié : `hold_probe.py` (136 cas, avec et sans molette coupée, et la traduction de Fn),
     `wb_button_probe.py` (15 lignes, listes, icônes, noms : 105 noms vérifiés), `dial_probe.py`,
     `snap_dof_probe.py`, `grain_native_probe.py`, `grain_tag_probe.py`, tests.
+- **Résultat T-HOLD1 (2026-11-09)** : Hold Fn ne marche pas (les autres ne sont pas signalés en
+  défaut). Le build n'avait pas No movie (Movie Settings revenu en P, « Movie / Wireless Button ») :
+  oubli de ma part dans les options du build de test (T-DOF6 aussi). Demande : ranger les lignes
+  par paires (Fn Button puis Hold Fn Button, etc.).
+- T-HOLD2 : No movie remis ; lignes dans l'ordre Fn, Hold Fn, ISO, Hold ISO, Drive, Hold Drive,
+  WB, Hold WB, Macro, Hold Macro, puis Wireless, Hold Wireless, Focus, Keep AE Lock, One Push AE.
+  Sonde des touches gardée pour voir si le maintien de Fn (99) arrive. Vérifié : `wb_button_probe.py`
+  (ordre), `hold_probe.py`, `dial_probe.py`, `snap_dof_probe.py`, tests.
