@@ -17,7 +17,7 @@ from native_probe import STACK
 
 RING=0x558043a8;OBJ=0x6304a400;LR=0x5a5a5a5a
 def verify(data,manifest):
-    assert manifest.get('playProbe')==True
+    assert manifest.get('playProbe') in (True,'ref');ref=manifest.get('playProbe')=='ref'
     p=RollProbe(data,manifest);c=p.uc;cases={}
     count=lambda k:cases.__setitem__(k,cases.get(k,0)+1)
     def run(start,stop,r0=OBJ):
@@ -25,11 +25,20 @@ def verify(data,manifest):
         for i,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),v)
         c.reg_write(reg.UC_ARM_REG_SP,STACK);c.reg_write(reg.UC_ARM_REG_LR,LR)
         h=c.hook_add(UC_HOOK_CODE,lambda u,a,s,d:u.emu_stop() if a in (stop,LR) else None)
-        c.emu_start(start,LR,count=500);c.hook_del(h)
+        c.emu_start(start,LR,count=20000);c.hook_del(h)
         got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]
         assert c.reg_read(reg.UC_ARM_REG_PC)==stop and c.reg_read(reg.UC_ARM_REG_SP)==STACK
         return got,regs
     def ring():return list(c.mem_read(RING,8))
+    if ref:
+        # T-PLAY0b: the reference (kind, halfwords + 8 and + 0xa) as 2-digit groups plus 100.
+        for kind,h8,ha in ((0,112,6857),(4,0,1),(1,999,9999),(2,65535,10)):
+            c.mem_write(RING,bytes(8));c.mem_write(OBJ,bytes(6)+bytes([kind,0])+struct.pack('<HH',h8,ha))
+            got,regs=run(0x534e40c8,0x534e40cc);assert got[:12]==regs[:12],got
+            want=[100+kind,100+(h8//100)%100,100+h8%100,100+(ha//100)%100,100+ha%100]
+            assert ring()==want+[0,0,5],(ring(),want);count('reference')
+        c.mem_write(RING,bytes(8));got,regs=run(0x534e3e04,0x534e3e08);assert got==regs[:12] and ring()[:2]==[77,0];count('last')
+        return dict(cases=cases,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
     for b2,b3,b6 in ((0,0,0),(0,1,4),(1,1,2),(12,200,0x0d)):
         c.mem_write(RING,bytes(8));c.mem_write(OBJ,bytes([0,0,b2,b3,0,0,b6,0]))
         got,regs=run(0x534e40c8,0x534e40cc);assert got[:12]==regs[:12],got

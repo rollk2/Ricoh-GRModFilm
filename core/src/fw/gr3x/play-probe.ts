@@ -32,7 +32,12 @@ export interface Gr3xPlayProbeProgram {
 const note = `push {r0,r1,r2};movw ip,#${lo(GR3X_DIAL_TABLE)};movt ip,#${hi(GR3X_DIAL_TABLE)};ldrb r0,[ip,#7];cmp r0,#7;movhs r0,#0;
   strb r1,[ip,r0];add r0,r0,#1;cmp r0,#7;moveq r0,#0;strb r0,[ip,#7];pop {r0,r1,r2};`;
 
-export function installGr3xPlayProbe(p: Gr3xPlayProbeProgram) {
+/**
+ * T-PLAY0b (`ref`): at the opening only, the file reference playback stands on (this + 6: kind byte,
+ * halfwords + 8 and + 0xa), each number as two 2-digit groups (thousands-hundreds, tens-units), each
+ * noted plus 100 so that 00 prints: kind, h8 / 100, h8 % 100, ha / 100, ha % 100 (5 slots); MoveToLastFile 77.
+ */
+export function installGr3xPlayProbe(p: Gr3xPlayProbeProgram, ref = false) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx play probe: ${m}`); };
   for (const at of [GR3X_PLAY_OPEN, GR3X_MOVE_TO_CREATION, GR3X_MOVE_TO_LAST]) {
     if (p.u32(at) !== 0xe1a0c00d) fail(`entry ${at.toString(16)}`);
@@ -41,7 +46,11 @@ export function installGr3xPlayProbe(p: Gr3xPlayProbeProgram) {
   const bl = (from: number, to: number) => branchWord(from, to, 14, true);
   if (p.u32(GR3X_CREATION_SEARCH_CALL) !== bl(GR3X_CREATION_SEARCH_CALL, GR3X_CREATION_SEARCH)) fail('creation search call');
   const cap = (r: string) => `cmp ${r},#9;movhi ${r},#9;`;
-  const open = p.code(`push {r1};ldrb r1,[r0,#2];${cap('r1')}add r1,r1,#10;${note}ldrb r1,[r0,#3];${cap('r1')}add r1,r1,#20;${note}
+  // r1 = 100 + (r1 / 100) % 100 then 100 + r1 % 100 noted (r2, r3 used).
+  const split = (t: string) => `mov r2,#0;${t}a:cmp r1,#100;subhs r1,r1,#100;addhs r2,r2,#1;bhs ${t}a;mov r3,r1;
+    ${t}b:cmp r2,#100;subhs r2,r2,#100;bhs ${t}b;add r1,r2,#100;${note}add r1,r3,#100;${note}`;
+  const open = ref ? p.code(`push {r1,r2,r3};ldrb r1,[r0,#6];add r1,r1,#100;${note}ldrh r1,[r0,#8];${split('x')}ldrh r1,[r0,#0xa];${split('y')}
+    pop {r1,r2,r3};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};`) : p.code(`push {r1};ldrb r1,[r0,#2];${cap('r1')}add r1,r1,#10;${note}ldrb r1,[r0,#3];${cap('r1')}add r1,r1,#20;${note}
     ldrb r1,[r0,#6];and r1,r1,#7;add r1,r1,#30;${note}pop {r1};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};`);
   const creation = p.code(`push {r1};mov r1,#50;${note}pop {r1};mov ip,sp;b #${GR3X_MOVE_TO_CREATION + 4};`);
   const search = p.code(`push {r4,lr};bl #${GR3X_CREATION_SEARCH};mov r4,r0;cmp r0,#0;moveq r1,#60;movne r1,#61;${note}mov r0,r4;pop {r4,pc};`);

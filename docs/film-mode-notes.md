@@ -3439,3 +3439,19 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   10 + this[2], 20 + this[3], 30 + (this[6] & 7) ; MoveToCreationFile 50, sa recherche 60 (trouvé)
   ou 61 ; MoveToLastFile 77. Imprimé par la photo suivante. Vérifié : `play_probe.py`,
   `grain_tag_probe.py`.
+- **Résultat T-PLAY0 (2026-11-09)** : sans lecture préalable, la lecture montre la photo de P (anneau
+  vide : la première ouverture après l'allumage ne passe pas par `0x534e40c8`). Cas qui échoue (vue,
+  Lecture, P, Lecture → la vue) : « 61 10 20 30 10 20 30 » : une recherche du fichier créé ratée
+  (61), puis l'ouverture sans drapeau « créé » (this[3] = 0).
+- Le drapeau est levé par `0x534e3038` à la réception du message `0x2d601003` (aiguillage
+  `0x534e1994`). Message envoyé par `0x5358691c`, depuis la fermeture du fichier créé (`0x535a8938`,
+  `0x535a89a4`), selon `0x535ba278` (ajout à l'index des fichiers, `0x535b32d8`, qui rappelle
+  SetFilePath) : réussi → fichier créé retenu (`0x53584e74`, `0x53584da8`) et message ; sinon index
+  marqué à reconstruire (`+0x50`) et pas de message. Hypothèse : l'index suppose qu'une photo
+  s'ajoute à la fin (dossier le plus récent) ; une photo de P dans le dossier plus ancien échoue.
+- Idée de l'utilisateur : la dernière photo prise a le plus grand numéro de fichier (il avance de
+  un en un, tous dossiers confondus). Correctif visé : à l'ouverture, placer la lecture sur la
+  dernière photo (son dossier, retenu par le mode pellicule ; son numéro, compteur du boîtier).
+- **T-PLAY0b** (diagnostic, `playProbe: 'ref'`) : à l'ouverture, la référence du fichier courant
+  (octet de type `+6`, demi-mots `+8` et `+0xa`) en groupes de deux chiffres (+ 100 pour imprimer
+  « 00 ») ; MoveToLastFile 77. Vérifié : `play_probe.py`.
