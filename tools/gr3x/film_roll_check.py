@@ -498,7 +498,7 @@ def verify(data,manifest,seed=3101):
         cpu.mem_write(K,bytes([60,1,0x1a4&255,0x1a4>>8])+bytes(13));assert clock()==date(60,1,1,0x1a4)
     # 10. Form 'fn': Film Advance (function 42) in Fn Button Settings.
     if fn_form:
-        TABLE_OFF=bytes(cpu.mem_read(0x53b4eb7c,36));tbl=e['filmFnTable'];wb=manifest.get('wbButton')==True;mb=manifest.get('macroButton')==True;ADDED=bytes([42,43] if fn4 and not fn7 else [42,44,45] if mb else [42,44] if wb else [42])
+        TABLE_OFF=bytes(cpu.mem_read(0x53b4eb7c,36));tbl=e['filmFnTable'];wb=manifest.get('wbButton')==True;mb=manifest.get('macroButton')==True;sd=manifest.get('snapDof')==True;ADDED=bytes([42,43] if fn4 and not fn7 else [42,44,45,46] if sd else [42,44,45] if mb else [42,44] if wb else [42])
         assert bytes(cpu.mem_read(tbl,36+len(ADDED)))==TABLE_OFF+ADDED
         p.stubs_on=True;p.fn_stubs=True
         # The lists' constructor (native loop, table and count patched): the vector it fills.
@@ -513,15 +513,15 @@ def verify(data,manifest,seed=3101):
         # Text and icon: 42 ours, the others the camera's.
         # WB button (wb-button.ts): White Balance (44) with the camera's text 0x94 and icon 213, Macro Mode (45)
         # with 0xac and 381 (macroButton); 43 and the numbers above them Off.
-        for fn,text0 in ((0,2),(42,None))+(((43,2),(200,2)) if fn7 else ((43,0x2b5),) if fn4 else ())+(((44,0x94),(45,0xac),(46,2)) if mb else ((44,0x94),(45,2)) if wb else ()):
+        for fn,text0 in ((0,2),(42,None))+(((43,2),(200,2)) if fn7 else ((43,0x2b5),) if fn4 else ())+(((44,0x94),(45,0xac),(46,None),(47,2)) if sd else ((44,0x94),(45,0xac),(46,2)) if mb else ((44,0x94),(45,2)) if wb else ()):
             p.call(0x53292ed0,0x1234,fn);t=cpu.reg_read(reg.UC_ARM_REG_R0)
-            if fn==42:assert 786<=t<1000,t
+            if fn in (42,46) and text0 is None:assert 786<=t<1000,t   # an added text (Film Advance, Snap DOF)
             else:assert t==text0
             count('fn text')
         # T21-TAB1: Film Advance's own icon, the one after the Film Mode tab's three (header + 0xa: the white one).
         fa_icon=e['filmIconBase']+3 if 'filmIconBase' in e else 0x121
         if tab1:assert struct.unpack('<H',bytes(cpu.mem_read(e['filmTab']+0xa,2)))[0]==e['filmIconBase']
-        for fn,icon in ((0,0x113),(23,0x121),(24,0x120),(42,fa_icon))+(((43,0x113),(200,0x113)) if fn7 else ((43,0x121),) if fn4 else ())+(((44,213),(45,381),(46,0x113)) if mb else ((44,213),(45,0x113)) if wb else ()):
+        for fn,icon in ((0,0x113),(23,0x121),(24,0x120),(42,fa_icon))+(((43,0x113),(200,0x113)) if fn7 else ((43,0x121),) if fn4 else ())+(((44,213),(45,381),(46,0x19),(47,0x113)) if sd else ((44,213),(45,381),(46,0x113)) if mb else ((44,213),(45,0x113)) if wb else ()):
             p.call(0x53293e6c,0x1234,fn);assert cpu.reg_read(reg.UC_ARM_REG_R0)==icon,(fn,hex(cpu.reg_read(reg.UC_ARM_REG_R0)));count('fn icon')
         # Pressed (Fn, ISO, Drive): GetEventCustomize's entry.
         FNS=(0,23,41,42,43) if fn4 else (0,23,41,42)
@@ -1091,8 +1091,11 @@ def verify(data,manifest,seed=3101):
             assert u_off[3][:2]==[0x020000e1,0x020001b0] and 0x020001b1 not in u_off[3] and u_off[1]==[0,5,14] and u_off[2]==23,u_off[:3]
             assert 0x020001b0 not in p_on[3] and 0x020001b1 not in p_on[3] and p_on[1]==[0,4,13] and p_on[2]==22,p_on[:3]
             assert p_on[3]==[i for i in u_on[3] if i not in (0x020001b0,0x020001b1)]
+        # T-LOCK1 (rollLock): Still Image Settings' film lines may be hidden in U (a random record can hold a loaded roll; lock_probe.py checks them).
+        LOCKED={0x02000012,0x02000073,0x02000074,0x0200000e,0x02000072,0x02000075,0x02000076} if manifest.get('rollLock') else set()
+        unlocked=lambda tab:[i for i in tab[3] if i not in LOCKED] if LOCKED else tab
         for t in range(5):
-            if t!=(1 if tab1 else 3):assert got[(3,True)][t]==got[(0,True)][t],t
+            if t!=(1 if tab1 else 3):assert unlocked(got[(3,True)][t])==unlocked(got[(0,True)][t]),t
         # T20-VID3: Still/Movie (0x0200006e) and Movie Edit (0x04000033) hidden in every tab, else present.
         allids=[i for t in range(5) for i in got[(3,True)][t][3]]
         for hid in (0x0200006e,0x04000033):assert (hid in allids)==(not vid3),(hex(hid),vid3)

@@ -3320,3 +3320,14 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - Décision de l'utilisateur : masquer, rouleau entamé, Image Control, Aspect Ratio, Crop, Drive Mode,
   File Format, JPEG Recorded Pixels, Color Space ; garder Setup (Format, dossiers, numérotation).
   Question ADJ / Fn : ces réglages comme Off tant que le rouleau est chargé (à étudier).
+- **T-LOCK1** (`rollLock`, `GR3X_ROLL_LOCKED_LINES` dans `film-roll.ts`) : la fonction de visibilité
+  des lignes (`linesHidden`, appel du constructeur d'onglets `0x5319a978`) masque en plus les sept
+  lignes quand un rouleau est chargé : mode U (octet de mode 1 à 6, `*0x55063f30`), Film Roll Mode
+  (bit 0 de `0x9b1`), rouleau démarré (bit 1) et compteur `0x9b2` non nul, lus dans
+  l'enregistrement en cours ; sinon la visibilité du boîtier avec ses arguments. Le menu est
+  reconstruit à chaque ouverture (T18-HIDE1) : les lignes reviennent dès le rembobinage. Aucun site
+  nouveau. Application : option envoyée avec le mode pellicule, inscrite dans la recette.
+- Vérifié : `lock_probe.py` (122 cas sur la visibilité ; menu natif : 36 lignes photo, 29 rouleau
+  chargé, autres onglets identiques), `film_roll_check.py` (mis à jour pour Snap DOF, 46, et le
+  verrou), `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
+  `grain_native_probe.py`, tests.

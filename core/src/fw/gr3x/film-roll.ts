@@ -1221,12 +1221,24 @@ export const GR3X_HIDDEN_LINES = [0x0200006e, 0x04000033] as const;
  * function of the table); T20-VID3 lists no Still/Movie (function 17). */
 export const GR3X_FN_FILTER = 0x531b9410, GR3X_FN_STILL_MOVIE = 17;
 
-/** T20-VID3: lines hidden by id (whatever the tab), and Fn functions taken out of the button lists. */
-export function installGr3xHideLines(p: Gr3xRollProgram, ids: readonly number[], functions: readonly number[]) {
+/** T-LOCK1: Still Image Settings' lines hidden while a roll is loaded (a U mode, Film Roll Mode on, a
+ * roll started and its counter not 0, as the roll's own checks read it): Image Control, Aspect Ratio,
+ * Crop, Drive Mode, File Format, JPEG Recorded Pixels, Color Space (ids and titles read from each
+ * line's draw function). */
+export const GR3X_ROLL_LOCKED_LINES = [0x02000012, 0x02000073, 0x02000074, 0x0200000e, 0x02000072, 0x02000075, 0x02000076] as const;
+
+/** T20-VID3: lines hidden by id (whatever the tab), and Fn functions taken out of the button lists.
+ * `locked` (T-LOCK1): lines hidden only while a roll is loaded. */
+export function installGr3xHideLines(p: Gr3xRollProgram, ids: readonly number[], functions: readonly number[], locked: readonly number[] = []) {
   if (p.sites.some(s => s.address === GR3X_LINE_VISIBLE_CALL || (functions.length && s.address === GR3X_FN_FILTER))) throw new FirmwareError('unexpected-instruction', 'IIIx hidden lines: already patched');
   const entries: Record<string, number> = {};
+  // The visibility's arguments (r0..r2) kept for it; r3 and ip free (sl points to the line's id).
+  const loaded = locked.length ? `lock:push {r0,r1,r2};movw r3,#${lo(MODEL)};movt r3,#${hi(MODEL)};ldr r2,[r3];${ram('r2', 'shown')}ldrb r2,[r2];sub r2,r2,#1;cmp r2,#5;bhi shown;
+    ldr r2,[r3,#4];${ram('r2', 'shown')}ldrb r0,[r2,#${GR3X_ROLL_FLAGS}];and r0,r0,#${GR3X_FILM_ON | GR3X_ROLL_STARTED};cmp r0,#${GR3X_FILM_ON | GR3X_ROLL_STARTED};bne shown;
+    ldrb r0,[r2,#${GR3X_ROLL_FRAME}];cmp r0,#0;beq shown;pop {r0,r1,r2};b hidden;shown:pop {r0,r1,r2};b #${GR3X_LINE_VISIBLE};` : '';
   entries.linesHidden = p.code(`ldr ip,[sl];${ids.map(id => `movw r3,#${lo(id)};movt r3,#${hi(id)};cmp ip,r3;beq hidden;`).join('')}
-    b #${GR3X_LINE_VISIBLE};hidden:mov r0,#0;bx lr;`);
+    ${locked.map(id => `movw r3,#${lo(id)};movt r3,#${hi(id)};cmp ip,r3;beq lock;`).join('')}
+    b #${GR3X_LINE_VISIBLE};hidden:mov r0,#0;bx lr;${loaded}`);
   p.patch(GR3X_LINE_VISIBLE_CALL, bl(GR3X_LINE_VISIBLE_CALL, GR3X_LINE_VISIBLE), bl(GR3X_LINE_VISIBLE_CALL, entries.linesHidden), 'menu: lines hidden by id');
   if (!functions.length) return entries;
   entries.fnHidden = p.code(`${functions.map(f => `cmp r0,#${f};moveq r0,#0;bxeq lr;`).join('')}cmp r0,#0x16;b #${GR3X_FN_FILTER + 4};`);

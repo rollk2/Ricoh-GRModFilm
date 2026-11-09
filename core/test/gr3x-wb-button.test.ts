@@ -98,6 +98,14 @@ describe.skipIf(!input)('GR III WB button', () => {
     for (const k of ['holdFilter', 'holdOrig', 'hold0ListSet', 'hold4ListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, holdButtons: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
+  it('hides the film lines while a roll is loaded through the existing hidden-lines site', async () => {
+    const plain = await buildGr3xAdjResearch(raw, menu, film);
+    const lock = await buildGr3xAdjResearch(raw, menu, { ...film, rollLock: true });
+    expect(lock).toMatchObject({ rollLock: true });
+    expect(lock.sites.map(s => s.address).sort()).toEqual(plain.sites.map(s => s.address).sort());
+    expect((lock.entries as Record<string, number>).linesHidden).toBeGreaterThan(0x53000000);
+    await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, rollLock: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
+  }, 240000);
   it('needs the film mode', async () => {
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, filmRoll: 'fn7', wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
@@ -116,7 +124,7 @@ describe.skipIf(!input)('GR III WB button', () => {
     const engine = await Engine.open(raw);
     const ratios = [{ ratio: '65:24', name: 'XPan' }];
     const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
-    const built = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true, holdButtons: true, rearDialOff: true });
+    const built = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true, holdButtons: true, rollLock: true, rearDialOff: true });
     const seen = await (await Engine.open(raw)).inspect(built.file);
     expect(seen).toMatchObject({ verified: true });
     const plain = await engine.buildFirmware([], ratios, [], base);
