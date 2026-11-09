@@ -78,7 +78,11 @@ def verify(data,manifest):
     for t in range(1,5):assert got['loaded'][t]==got['rewound'][t],t
     p.menu_stubs=False
     # T-LOCK2: the buttons' functions.
-    FNS=(10,11,12,13,14,15,23,24,25,27);OTHER=(0,1,9,16,19,22,26,28,41)
+    FNS=(10,11,12,13,14,15,23,24,25,27)
+    # T-HIDE1: functions of hidden settings are Off always (hidden_probe.py); left out here.
+    HID={f for k in (manifest.get('hiddenSettings') or {}) for f in {'faceEye':(8,),'flash':(20,),'gf2':(41,)}.get(k,())}
+    HIDADJ={f for k in (manifest.get('hiddenSettings') or {}) for f in {'flash':(8,),'gf2':(0x13,)}.get(k,())}
+    OTHER=tuple(f for f in (0,1,9,16,19,22,26,28,41) if f not in HID)
     for name,st,loaded in (('loaded',dict(),True),('rewound',dict(frame=0),False),('P',dict(mode=0),False),('film off',dict(flags=2),False)):
         for f in FNS+OTHER:
             state(**st)
@@ -108,7 +112,7 @@ def verify(data,manifest):
                 for k,v in regs.items():
                     if k>3:assert c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==v,(i,f,k)
                 v0=c.reg_read(reg.UC_ARM_REG_R0)
-                base=0 if f>0x13 else f
+                base=0 if f>0x13 or f in HIDADJ else f
                 if f>0x13 and v0==f:base=f   # without the round 10 soft focus the camera's own getter keeps it
                 want=0 if (loaded and base in ADJ) else base
                 assert v0==want,(i,name,f,v0)

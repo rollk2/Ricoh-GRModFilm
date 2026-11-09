@@ -5,12 +5,13 @@
 import { FirmwareError } from '../types';
 import { gr3xCustoms } from './geometry';
 import type { Gr3xMenuRatio } from './geometry';
+import { GR3X_HIDEABLE, type Gr3xHiddenSettings } from './hidden-settings';
 
 export const GR3X_RATIO_RECIPE_MAGIC = new TextEncoder().encode('GR3X-RATIO-RECIPE\0');
 const LIMIT = 4096;
 
 export function encodeGr3xRatioRecipe(menu: readonly Gr3xMenuRatio[], features: { adjSoftFocus?: boolean; dateImprint?: boolean; dateMenu?: string; pictures?: readonly { name: string; id?: number }[]; pictureMenu?: string; round7?: boolean; round8?: boolean; round9?: boolean; round10?: boolean;
-  lookLayout?: { order: readonly number[]; hidden: readonly number[] }; filmMode?: { codes?: Readonly<Record<number, string>> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; rearDialOff?: boolean; grain?: boolean } = {}): Uint8Array {
+  lookLayout?: { order: readonly number[]; hidden: readonly number[] }; filmMode?: { codes?: Readonly<Record<number, string>> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; hiddenSettings?: Gr3xHiddenSettings; rearDialOff?: boolean; grain?: boolean } = {}): Uint8Array {
   const data = new TextEncoder().encode(JSON.stringify({
     schema: 1, ratios: gr3xCustoms(menu).map(r => ({ ratio: r.ratio, name: r.name })),
     ...(features.adjSoftFocus ? { adjSoftFocus: true } : {}),
@@ -41,6 +42,8 @@ export function encodeGr3xRatioRecipe(menu: readonly Gr3xMenuRatio[], features: 
     ...(features.holdButtons && features.macroButton && features.wbButton && features.filmMode ? { holdButtons: true } : {}),
     // The film lines of Still Image Settings hidden while a roll is loaded (film-roll.ts, T-LOCK1).
     ...(features.rollLock && features.filmMode ? { rollLock: true } : {}),
+    // Camera settings hidden, each at its value (hidden-settings.ts, T-HIDE1).
+    ...(features.hiddenSettings && Object.keys(features.hiddenSettings).length && features.filmMode ? { hiddenSettings: { ...features.hiddenSettings } } : {}),
     // The rear dial's rotation ignored everywhere (dial-probe.ts), round 10.
     ...(features.rearDialOff && features.round10 ? { rearDialOff: true } : {}),
     // The grain on the JPEG, its Grain and Size rows (halation-rows.ts, jpeg_grain.c), with the film mode.
@@ -61,7 +64,7 @@ export function readGr3xRatioRecipe(appendedRtos: Uint8Array): { ratio: string; 
 
 /** The ratio list and the ADJ features recorded in an appended RTOS area, or null for none. */
 export function readGr3xBuildRecipe(appendedRtos: Uint8Array): { ratios: { ratio: string; name: string }[]; adjSoftFocus: boolean; dateImprint: boolean; dateMenu: 'list' | 'submenu'; pictures: string[]; pictureMenu: 'list' | 'submenu'; pictureIds: number[]; round7: boolean; round8: boolean; round9: boolean; round10: boolean;
-  lookLayout?: { order: number[]; hidden: number[] }; filmMode?: { codes: Record<number, string> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; rearDialOff?: boolean; grain?: boolean } | null {
+  lookLayout?: { order: number[]; hidden: number[] }; filmMode?: { codes: Record<number, string> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; hiddenSettings?: Gr3xHiddenSettings; rearDialOff?: boolean; grain?: boolean } | null {
   const magic = GR3X_RATIO_RECIPE_MAGIC;
   for (let at = 0; at + magic.length + 4 <= appendedRtos.length; at++) {
     if (!magic.every((v, i) => appendedRtos[at + i] === v)) continue;
@@ -76,7 +79,8 @@ export function readGr3xBuildRecipe(appendedRtos: Uint8Array): { ratios: { ratio
         (r.pictureMenu !== undefined && (r.pictureMenu !== 'submenu' || !Array.isArray(r.pictureIds) || r.pictureIds.length !== r.pictures?.length ||
           r.pictureIds.some((x: unknown) => !Number.isInteger(x) || (x as number) < 1 || (x as number) > 0xffffffff))) || r.ratios.some((x: unknown) => typeof x !== 'object' || x === null ||
         typeof (x as Record<string, unknown>).ratio !== 'string' || typeof (x as Record<string, unknown>).name !== 'string') ||
-        (r.noMovie !== undefined && (r.noMovie !== true || r.round !== 10)) || (r.dateHidden !== undefined && (r.dateHidden !== true || r.filmMode === undefined || r.dateImprint !== true)) || (r.afReset !== undefined && (r.afReset !== true || r.round !== 10)) || (r.afPoint !== undefined && (r.afPoint !== true || r.round !== 10)) || (r.memoryU !== undefined && (r.memoryU !== true || r.afPoint !== true)) || (r.wbButton !== undefined && (r.wbButton !== true || r.filmMode === undefined)) || (r.macroButton !== undefined && (r.macroButton !== true || r.wbButton !== true)) || (r.snapDof !== undefined && (r.snapDof !== true || r.macroButton !== true)) || (r.holdButtons !== undefined && (r.holdButtons !== true || r.macroButton !== true)) || (r.rollLock !== undefined && (r.rollLock !== true || r.filmMode === undefined)) || (r.rearDialOff !== undefined && (r.rearDialOff !== true || r.round !== 10)) || (r.grain !== undefined && (r.grain !== true || r.filmMode === undefined)) ||
+        (r.noMovie !== undefined && (r.noMovie !== true || r.round !== 10)) || (r.dateHidden !== undefined && (r.dateHidden !== true || r.filmMode === undefined || r.dateImprint !== true)) || (r.afReset !== undefined && (r.afReset !== true || r.round !== 10)) || (r.afPoint !== undefined && (r.afPoint !== true || r.round !== 10)) || (r.memoryU !== undefined && (r.memoryU !== true || r.afPoint !== true)) || (r.wbButton !== undefined && (r.wbButton !== true || r.filmMode === undefined)) || (r.macroButton !== undefined && (r.macroButton !== true || r.wbButton !== true)) || (r.snapDof !== undefined && (r.snapDof !== true || r.macroButton !== true)) || (r.holdButtons !== undefined && (r.holdButtons !== true || r.macroButton !== true)) || (r.rollLock !== undefined && (r.rollLock !== true || r.filmMode === undefined)) || (r.hiddenSettings !== undefined && (r.filmMode === undefined || typeof r.hiddenSettings !== 'object' || r.hiddenSettings === null ||
+          !Object.entries(r.hiddenSettings).length || Object.entries(r.hiddenSettings).some(([k, v]) => !(k in GR3X_HIDEABLE) || !(GR3X_HIDEABLE as Record<string, { values: readonly number[] }>)[k].values.includes(v as number)))) || (r.rearDialOff !== undefined && (r.rearDialOff !== true || r.round !== 10)) || (r.grain !== undefined && (r.grain !== true || r.filmMode === undefined)) ||
         (r.filmMode !== undefined && (r.round !== 10 || typeof r.filmMode !== 'object' || r.filmMode === null || typeof r.filmMode.codes !== 'object' || r.filmMode.codes === null ||
           Object.entries(r.filmMode.codes).some(([k, v]) => !/^(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])$/.test(k) || typeof v !== 'string' || !/^[A-Z0-9]{4}$/.test(v)))))
       throw new FirmwareError('bad-edit', 'invalid IIIx ratio recipe');
@@ -84,7 +88,7 @@ export function readGr3xBuildRecipe(appendedRtos: Uint8Array): { ratios: { ratio
       pictureMenu: r.pictureMenu === 'submenu' ? 'submenu' : 'list', pictureIds: r.pictureIds ?? [], round7: r.round >= 7, round8: r.round >= 8, round9: r.round >= 9, round10: r.round === 10,
       ...(r.lookLayout ? { lookLayout: { order: r.lookLayout.order.slice(), hidden: r.lookLayout.hidden.slice() } } : {}),
       ...(r.filmMode ? { filmMode: { codes: Object.fromEntries(Object.entries(r.filmMode.codes as Record<string, string>).map(([k, v]) => [+k, v])) } } : {}),
-      ...(r.noMovie ? { noMovie: true } : {}), ...(r.dateHidden ? { dateHidden: true } : {}), ...(r.afReset ? { afReset: true } : {}), ...(r.afPoint ? { afPoint: true } : {}), ...(r.memoryU ? { memoryU: true } : {}), ...(r.wbButton ? { wbButton: true } : {}), ...(r.macroButton ? { macroButton: true } : {}), ...(r.snapDof ? { snapDof: true } : {}), ...(r.holdButtons ? { holdButtons: true } : {}), ...(r.rollLock ? { rollLock: true } : {}), ...(r.rearDialOff ? { rearDialOff: true } : {}), ...(r.grain ? { grain: true } : {}) };
+      ...(r.noMovie ? { noMovie: true } : {}), ...(r.dateHidden ? { dateHidden: true } : {}), ...(r.afReset ? { afReset: true } : {}), ...(r.afPoint ? { afPoint: true } : {}), ...(r.memoryU ? { memoryU: true } : {}), ...(r.wbButton ? { wbButton: true } : {}), ...(r.macroButton ? { macroButton: true } : {}), ...(r.snapDof ? { snapDof: true } : {}), ...(r.holdButtons ? { holdButtons: true } : {}), ...(r.rollLock ? { rollLock: true } : {}), ...(r.hiddenSettings ? { hiddenSettings: { ...r.hiddenSettings } } : {}), ...(r.rearDialOff ? { rearDialOff: true } : {}), ...(r.grain ? { grain: true } : {}) };
   }
   return null;
 }

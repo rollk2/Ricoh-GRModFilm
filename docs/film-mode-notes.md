@@ -3369,3 +3369,21 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   | Macro Mode | `0x02000071` | `0x110` | 2 : 1 (On), 0 (Off) (`0x53273438`) | 45 (GR Mod Film) | non |
 - Note : `+0x110` est Macro Mode (ce qu'on prenait pour la priorité Snap en T-DOF1) ; la valeur
   vivante du DOF exige Macro Off (`0x532711e4`).
+- Décision (2026-11-09) : Macro Mode reste ; six réglages masquables.
+- Listes ADJ Mode Setting : fiches 65 à 69 (titres 0x1b0 à 0x1b4), tables `GR3X_ADJ_LISTS` de 19
+  fonctions, nombre `mov r0,#0x13` en `0x531b3bac` + 8 i. Le filtre des fonctions des touches
+  `0x531b9410` est appelé par les trois constructeurs (principal, Wireless, Hold Wireless).
+- **T-HIDE1** (`hiddenSettings`, `hidden-settings.ts`) : lignes masquées par identifiant (avec la
+  vidéo) ; fonctions des touches refusées par le filtre et rendues Off dans les crochets
+  `GetEventCustomize` / `GetEventSwitchWlan` ; fonctions ADJ lues Off par l'enveloppe des lecteurs
+  de case et retirées des cinq listes (après la retouche du flou), nombres réduits ; au chargement
+  des réglages (crochet de l'échafaudage round 10), chaque valeur écrite dans l'enregistrement en
+  cours (`*0x55063f34`) et les huit BOX (`0x55063f38` + 4 i, pointeurs hors RAM sautés).
+  Application : section « Hide camera settings » (interrupteur et valeur par réglage, avec le
+  mode pellicule), recette du firmware, inspection.
+- Vérifié : `hidden_probe.py` (lignes dans tous les modes, menu natif, filtre, boutons Off, ADJ Off
+  et listes, valeurs écrites et autres octets intacts), `film_roll_check.py`, `lock_probe.py` (mis
+  à jour), `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
+  `grain_native_probe.py`, tests. Build T-HIDE1 : Face/Eye Off, AF Assist Off, AF.C Focus-priority,
+  MF Auto Magnification Off, Flash Mode Flash On, GF-2 Off (valeurs des menus par l'ordre des
+  tables, noms à confirmer sur le boîtier : les listes dessinent des icônes).

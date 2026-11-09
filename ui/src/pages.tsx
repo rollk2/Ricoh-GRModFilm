@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { color, EXTRA_NAME_MAX, GR3X_RATIO_NAME_MAX, halateRgba, halationLight, MAX_EXTRA_SLOTS, SHUTDOWN_H, SHUTDOWN_NAME_MAX, SHUTDOWN_W } from '@grmod/core';
+import { color, EXTRA_NAME_MAX, GR3X_HIDEABLE, GR3X_RATIO_NAME_MAX, halateRgba, halationLight, MAX_EXTRA_SLOTS, SHUTDOWN_H, SHUTDOWN_NAME_MAX, SHUTDOWN_W } from '@grmod/core';
 import type { SlotId } from '@grmod/core';
 import type { ReactNode } from 'react';
 import { DropZone, FileButton, Ico, IconCanvas, Menu, Prop, RatioIcon, RgbCanvas, Segmented, Select, Switch } from './components';
@@ -13,7 +13,7 @@ import {
   addRatio, addWallFiles, askForOfficial, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
   maxRatios, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
-  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
+  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setHiddenSetting, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
   setDirectFlash,
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
@@ -662,6 +662,29 @@ function HalationProp({ k }: { k: SlotKey }) {
 }
 
 /** One switch of the firmware additions: icon, name, one line of detail. */
+/** GR III / IIIx film mode: the camera settings that can be hidden, each with the value it keeps
+ * (the values in the camera menu's order; the first is the default when a setting is hidden). */
+function HiddenSettings({ hidden }: { hidden: Record<string, number> }) {
+  return (
+    <div className="hidden-settings">
+      <div className="soft-text"><b>{t('hideTitle')}</b><span className="muted small">{t('hideSub')}</span></div>
+      {(Object.keys(GR3X_HIDEABLE) as (keyof typeof GR3X_HIDEABLE)[]).map((k) => {
+        const [name, ...labels] = t(('hs_' + k) as Key).split('|');
+        const values = GR3X_HIDEABLE[k].values as readonly number[];
+        const on = k in hidden;
+        return (
+          <div key={k} className={`soft-switch ${on ? 'on' : ''}`}>
+            <div className="soft-text"><b>{name}</b>
+              {on && <Segmented value={String(hidden[k])} options={values.map((v, i) => ({ value: String(v), label: labels[i] ?? String(v) }))} onChange={(v) => setHiddenSetting(k, Number(v))} />}
+            </div>
+            <Switch checked={on} onChange={(v) => setHiddenSetting(k, v ? values[0] : undefined)} label={name} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function FeatureRow({ icon, title, sub, on, onChange }: { icon: ReactNode; title: string; sub: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className={`soft-switch ${on ? 'on' : ''}`}>
@@ -690,6 +713,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
   const filmMode = useStore((s) => s.filmMode);
   const noMovie = useStore((s) => s.noMovie);
   const rearDialOff = useStore((s) => s.rearDialOff);
+  const hidden = useStore((s) => s.hiddenSettings);
   const filmOk = useStore((s) => filmModeChoosable(s));
   const own = useRef<HTMLDivElement | null>(null);
   // Moved to the other column: glide from where it was (FLIP). Rectangles are in window pixels,
@@ -713,6 +737,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
       {filmOk && <FeatureRow icon={Ico.film} title={t('navFilmMode')} sub={t('filmModeSub')} on={filmMode} onChange={setFilmMode} />}
       {filmOk && <FeatureRow icon={Ico.noMovie} title={t('navNoMovie')} sub={t('noMovieSub')} on={noMovie} onChange={setNoMovie} />}
       {filmOk && <FeatureRow icon={Ico.dial} title={t('navRearDialOff')} sub={t('rearDialOffSub')} on={rearDialOff} onChange={setRearDialOff} />}
+      {filmOk && filmMode && <HiddenSettings hidden={hidden} />}
     </div>
   );
 }

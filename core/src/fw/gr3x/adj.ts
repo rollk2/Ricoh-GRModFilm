@@ -44,6 +44,7 @@ import { GR3X_FN_CUSTOM } from './film-roll';
 import { installGr3xNativeGrainTest } from './grain-native';
 import { installGr3xDialProbe, installGr3xRearDialOff } from './dial-probe';
 import { GR3X_HOLD_KEYS, gr3xHoldLineName, installGr3xHoldButtons } from './hold';
+import { gr3xHiddenPlan, installGr3xHiddenAdjLists, installGr3xHiddenValues, type Gr3xHiddenSettings } from './hidden-settings';
 import { GR3X_FILM_ADVANCE_NAMES, GR3X_FILM_ROLL_MODE_NAMES, installGr3xFilmAdvanceFn, installGr3xFilmRoll, installGr3xRetakeProbe, installGr3xFilmMessage, GR3X_FILM_NEW_ROLL_NAMES, GR3X_MESSAGE_CLEAR, GR3X_CANCEL_CLEAR, GR3X_REVIEW_ARM_CLEAR, GR3X_ADVANCE_ONCE_CLEAR, GR3X_FILM_REWIND_NAMES, GR3X_FILM_REWIND_QUESTIONS, installGr3xFilmRewind, GR3X_FILM_REWIND_ID, GR3X_FOLDER_DIALOG_ID, GR3X_REWIND_MODE, GR3X_MENU_IDS, installGr3xMenuRebuild, installGr3xHideMovieTab, installGr3xBlockMovie, installGr3xHideLines, installGr3xFilmFileNames, installGr3xAfReset, installGr3xAfPointMemory, GR3X_AF_POINT_NAMES, GR3X_MEMORY_U_NAMES, GR3X_HIDDEN_LINES, GR3X_FILM_TAB_NAMES, GR3X_MOVIE_ENTRY_IMAGE, GR3X_MOVIE_TAB, GR3X_FILM_ADVANCE_ICON, GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE, GR3X_SIDE_BUTTON_TEXTS, GR3X_SIDE_BUTTON_NAMES, GR3X_ROLL_LOCKED_LINES, installGr3xRollLockAdj } from './film-roll';
 
 export const GR3X_ADJ = {
@@ -141,6 +142,8 @@ export interface Gr3xAdjFeatures {
   /** With the film mode: Still Image Settings' film lines hidden while a roll is loaded (T-LOCK1), and the
    * same settings' Fn and ADJ lever functions Off then (T-LOCK2; film-roll.ts). */
   rollLock?: boolean;
+  /** With the film mode: camera settings hidden, each held at the value chosen (hidden-settings.ts, T-HIDE1). */
+  hiddenSettings?: Gr3xHiddenSettings;
   /** T-GRAIN1 (test, film mode): the camera's own grain on the films, a fixed value per film (grain-native.ts). */
   grainTest?: readonly number[];
   /** Test builds: the films' Grain through the JPEG module (jpeg_grain.c, with a Size row) instead of the camera's own granulation. */
@@ -260,6 +263,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const snapButton = features.snapDof === true;
   const holdButtons = features.holdButtons === true;
   const rollLock = features.rollLock === true;
+  const hiddenPlan = features.hiddenSettings && Object.keys(features.hiddenSettings).length ? gr3xHiddenPlan(features.hiddenSettings) : undefined;
+  if (hiddenPlan && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx hidden settings: only with the film mode');
   if (rollLock && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx roll lock: only with the film mode');
   if (holdButtons && !macroButton) fail('IIIx hold buttons: with the Macro button');
   if (snapButton && !macroButton) fail('IIIx Snap DOF: with the Macro button');
@@ -493,8 +498,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     ...(movieTabHidden ? installGr3xHideMovieTab({ code, sites, patch }) : {}),
     ...(movieBlocked ? installGr3xBlockMovie({ code, sites, patch }) : {}),
     // T23b: the Date Imprint line hidden when the film mode brings the date imprint stage only (dateHidden).
-    ...(movieLines || dateHidden || rollLock ? installGr3xHideLines({ code, sites, patch }, [...(movieLines ? GR3X_HIDDEN_LINES : []), ...(dateHidden ? [GR3X_DATE_MENU_ID] : [])],
-      movieLines ? (movieRenamed ? [GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE] : [GR3X_FN_STILL_MOVIE]) : [], rollLock ? GR3X_ROLL_LOCKED_LINES : []) : {}) };
+    ...(movieLines || dateHidden || rollLock || hiddenPlan ? installGr3xHideLines({ code, sites, patch }, [...(movieLines ? GR3X_HIDDEN_LINES : []), ...(dateHidden ? [GR3X_DATE_MENU_ID] : []), ...(hiddenPlan?.lines ?? [])],
+      [...(movieLines ? (movieRenamed ? [GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE] : [GR3X_FN_STILL_MOVIE]) : []), ...(hiddenPlan?.fns ?? [])], rollLock ? GR3X_ROLL_LOCKED_LINES : []) : {}) };
   const wbOpen = wbButton ? installGr3xWbOpen({ code, append, patch, read, u32: word, sites }) : 0;
   if (features.dialProbe && features.grainTag !== 'keys') fail('IIIx dial probe: with the keys tag');
   // Hold buttons: their filter at the key entry, after the rear dial's when that is off.
@@ -506,9 +511,11 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const snapStep = snapButton ? installGr3xSnapDofPress({ code, append, patch, read, u32: word, sites }) : 0;
   const fnEntries = filmFn ? installGr3xFilmAdvanceFn({ code, sites, patch, append, read, u32: word }, filmText + 1, features.filmRoll === 'fn4' ? 'event' : features.filmRoll === 'fn5' ? 'action' : features.filmRoll === 'rt1' ? 'probe' : features.filmRoll === 'fn6' ? 'cancel' : false, features.filmRoll === 'fn7' || features.filmRoll === 'dir1' || features.filmRoll === 'dir2' || features.filmRoll === 'dir3' || features.filmRoll === 'dg1' || features.filmRoll === 'dg2' || features.filmRoll === 'dg3' || features.filmRoll === 'dir4' || features.filmRoll === 'dir5' || features.filmRoll === 'dir6' || features.filmRoll === 'dir7' || features.filmRoll === 'dir8' || features.filmRoll === 'dir9' || features.filmRoll === 'dir10' || features.filmRoll === 'dir11' || features.filmRoll === 'dir12' || features.filmRoll === 'dir13' || features.filmRoll === 'dir14' || features.filmRoll === 'end1' || features.filmRoll === 'end2' || features.filmRoll === 'end3' || features.filmRoll === 'clo1' || features.filmRoll === 'clo2' || features.filmRoll === 'clo3' || features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film'), features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film') || features.filmRoll === 'clo3' || features.filmRoll === 'clo2' || features.filmRoll === 'clo1' || features.filmRoll === 'end3' || features.filmRoll === 'end2' || features.filmRoll === 'end1' || features.filmRoll === 'dir14' || features.filmRoll === 'dir13' || features.filmRoll === 'dir12' || features.filmRoll === 'dir11' || features.filmRoll === 'dir3' || features.filmRoll === 'dg1' || features.filmRoll === 'dg2' || features.filmRoll === 'dg3' || features.filmRoll === 'dir4' || features.filmRoll === 'dir5' || features.filmRoll === 'dir6' || features.filmRoll === 'dir7' || features.filmRoll === 'dir8' || features.filmRoll === 'dir9' || features.filmRoll === 'dir10', filmIcons ? filmIcon + 3 : GR3X_FILM_ADVANCE_ICON, wbOpen ? { open: wbOpen, function: GR3X_WB_FUNCTION, text: GR3X_WB_TEXT, icon: GR3X_WB_ICON,
     ...(macroPress ? { macro: { function: GR3X_MACRO_FUNCTION, text: GR3X_MACRO_TEXT, icon: GR3X_MACRO_ICON, press: macroPress } } : {}),
-    ...(snapStep ? { snap: { function: GR3X_DOF_FUNCTION, text: dofText, icon: GR3X_DOF_ICON, press: snapStep } } : {}) } : undefined, rollLock) : {};
-  // T-LOCK2: the ADJ lever's locked functions as Off while a roll is loaded.
-  const rollLockAdj = rollLock ? installGr3xRollLockAdj({ code, sites, patch }) : {};
+    ...(snapStep ? { snap: { function: GR3X_DOF_FUNCTION, text: dofText, icon: GR3X_DOF_ICON, press: snapStep } } : {}) } : undefined, rollLock, hiddenPlan?.fns ?? []) : {};
+  // T-LOCK2: the ADJ lever's locked functions as Off while a roll is loaded; T-HIDE1: hidden ones always.
+  const rollLockAdj = rollLock || hiddenPlan?.adj.length ? installGr3xRollLockAdj({ code, sites, patch }, rollLock, hiddenPlan?.adj ?? []) : {};
+  // T-HIDE1: the hidden ADJ functions out of ADJ Mode Setting's lists (after the soft focus's edit), their values at each load.
+  const hiddenValues = hiddenPlan ? installGr3xHiddenValues({ code, patch, u32: word, sites }, hiddenPlan.bytes) : {};
   const wb = wbButton ? installGr3xWbButton({ code, append, patch, read, u32: word, sites }, wbText, GR3X_FN_CUSTOM, macroButton ? macroText : undefined, snapButton,
     holdButtons ? GR3X_HOLD_KEYS.map((k, i) => ({ text: holdText + i, setting: k.hold })) : undefined) : undefined;
   const textRoots = append(words(rows.map(row => append(row))));
@@ -590,6 +597,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const rawEntries = installGr3xRawDevelopment(program);
   const shadingEntries = installGr3xShading(program);
   const softEntries = softFocus ? installGr3xAdjSoftFocus({ code, append, patch, word }, softText, softIcon, round10) : {};
+  // T-HIDE1: the hidden ADJ functions out of ADJ Mode Setting's lists, after the soft focus's own edit of them.
+  if (hiddenPlan) installGr3xHiddenAdjLists({ code, patch, u32: word, sites }, hiddenPlan.adj);
   const fullRawEntries = installGr3xFullFrameRaw(program);
   const endScreen = pictureSub ? installGr3xEndScreen({ code, append, patch, word }, { ...endIds,
     choices: pictures.map(x => x.id!), resources: pictures.map((_, k) => GR3X_JPEG_TABLE_COUNT + k), ...(date8 ? { modeByte: true } : {}),
@@ -657,12 +666,12 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     schema: 1, kind: 'gr3x-adj-patchset' as const, profile: profile.id,
     originalRtosSha256: profile.rtosSha256, originalLength: p.rtosLength, base: BASE,
     sites, append: { address: geometry.append.address, bytes: hex(payload) }, geometry,
-    entries: { ...geometry.entries, ...(holdEntries ?? {}), ...rollLockAdj, ...scaffold, ratioText, ratioIcon, fnCycle, ...imageEntries, ...developEntries, ...afEntries, ...mapEntries, ...liveEntries, ...messageEntries, ...rawEntries, ...shadingEntries, ...fullRawEntries, ...softEntries, ...dateEntries, ...lookEntries, ...(probeEntries ?? {}), ...fnEntries, ...rewindEntries, ...movieEntries, ...afResetEntries, ...(filmIcons ? { filmIconBase: filmIcon } : {}), ...(wb ? { ...wb.entries, wbOpen, ...(macroPress ? { macroPress } : {}), ...(snapStep ? { snapStep } : {}) } : {}), ...grainEntries, ...dialEntries },
+    entries: { ...geometry.entries, ...(holdEntries ?? {}), ...rollLockAdj, ...hiddenValues, ...scaffold, ratioText, ratioIcon, fnCycle, ...imageEntries, ...developEntries, ...afEntries, ...mapEntries, ...liveEntries, ...messageEntries, ...rawEntries, ...shadingEntries, ...fullRawEntries, ...softEntries, ...dateEntries, ...lookEntries, ...(probeEntries ?? {}), ...fnEntries, ...rewindEntries, ...movieEntries, ...afResetEntries, ...(filmIcons ? { filmIconBase: filmIcon } : {}), ...(wb ? { ...wb.entries, wbOpen, ...(macroPress ? { macroPress } : {}), ...(snapStep ? { snapStep } : {}) } : {}), ...grainEntries, ...dialEntries },
     catalogs: { order, textRoots, textColumns: columns, iconRoot, iconCount },
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rollLock ? { rollLock: true } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

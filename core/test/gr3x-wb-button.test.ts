@@ -109,6 +109,19 @@ describe.skipIf(!input)('GR III WB button', () => {
     expect((lock.entries as Record<string, number>).linesHidden).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, rollLock: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
+  it('hides camera settings (menu, buttons, ADJ lever) with their values, recorded and recognised', async () => {
+    const engine = await Engine.open(raw);
+    const ratios = [{ ratio: '65:24', name: 'XPan' }];
+    const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
+    const hiddenSettings = { faceEye: 0, afc: 2, flash: 1, gf2: 0 };
+    const built = await engine.buildFirmware([], ratios, [], { ...base, hiddenSettings });
+    expect(await (await Engine.open(raw)).inspect(built.file)).toMatchObject({ verified: true });
+    const plain = await engine.buildFirmware([], ratios, [], base);
+    expect(plain.sha256).not.toBe(built.sha256);
+    await expect(engine.buildFirmware([], ratios, [], { ...base, hiddenSettings: { flash: 7 } })).rejects.toThrow(/value 7/);
+    await expect(engine.buildFirmware([], ratios, [], { ...base, hiddenSettings: { macro: 0 } as never })).rejects.toThrow(/unknown setting/);
+    await expect(engine.buildFirmware([], ratios, [], { filmCount: 3, hiddenSettings })).rejects.toThrow(/film mode/);
+  }, 900000);
   it('needs the film mode', async () => {
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, filmRoll: 'fn7', wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
