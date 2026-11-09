@@ -8,7 +8,7 @@ import { Engine } from '../src/app/engine';
 import { planGr3xMenu } from '../src/fw/gr3x/geometry';
 import { GR3X_ISO_GETTER_CALL, GR3X_ISO_KEY_ID, GR3X_MACRO_KEY_HANDLER, GR3X_MACRO_LINE_NAMES, GR3X_WB_KEY_EVENT, GR3X_WB_KEY_HANDLER, gr3xWbLineName } from '../src/fw/gr3x/wb-button';
 import { readGr3xBuildRecipe, encodeGr3xRatioRecipe } from '../src/fw/gr3x/ratio-recipe';
-import { GR3X_KEY_EVENT_ENTRY, gr3xHoldLineName } from '../src/fw/gr3x/hold';
+import { GR3X_EVENT_TRANSLATION, GR3X_KEY_EVENT_ENTRY, gr3xHoldLineName } from '../src/fw/gr3x/hold';
 import { GR3X_ADJ_SLOT_GETTERS } from '../src/fw/gr3x/film-roll';
 
 const input = process.env.GRMOD_GR3_FIRMWARE;
@@ -103,7 +103,8 @@ describe.skipIf(!input)('GR III WB button', () => {
     const hold = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true });
     const dial = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true, fnDial: true });
     expect(dial).toMatchObject({ fnDial: true });
-    expect(dial.sites.map(s => s.address).sort()).toEqual(hold.sites.map(s => s.address).sort());
+    // One more site: the events' translation (the front dial's turns as the rear dial's while Fn is held).
+    expect(dial.sites.map(s => s.address).sort()).toEqual([...hold.sites.map(s => s.address), GR3X_EVENT_TRANSLATION].sort());
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, fnDial: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
   it('locks the film settings while a roll is loaded: menu lines, Fn functions, ADJ slots', async () => {

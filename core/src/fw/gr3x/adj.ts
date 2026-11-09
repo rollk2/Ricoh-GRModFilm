@@ -43,7 +43,7 @@ import { GR3X_MACRO_FUNCTION, GR3X_MACRO_ICON, GR3X_MACRO_LINE_NAMES, GR3X_MACRO
 import { GR3X_FN_CUSTOM } from './film-roll';
 import { installGr3xNativeGrainTest } from './grain-native';
 import { installGr3xDialProbe, installGr3xRearDialOff } from './dial-probe';
-import { GR3X_HOLD_KEYS, gr3xHoldLineName, installGr3xHoldButtons } from './hold';
+import { GR3X_HOLD_KEYS, GR3X_HOLD_STATE, gr3xHoldLineName, installGr3xHoldButtons } from './hold';
 import { installGr3xPlayProbe } from './play-probe';
 import { installGr3xPlayLast } from './play-last';
 import { GR3X_SR_SPEEDS, gr3xSrSpeedText, installGr3xSrSpeed } from './sr-speed';
@@ -522,7 +522,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   // Hold buttons: their filter at the key entry, after the rear dial's when that is off.
   if (features.fnDial && !(holdButtons && features.rearDialOff)) fail('IIIx Fn + front dial: with the Hold buttons and the rear dial off');
   const holdEntries = holdButtons ? installGr3xHoldButtons({ code, patch, u32: word, sites }, snapButton ? GR3X_DOF_FUNCTION : GR3X_MACRO_FUNCTION, !!features.rearDialOff, features.fnDial ?? false) : undefined;
-  const dialEntries = features.rearDialOff ? installGr3xRearDialOff({ code, patch, u32: word, sites }, features.dialProbe === 'hold' ? 'hold' : features.dialProbe === true, holdEntries?.holdFilter)
+  const dialEntries = features.rearDialOff ? installGr3xRearDialOff({ code, patch, u32: word, sites }, features.dialProbe === 'hold' ? 'hold' : features.dialProbe === true, holdEntries?.holdFilter, features.fnDial ? GR3X_HOLD_STATE : undefined)
     : features.dialProbe ? installGr3xDialProbe({ code, patch, u32: word, sites }) : {};
   const grainEntries = features.grainTest ? (features.filmMode ? installGr3xNativeGrainTest({ code, append, patch, u32: word, sites }, features.grainTest) : fail('IIIx native grain: with the film mode')) : {};
   const macroPress = macroButton ? installGr3xMacroPress({ code, append, patch, read, u32: word, sites }) : 0;

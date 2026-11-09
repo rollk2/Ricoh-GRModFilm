@@ -3597,3 +3597,14 @@ Certitude : **statique** (lecture du code), sauf mention.
   `0x532a0d70` poste chacun (`0x532289a0`).
 - **T-FN3** : T-FN2, plus le nombre d'événements de chaque action de molette (80 + n) noté avant le
   poste, aux quatre appels (24, 25, 9, 10) : pour comparer l'envoi et la molette avant seule.
+- **Résultat T-FN3 (2026-11-09)** : Fn + molette avant « 22 09 74 81 71 23 » : l'action 0x24 poste
+  bien un événement (81), comme la molette avant seule (« 09 81 », qui change l'ouverture), mais la
+  vitesse ne change pas. Hypothèses : le traitement de l'événement relit l'événement brut (molette
+  avant), ou refuse pendant que Fn est physiquement tenu.
+- **T-FN4** : la réécriture se fait à la source : dans la traduction (`0x532231e4`, premier
+  `ldrh r3,[r1]`), pendant que l'appui de Fn est retenu, un événement brut de la molette avant
+  (`0x22` / `0x23`) devient celui de la molette arrière (`0x24` / `0x25`), dans `r3` et dans
+  l'événement (en RAM) ; « Hold exécuté » mis, le relâchement de Fn ne fait rien. Le filtre de la
+  molette coupée laisse passer 24 / 25 pendant ce temps. Relevés T-FN2 / T-FN3 gardés. Vérifié :
+  `hold_probe.py` (traduction avec et sans Fn, autres types, filtre de la molette, relâchement),
+  autres sondes, tests.

@@ -84,15 +84,31 @@ def verify(data,manifest):
         for dt in (0,HOLD_MS+500):
             env['ms']=1000;assert key(22)==(1,[]);env['ms']=1000+dt
             assert key(23)==('on',[(THIS,22,7)]),dt;count('Fn short, Hold Off')
-        # Fn held + the front dial: the rear dial's codes; Fn's release then kept back.
+        # Fn held + the front dial: the events' translation (0x532231e4) makes its turns (types 0x22,
+        # 0x23) the rear dial's (0x24, 0x25), in r3 and in the event, and sets « hold run ».
+        EV=0x63047800
+        def xlat(t,state):
+            c.mem_write(STATE_RAM,bytes(state));c.mem_write(EV,struct.pack('<H',t))
+            regs=[0x4000+j for j in range(13)];regs[1]=EV
+            for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
+            c.reg_write(reg.UC_ARM_REG_SP,STACK)
+            h=c.hook_add(UC_HOOK_CODE,lambda u,a_,s_,d:u.emu_stop() if a_==0x532231e8 else None)
+            c.emu_start(0x532231e4,0x532231e8,count=200);c.hook_del(h)
+            got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%j)) for j in range(13)]
+            assert c.reg_read(reg.UC_ARM_REG_PC)==0x532231e8 and c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[:3]==regs[:3] and got[4:12]==regs[4:12]
+            return got[3],struct.unpack('<H',bytes(c.mem_read(EV,2)))[0],list(c.mem_read(STATE_RAM,2))
+        for t in (0x22,0x23):
+            assert xlat(t,[22,0])==(t+2,t+2,[22,1]);count('front dial as rear, Fn held')
+            for st in ([0,0],[26,0],[23,0]):assert xlat(t,st)==(t,t,st);count('front dial, Fn not held')
+        for t in (0x1b,0x21,0x24,0x25,0x26,0x10):assert xlat(t,[22,0])==(t,t,[22,0]);count('other events')
+        # The rear dial's codes go on while Fn is held (they are the front dial's), else ignored.
         for holds in ((0,0,0,0,0),(44,0,0,0,0)):
             setup(holds);env['ms']=1000
             assert key(22)==(1,[])
-            RING=0x558043a8;c.mem_write(RING,bytes(8))
-            assert key(9)==(1,[(THIS,24,None)]) and key(10)==(1,[(THIS,25,None)]) and key(9)==(1,[(THIS,24,None)]),calls;count('Fn + front dial')
-            if manifest.get('fnDial')=='diag':
-                assert list(c.mem_read(RING,8))==[9,71,10,71,9,71,0,6],list(c.mem_read(RING,8));count('dial noted')
+            assert key(24)==('on',[]) and key(25)==('on',[]);count('rear codes, Fn held')
+            c.mem_write(STATE_RAM+1,bytes([1]))
             env['ms']=5000;assert key(23)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==0;count('Fn released after the dial')
+            assert key(24)==(1,[]) and key(25)==(1,[]);count('rear codes, Fn not held')
             assert key(9)==('on',[]) and key(10)==('on',[]);count('front dial alone')
         if manifest.get('fnDial')=='diag':
             # The viewfinder's cases 24, 25: noted 74, 75, then the case, registers kept.
