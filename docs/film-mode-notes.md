@@ -3508,3 +3508,21 @@ Certitude : **statique** (lecture du code), sauf mention.
   table des fractions `0x53d63418`, chaîne « 1/%d » `0x53b22228`).
 - Exposition : `StartStillExpopsureProcess` (`0x534323d0`) lit un temps 64 bits en
   `[[objet + 0x14]] + 0xa58` (« expTimeInMs »).
+- **Consommateurs de la SR vivante** (suite, statique) : l'octet vivant est en `+0x7d3` de
+  l'enregistrement vivant (`[[valeurs + 0x518]]`), rangé par `0x5355b964` (qui publie l'événement
+  `0xed`), lu par un seul accesseur, `0x5354ae2c(valeurs)`. Ses quatre appels donnent la valeur à
+  **`DspStateService::SetStatus`** (`0x535781c4`, chaîne `src/DspStateService.cpp`), élément 8 :
+  - `0x53497bc4` : à l'événement `0x82` (**changement de la vitesse vivante**), le gestionnaire
+    `0x53497b08` envoie la vitesse (élément `0x15`, Tv × 8), puis la SR (élément 8) ;
+  - `0x53497c24` : à l'événement `0xed` (changement de la SR) ;
+  - `0x535785b4` : envoi complet de l'état ; `0x5349786c` : copie de l'état de prise de vue.
+  Le boîtier renvoie donc lui-même la SR à chaque changement de vitesse.
+- **T-SR1** (`srSpeed: { seconds: 1/20, diag: true }`, `sr-speed.ts`) : les quatre appels passent
+  par notre accesseur : la SR vivante, puis, si elle est On, la vitesse vivante (`0x53548930`) ; plus
+  rapide que le seuil, 0. Frontière un sixième d'IL au-dessus du seuil (1/20 : Tv 4,5), comparaison
+  sur les bits du flottant (entiers signés). Le menu, ses écritures et la valeur vivante ne changent
+  pas. Diagnostic : l'anneau note chaque changement (60 SR Off, 61 On, 62 Off par la vitesse ; octet
+  `0x558043b6`, libre, après le nom du dossier du rouleau). Instruction `vmov` (cœur ↔ simple
+  précision) ajoutée à l'assembleur. Vérifié : `sr_speed_probe.py` (4 appels × 3 valeurs SR × 12
+  vitesses, anneau ; échoue avec un autre seuil ou sans le diagnostic annoncé), toutes les autres
+  sondes sur le même build, tests `gr3x-sr-speed.test.ts`.
