@@ -3526,3 +3526,12 @@ Certitude : **statique** (lecture du code), sauf mention.
   précision) ajoutée à l'assembleur. Vérifié : `sr_speed_probe.py` (4 appels × 3 valeurs SR × 12
   vitesses, anneau ; échoue avec un autre seuil ou sans le diagnostic annoncé), toutes les autres
   sondes sur le même build, tests `gr3x-sr-speed.test.ts`.
+- **Résultat T-SR1 sur le boîtier (2026-11-09) : validé.** Mode Tv (en M la vitesse se règle à la
+  molette arrière, coupée par `rearDialOff`) : 1/15 → 61, 1/40 → 62, Shake Reduction Off → 60,
+  mode P scène sombre / claire → 61 / 62 selon la vitesse (« 62 61 62 60 62 61 62 », puis
+  « 61 62 60 62 61 62 61 »). **Test physique confirmé** par l'utilisateur : à 1/20 (SR active) les
+  photos sont plus nettes qu'à 1/25 (SR coupée), avec le même mouvement : le boîtier applique bien
+  la SR envoyée à `DspStateService`. Réglages masqués : disparus. Un petit bogue de lecture reste,
+  à traiter plus tard.
+- Conséquence relevée : avec la molette arrière coupée, le mode M ne permet plus de régler la
+  vitesse. Demande : Fn maintenu + molette avant pour remplacer la molette arrière.
