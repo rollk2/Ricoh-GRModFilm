@@ -3608,3 +3608,13 @@ Certitude : **statique** (lecture du code), sauf mention.
   molette coupée laisse passer 24 / 25 pendant ce temps. Relevés T-FN2 / T-FN3 gardés. Vérifié :
   `hold_probe.py` (traduction avec et sans Fn, autres types, filtre de la molette, relâchement),
   autres sondes, tests.
+- **Résultat T-FN4 (2026-11-09) : validé en Snap Distance Priority** : Fn + molette avant change le
+  DOF. En M, la vitesse se règle au levier ADJ, pas à la molette arrière (méprise de départ) : les
+  essais T-FN1 à T-FN3 en M ne pouvaient rien montrer. Décision : Snap DOF retiré ; Fn + molette
+  avant remplace la molette arrière coupée.
+- Constat de l'utilisateur : Fn réglé sur AE ne marche plus en M. Cause : depuis T-FN1 l'appui de Fn
+  était retenu jusqu'au relâchement même sans fonction Hold (un verrouillage tant que Fn est enfoncé
+  ne peut pas tenir). Avec la réécriture de T-FN4, retenir Fn n'est plus nécessaire.
+- **T-FN5** : Fn sans fonction Hold : appui et relâchement passent tout de suite, l'état note
+  seulement Fn enfoncé (22) jusqu'au relâchement ; avec une fonction Hold, Fn reste retenu comme en
+  0.9.3. Build sans relevé, sans Snap DOF. Vérifié : `hold_probe.py`, autres sondes, tests.
