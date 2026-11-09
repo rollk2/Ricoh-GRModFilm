@@ -3480,3 +3480,7 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   `0x535a890c` enveloppés : création, puis dossier et numéro de la requête, résultat rendu) ;
   diagnostic : 41 retenue, 44 création sans valeurs valables. Vérifié : `play_last_probe.py`
   (deux appels, résultats 0 et 1), `film_roll_check.py`, `grain_tag_probe.py`.
+- **Résultat T-PLAY3d (2026-11-09) : correctif validé sur le boîtier.** Étape 5 : la photo de P.
+  Anneau « 42 43 43 41 42 43 43 » : la photo de P retenue (41), la lecture placée dessus à
+  l'ouverture suivante (42), aucun repli (pas de 81 ni de 77), les ouvertures suivantes inchangées.
+  Le build publié prend `playLast` (sans relevés), envoyé par l'application avec le mode pellicule.
