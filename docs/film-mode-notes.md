@@ -3289,3 +3289,11 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **Résultat T-HOLD3 (2026-11-09) : validé par l'utilisateur** (« C'est parfait ») : Hold Fn
   chronométré (600 ms, au relâchement), Hold des touches du pavé, lignes rangées par paires,
   No movie.
+
+## Release 0.9.3, étape D (2026-11-09)
+
+- Version 0.9.3 (package.json), README : grain, Snap DOF, lignes Hold, listes Wireless complètes,
+  molette arrière désactivable. Contenu : tout ce qui a été validé sur le boîtier depuis la 0.9.2.
+- **0.9.3-RC1** construit par le moteur de l'application avec les options qu'elle envoie (mode
+  pellicule : WB, Macro, Snap DOF, Hold, grain ; No movie et Rear dial off cochés ; 3 films, XPan) :
+  autocontrôle complet vrai, reconnu et reconstruit à l'octet près par l'inspection.
