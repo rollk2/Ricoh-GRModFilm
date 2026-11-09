@@ -46,7 +46,7 @@ import { installGr3xDialProbe, installGr3xRearDialOff } from './dial-probe';
 import { GR3X_HOLD_KEYS, gr3xHoldLineName, installGr3xHoldButtons } from './hold';
 import { installGr3xPlayProbe } from './play-probe';
 import { installGr3xPlayLast } from './play-last';
-import { installGr3xSrSpeed } from './sr-speed';
+import { GR3X_SR_SPEEDS, gr3xSrSpeedText, installGr3xSrSpeed } from './sr-speed';
 import { gr3xHiddenPlan, installGr3xHiddenAdjLists, installGr3xHiddenValues, type Gr3xHiddenSettings } from './hidden-settings';
 import { GR3X_FILM_ADVANCE_NAMES, GR3X_FILM_ROLL_MODE_NAMES, installGr3xFilmAdvanceFn, installGr3xFilmRoll, installGr3xRetakeProbe, installGr3xFilmMessage, GR3X_FILM_NEW_ROLL_NAMES, GR3X_MESSAGE_CLEAR, GR3X_CANCEL_CLEAR, GR3X_REVIEW_ARM_CLEAR, GR3X_ADVANCE_ONCE_CLEAR, GR3X_FILM_REWIND_NAMES, GR3X_FILM_REWIND_QUESTIONS, installGr3xFilmRewind, GR3X_FILM_REWIND_ID, GR3X_FOLDER_DIALOG_ID, GR3X_REWIND_MODE, GR3X_MENU_IDS, installGr3xMenuRebuild, installGr3xHideMovieTab, installGr3xBlockMovie, installGr3xHideLines, installGr3xFilmFileNames, installGr3xAfReset, installGr3xAfPointMemory, GR3X_AF_POINT_NAMES, GR3X_MEMORY_U_NAMES, GR3X_HIDDEN_LINES, GR3X_FILM_TAB_NAMES, GR3X_MOVIE_ENTRY_IMAGE, GR3X_MOVIE_TAB, GR3X_FILM_ADVANCE_ICON, GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE, GR3X_SIDE_BUTTON_TEXTS, GR3X_SIDE_BUTTON_NAMES, GR3X_ROLL_LOCKED_LINES, installGr3xRollLockAdj } from './film-roll';
 
@@ -151,8 +151,8 @@ export interface Gr3xAdjFeatures {
   playProbe?: boolean | 'ref';
   /** With the film mode: playback opens on the last picture taken (T-PLAY2, play-last.ts). */
   playLast?: boolean | 'diag';
-  /** T-SR1: SR given as Off when the shutter speed is faster than `seconds` (sr-speed.ts); `diag` notes its changes in the key ring. */
-  srSpeed?: { seconds: number; diag?: boolean };
+  /** SR by shutter speed (sr-speed.ts): T-SR1 a fixed threshold (`seconds`), else (T-SR2) Shake Reduction's list Off, 1/4000 .. 30"; `diag` notes its changes in the key ring. */
+  srSpeed?: { seconds?: number; diag?: boolean };
   /** T-GRAIN1 (test, film mode): the camera's own grain on the films, a fixed value per film (grain-native.ts). */
   grainTest?: readonly number[];
   /** Test builds: the films' Grain through the JPEG module (jpeg_grain.c, with a Size row) instead of the camera's own granulation. */
@@ -366,15 +366,17 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const iconIds = new Map([[0, 257], [3, 256]]);
   // Pictures: round 5 line name, Original, names; round 6 Type, Picture, Original, names.
   const pictureTexts = pictureCount ? (pictureSub ? 3 : 2) + pictureCount : 0;
-  const columns = m.textCount + additions.length + (softFocus ? 1 : 0) + dateTexts + pictureTexts + (filmMenu ? 1 : 0) + (filmFn ? 1 : 0) + (filmMessage ? 1 : 0) + (filmRewind ? 2 : 0) + (filmTab ? 1 : 0) + (features.afPoint ? 1 : 0) + (features.afPoint && features.memoryU ? 1 : 0) + (wbButton ? 1 : 0) + (macroButton ? 1 : 0) + (snapButton ? 1 : 0) + (holdButtons ? GR3X_HOLD_KEYS.length : 0);
-  // The Hold lines' names, the very last texts (Fn, Macro, WB, ISO, Drive).
-  const holdCount = holdButtons ? GR3X_HOLD_KEYS.length : 0, holdText = columns - holdCount;
+  const srCount = features.srSpeed && features.srSpeed.seconds === undefined ? GR3X_SR_SPEEDS.length : 0;
+  const columns = m.textCount + additions.length + (softFocus ? 1 : 0) + dateTexts + pictureTexts + (filmMenu ? 1 : 0) + (filmFn ? 1 : 0) + (filmMessage ? 1 : 0) + (filmRewind ? 2 : 0) + (filmTab ? 1 : 0) + (features.afPoint ? 1 : 0) + (features.afPoint && features.memoryU ? 1 : 0) + (wbButton ? 1 : 0) + (macroButton ? 1 : 0) + (snapButton ? 1 : 0) + (holdButtons ? GR3X_HOLD_KEYS.length : 0) + srCount;
+  // The SR speeds' texts, the very last (sr-speed.ts); before them the Hold lines' names (Fn, Macro, WB, ISO, Drive).
+  const end = columns - srCount, srText = end;
+  const holdCount = holdButtons ? GR3X_HOLD_KEYS.length : 0, holdText = end - holdCount;
   // T24-AF2: the AF Point box's name, the last added text (then Apply to U's, then WB Button's).
   const memoryU = !!(features.afPoint && features.memoryU);
   const extra = (wbButton ? 1 : 0) + (macroButton ? 1 : 0) + (snapButton ? 1 : 0) + holdCount;
   // Snap DOF's name, the very last text.
-  const dofText = columns - 1 - holdCount;
-  const wbText = columns - extra, macroText = wbText + 1, afText = columns - 1 - (memoryU ? 1 : 0) - extra, uText = columns - 1 - extra;
+  const dofText = end - 1 - holdCount;
+  const wbText = end - extra, macroText = wbText + 1, afText = end - 1 - (memoryU ? 1 : 0) - extra, uText = end - 1 - extra;
   const softText = m.textCount + additions.length, softIcon = m.iconCount + additions.length;
   // Date imprint: name, the two style names; two style icons (after the soft-focus ones).
   const dateText = softText + (softFocus ? 1 : 0), dateIcon = softIcon + (softFocus ? 1 : 0);
@@ -494,6 +496,10 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
       v.setUint32((holdText + k) * 4, append(Uint8Array.from([name.length + 1, 1, 0, 0, ...words([text])])), true);
     });
   });
+  if (srCount) GR3X_SR_SPEEDS.forEach((sec, k) => {
+    const name = gr3xSrSpeedText(sec), text = append(utf16z(name)), record = append(Uint8Array.from([name.length + 1, 1, 0, 0, ...words([text])]));
+    rows.forEach(row => new DataView(row.buffer).setUint32((srText + k) * 4, record, true));
+  });
   const messageEntries = filmMessage ? installGr3xFilmMessage({ code, sites, patch }, filmText + 2, features.filmRoll === 'end2' || features.filmRoll === 'end3' || features.filmRoll === 'clo1' || features.filmRoll === 'clo2' || features.filmRoll === 'clo3' || features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film'), features.filmRoll === 'end3' || features.filmRoll === 'clo1' || features.filmRoll === 'clo2' || features.filmRoll === 'clo3' || features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film'), features.filmRoll === 'end3', features.filmRoll === 'clo1' || features.filmRoll === 'clo2' || features.filmRoll === 'clo3' || features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film') ? (roll!.entries as Record<string, number>).filmRollCheck : 0, features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film'), features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film')) : {};
   const rewindEntries = filmRewind ? { ...installGr3xFilmRewind({ code, sites, patch }, filmText + 4, filmText + 2, roll!.entries.filmRollRewind),
     ...(features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film') ? installGr3xMenuRebuild({ code, sites, patch }) : {}),
@@ -523,10 +529,10 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     ...(snapStep ? { snap: { function: GR3X_DOF_FUNCTION, text: dofText, icon: GR3X_DOF_ICON, press: snapStep } } : {}) } : undefined, rollLock, hiddenPlan?.fns ?? []) : {};
   // T-LOCK2: the ADJ lever's locked functions as Off while a roll is loaded; T-HIDE1: hidden ones always.
   if (features.playProbe && (features.grainTag !== 'keys' || features.dialProbe)) fail('IIIx play probe: with the keys tag, without the dial probe');
-  if (features.playLast && (features.playProbe || features.dialProbe || (features.grainTag === 'keys') !== (features.playLast === 'diag' || !!features.srSpeed?.diag) || !(features.filmRoll === 'film' || features.filmRoll === 'name2'))) fail('IIIx play last: with the film mode; its diagnostic with the keys tag, without the other key probes');
+  if (features.playLast && ((features.playLast === 'diag' && (features.playProbe || features.dialProbe || features.grainTag !== 'keys')) || !(features.filmRoll === 'film' || features.filmRoll === 'name2'))) fail('IIIx play last: with the film mode; its diagnostic with the keys tag, without the other key probes');
   const playLastEntries = features.playLast ? installGr3xPlayLast({ code, patch, u32: word, sites }, features.playLast === 'diag') : {};
   if (features.srSpeed?.diag && (features.playProbe || features.dialProbe || features.playLast === 'diag' || features.grainTag !== 'keys')) fail('IIIx SR speed: its diagnostic with the keys tag, without the other key probes');
-  const srSpeedEntries = features.srSpeed ? installGr3xSrSpeed({ code, patch, u32: word, sites }, features.srSpeed.seconds, !!features.srSpeed.diag) : {};
+  const srSpeedEntries = features.srSpeed ? installGr3xSrSpeed({ code, append, patch, u32: word, sites }, features.srSpeed.seconds, !!features.srSpeed.diag, srText) : {};
   const playEntries = features.playProbe ? installGr3xPlayProbe({ code, patch, u32: word, sites }, features.playProbe === 'ref') : {};
   const rollLockAdj = rollLock || hiddenPlan?.adj.length ? installGr3xRollLockAdj({ code, sites, patch }, rollLock, hiddenPlan?.adj ?? []) : {};
   // T-HIDE1: the hidden ADJ functions out of ADJ Mode Setting's lists (after the soft focus's edit), their values at each load.

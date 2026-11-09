@@ -3535,3 +3535,29 @@ Certitude : **statique** (lecture du code), sauf mention.
   à traiter plus tard.
 - Conséquence relevée : avec la molette arrière coupée, le mode M ne permet plus de régler la
   vitesse. Demande : Fn maintenu + molette avant pour remplacer la molette arrière.
+
+### T-SR2 : le seuil dans la liste de Shake Reduction (2026-11-09)
+
+- Décision de l'utilisateur : la ligne **Shake Reduction** porte le seuil elle-même : Off, 1/4000
+  (toujours active), 1/3200 … 30" (53 valeurs, tous les tiers d'IL du boîtier). Au-dessus du seuil la
+  SR est coupée, en dessous elle est active. Fn + molette avant remplacera Snap DOF si cela marche.
+- Plus aucun octet de bourrage libre dans l'enregistrement (`settings_layout_probe.py` : les 25
+  libres sont pris ; `0x93b` écarté, `0xb26` / `0xb27` hors recopie des BOX). Le seuil est donc
+  rangé dans **l'octet de Shake Reduction lui-même** (`+0x4f6`) : 0 Off, 1 = 1/4000 (le On d'usine :
+  rien ne change pour une BOX jamais réglée), 1 + k la vitesse k. Il suit les BOX et P, Av, Tv, M
+  comme Shake Reduction. Lecteurs de l'octet dans l'enregistrement : l'accesseur `0x53245378`
+  (bouton SR `0x53227550`, panneau `0x5328b010`, icônes `0x53197bb8`, `0x532a4f18`, `0x533676ac`), la
+  valeur vivante `0x53271dd8`, l'écriture `0x532731d4`, les recopies `0x53248b60`, `0x5326db68`.
+  Les deux premiers rendent désormais 1 pour toute vitesse ; les recopies gardent l'octet.
+- Liste (enregistrement 42 : fonctions `0x531b3af4` compte, `0x531b5258` dessin, `0x531b6d84`
+  écriture, `0x531b84dc` valeur courante, référencées par lui seul) : 53 valeurs ; dessin Off avec
+  l'icône `0x1ae` et le texte 2, une vitesse avec l'icône On `0x1b0` et son texte (52 textes ajoutés
+  dans les 21 langues) ; écriture par `0x532731d4` (Off puis la valeur : la valeur vivante change,
+  l'état du DSP est renvoyé). Le bouton SR fait vitesse → Off → 1/4000.
+- Correctif trouvé par la sonde : pour un seuil plus lent qu'une seconde (Tv négatif), la
+  comparaison des bits s'inversait. Clé d'ordre : bits négatifs inversés (`x ^ 0x7fffffff`).
+- Build T-SR2 : celui de T-SR1 sans relevé SR, avec la liste, plus la sonde des touches
+  (`dialProbe: 'hold'`, molette arrière coupée) pour relever les codes de la molette avant avec Fn
+  maintenu. Vérifié : `sr_speed_probe.py` (seuils de toute la liste, sans enregistrement, accesseur,
+  valeur vivante avec et sans vidéo, compte, dessin des 53 valeurs, textes des 21 langues, écriture,
+  valeur courante), toutes les autres sondes, tests.
