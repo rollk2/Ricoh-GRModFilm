@@ -3484,3 +3484,27 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
   Anneau « 42 43 43 41 42 43 43 » : la photo de P retenue (41), la lecture placée dessus à
   l'ouverture suivante (42), aucun repli (pas de 81 ni de 77), les ouvertures suivantes inchangées.
   Le build publié prend `playLast` (sans relevés), envoyé par l'application avec le mode pellicule.
+
+## Stabilisation selon la vitesse : recherche statique (2026-11-09)
+
+Certitude : **statique** (lecture du code), sauf mention.
+
+- Réglages (enregistrement des réglages, `[objet + 4]`) :
+  - **Shake Reduction** : octet `+0x4f6`, 1 On, 0 Off (lecture `0x53245378`, écriture `0x532731d4`) ;
+  - **Auto SR Off** : octet `+0x4f8`, 0 On, 1 Off (lecture `0x53245384`, écriture `0x5327321c`) ;
+    lignes de menu `0x0200007b` et `0x0200007c` (enregistrements de liste 42 et 43).
+- **Valeur SR effective `0x53271dc4(objet)`** : `+0x4f6`, mise à 0 si `+0x44` non nul (vidéo), ou si
+  le mode d'entraînement (`0x53271738` : `+0x484`, ou `+0x486` / `+0x4a8` selon `+0x472`) n'est ni 0
+  ni 5 (retardateur, télécommande) et que `+0x4f8` vaut 0. C'est la seule fonction qui la calcule ;
+  appelée par `0x532731a0` et par la mise à jour complète `0x53272034` (rangée en `+0x10f` d'un
+  enregistrement de commande).
+- **Envoi `0x532731a0(objet)`** : `0x5354cdf8(*0x53525d5c(), valeur)`, propriété vivante **`0xed`**
+  (`0x5354b564(valeurs, 1, 0xed, &octet, 0)`). Les deux écritures du menu l'appellent après avoir
+  rangé leur octet.
+- **Vitesse courante** : `0x53548930(*0x53525d5c())` rend en `s0` un flottant, le **Tv APEX**
+  (log2 de 1/temps : 1/60 s ≈ 5,91 ; 1/30 ≈ 4,91 ; 1/125 ≈ 6,97), lu sous verrou en
+  `[[valeurs + 0x518]] + 0x4bc`. Preuve : l'affichage des infos de prise de vue (`0x531a2124`) le
+  passe à `0x532aae20`, qui le formate par `0x536c07a8` (index = arrondi de Tv × 8 + 0x44 dans la
+  table des fractions `0x53d63418`, chaîne « 1/%d » `0x53b22228`).
+- Exposition : `StartStillExpopsureProcess` (`0x534323d0`) lit un temps 64 bits en
+  `[[objet + 0x14]] + 0xa58` (« expTimeInMs »).
