@@ -105,6 +105,20 @@ def verify(data,manifest):
                 c.emu_start(stub,target,count=200);c.hook_del(h)
                 got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%j)) for j in range(13)]
                 assert c.reg_read(reg.UC_ARM_REG_PC)==target and got==regs and c.reg_read(reg.UC_ARM_REG_SP)==STACK and list(c.mem_read(0x558043a8,2))==[74+i,0];count('case noted')
+            # The dial actions' events counted (80 + n, 19 at most) before the poster, registers kept.
+            for at in (0x5320d8c4,0x5320d834,0x5320e3ac,0x5320e31c):
+                w=struct.unpack('<I',bytes(c.mem_read(at,4)))[0];d_=w&0xffffff;d_=d_-0x1000000 if d_&0x800000 else d_;stub=at+8+4*d_
+                for n,vec in ((0,True),(0,False),(1,True),(3,True),(25,True)):
+                    BUF,VEC=0x63047000,0x63047100
+                    c.mem_write(BUF,struct.pack('<I',VEC if vec else 0));c.mem_write(VEC,struct.pack('<II',0x63048000,0x63048000+12*n))
+                    c.mem_write(0x558043a8,bytes(8));regs=[0x3000+j for j in range(13)];regs[1]=BUF
+                    for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
+                    c.reg_write(reg.UC_ARM_REG_SP,STACK);c.reg_write(reg.UC_ARM_REG_LR,0x5a5a5a5a)
+                    h=c.hook_add(UC_HOOK_CODE,lambda u,a,s_,d:u.emu_stop() if a==0x532a0d70 else None)
+                    c.emu_start(stub,0x532a0d70,count=500);c.hook_del(h)
+                    got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%j)) for j in range(13)]
+                    assert c.reg_read(reg.UC_ARM_REG_PC)==0x532a0d70 and got==regs and c.reg_read(reg.UC_ARM_REG_SP)==STACK and c.reg_read(reg.UC_ARM_REG_LR)==0x5a5a5a5a
+                    assert list(c.mem_read(0x558043a8,2))==[80+min(n,19),0],(hex(at),n,list(c.mem_read(0x558043a8,2)));count('events counted')
         env['ctrl']=0x02000104;setup()
         assert key(22)==('on',[]) and key(9)==('on',[]) and key(23)==('on',[]);count('Fn + dial, not viewfinder');env['ctrl']=0x08000000
     else:

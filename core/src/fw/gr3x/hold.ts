@@ -60,6 +60,8 @@ export const GR3X_HOLD_STATE = 0x558043be;
 export const GR3X_FRONT_DIAL_KEYS = [9, 10] as const, GR3X_REAR_DIAL_CODES = [24, 25] as const;
 /** The viewfinder's key handler's jump table (0x5320c844: entry key - 1). */
 export const GR3X_VIEW_KEY_TABLE = 0x5320c874;
+/** Its dial cases' calls of the action poster 0x532a0d70: 24, 25, 9, 10. */
+export const GR3X_DIAL_POSTS = [0x5320d8c4, 0x5320d834, 0x5320e3ac, 0x5320e31c] as const;
 const RECORD_POINTER = 0x55063f34;
 const APP = 0x5320ad88, CONTROLLERS = 0x5320aefc, STATE = 0x5320b61c, AF_MOVE = 0x532a441c;
 
@@ -134,7 +136,18 @@ export function installGr3xHoldButtons(p: Gr3xHoldProgram, max: number, entryPat
     p.patch(entry, target, stub, `Fn + front dial diagnostic: the viewfinder's case ${k} noted`);
     return stub;
   });
-  return { holdFilter: filter, holdOrig: orig, fnDialCases: cases[0] };
+  // T-FN3: the events each dial action posts (0x532a0d70(model, list): the list's vector { begin,
+  // end } of 12-byte events), noted 80 + their number (19 at most) at the four dial cases' calls
+  // (24, 25, 9, 10), before the call.
+  const POST = 0x532a0d70;
+  const count = p.code(`push {r0,r1,r2,r3,ip,lr};mov r2,#0;ldr r3,[r1];cmp r3,#0;beq none;ldr r2,[r3,#4];ldr r3,[r3];sub r2,r2,r3;
+    mov r3,#0;div:cmp r2,#12;blo none2;sub r2,r2,#12;add r3,r3,#1;b div;none2:mov r2,r3;none:cmp r2,#19;movhi r2,#19;add r1,r2,#80;${gr3xRingNote}
+    pop {r0,r1,r2,r3,ip,lr};b #${POST};`);
+  for (const at of GR3X_DIAL_POSTS) {
+    if (p.u32(at) !== branchWord(at, POST, 14, true)) fail('dial action call');
+    p.patch(at, branchWord(at, POST, 14, true), branchWord(at, count, 14, true), 'Fn + front dial diagnostic: the dial action\'s events counted');
+  }
+  return { holdFilter: filter, holdOrig: orig, fnDialCases: cases[0], fnDialCount: count };
 }
 
 /** The Hold lines' names in each text row (ja en fr de es pt it nl da sv fi pl cs hu tr el ru ko

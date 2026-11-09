@@ -3589,3 +3589,11 @@ Certitude : **statique** (lecture du code), sauf mention.
 - **T-FN2** (`fnDial: 'diag'`) : T-FN1, plus l'anneau note le retour d'OnEvent après l'envoi (70 + 0
   ou 1) et l'arrivée dans les cas 24 / 25 du gestionnaire de la visée (74, 75 : entrées de la table
   détournées). Vérifié : `hold_probe.py` (notes, registres gardés), autres sondes, tests.
+- **Résultat T-FN2 (2026-11-09)** : « 22 09 74 71 23 » : le code 24 envoyé arrive dans le cas 24
+  du gestionnaire de la visée (74), OnEvent rend 1 (71), mais la vitesse ne change pas.
+- Statique : la traduction (`0x532231e4`) donne 9 / 10 pour les types bruts `0x22` / `0x23`
+  (molette avant) et 24 / 25 pour `0x24` / `0x25` (molette arrière), sans autre détail ; le cas
+  construit la liste d'événements de l'action (méthode 8 du singleton `0x5320b55c`, action 0x24) et
+  `0x532a0d70` poste chacun (`0x532289a0`).
+- **T-FN3** : T-FN2, plus le nombre d'événements de chaque action de molette (80 + n) noté avant le
+  poste, aux quatre appels (24, 25, 9, 10) : pour comparer l'envoi et la molette avant seule.
