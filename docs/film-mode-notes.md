@@ -3905,3 +3905,52 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   l'utilisateur, verrou, lecture, stabilisation, molette coupée avec Fn + molette avant) : auto-contrôle
   et inspection vérifiés ; la 0.9.4-RC1 reste reconnue. Sondes sur un build équivalent (dont
   `format_probe.py`), tests (370, les 5 échecs connus des données privées).
+
+## Rewind Film sur un bouton (2026-11-10, T-RWB1)
+
+- Demande : « Rewind Film » assignable dans Fn Button Settings, avec une confirmation. Décision :
+  double appui ; sur le boîtier, l'écran de message prend les touches pendant qu'il est affiché,
+  d'où : appui sur le bouton → la question de Rewind Film, ~4 s ; **OK pendant ce temps → le rouleau
+  est rembobiné**, puis « New roll loaded. » ; sans OK, rien.
+- Ouvrir l'écran Execute / Cancel du menu depuis un bouton : non trouvé (les fonctions ouvrent leurs
+  écrans par des événements propres, 0x93 pour White Balance) ; écarté.
+- **T-RWB1** (`rewindButton`) : fonction 46 (la place de Snap DOF, retiré en 0.9.4), texte « Rewind
+  Film » (celui de la ligne du menu), icône de Film Advance. Appui (U, Film Roll Mode, rouleau
+  entamé) : octet du message à 2, étape 0, passage à l'écran de message `0x08000007`
+  (`0x5316c9d8(gestionnaire, id, courant)`, comme l'action d'ouverture `0x53226738`). Texte : 2 → la
+  question (texte du film + 4). Minuterie : 4 s pour la question. Retour de l'écran de message par
+  OK avec 2 : `filmRollRewind` ; rembobiné → octet 1, l'écran de message rouvert sur « New roll
+  loaded. » ; sinon effacé. Minuterie seule : effacé, rien. Moteur : mis avec le mode pellicule
+  (WB et Macro), enregistré dans la recette (`rewindButton`). Vérifié : `rewind_button_probe.py`
+  (appui dans 25 cas, textes, OK avec et sans rembobinage, minuterie), toutes les autres sondes
+  (mises à jour pour la fonction 46), tests. La 0.9.5-RC1 reste reconnue.
+- **Résultat T-RWB1 (2026-11-10) : la fonction marche** (question, OK rembobine et affiche « New roll
+  loaded. », sans OK rien ; hors U, rien). Demandes : MENU pendant la question doit annuler et revenir
+  à la visée (il ouvrait le menu) ; afficher « MENU : Cancel » dans la question ; ranger les
+  fonctions de GR Mod Film groupées en fin de liste.
+- **T-RWB2** : (1) la question du bouton est un texte à part (celui de l'écran du menu reste
+  inchangé) : la question de Rewind Film, puis « MENU: » et le « Cancel » du boîtier dans chaque
+  langue (texte `0x2aa`, à côté d'Execute `0x2a9`) ; (2) depuis l'écran de message, pendant la
+  question, tout autre écran demandé (MENU ouvre le menu) devient la visée, la question effacée ;
+  (3) ordre des fonctions ajoutées : Film Advance, Rewind Film, White Balance, Macro Mode (avec Snap
+  DOF, l'ancien ordre est gardé : les builds 0.9.3 se reconstruisent à l'identique). Vérifié :
+  `rewind_button_probe.py` (21 langues, MENU), `film_roll_check.py` (ordre), toutes les autres
+  sondes, tests. La 0.9.5-RC1 reste reconnue.
+- **Résultat T-RWB2 (2026-11-10)** : MENU annule et revient à la visée ; OK rembobine ; ordre des
+  fonctions juste. Mais « MENU: Cancel » n'apparaît pas : la question avait quatre lignes, l'écran de
+  message n'en montre que trois (certitude moyenne).
+- **T-RWB3** : la question du bouton en trois lignes : la première ligne de la question de Rewind
+  Film, « OK: » et l'Execute du boîtier (`0x2a9`), « MENU: » et son Cancel (`0x2aa`), dans chaque
+  langue (« Rewind the film? / OK: Execute / MENU: Cancel »). Vérifié : `rewind_button_probe.py`
+  (21 langues, trois lignes), autres sondes, tests.
+- **Résultat T-RWB3 (2026-11-10)** : l'écran de message n'affiche que la **première ligne** du texte
+  (photo de l'utilisateur : « Rewind the film? » et le bouton OK). Décision : pas de texte pour MENU ;
+  MENU garde l'annulation (retour à la visée). La question redevient celle de Rewind Film (T-RWB1) ;
+  le texte à part de T-RWB2 / T-RWB3 est retiré.
+
+## Release 0.9.6 (2026-11-10)
+
+- Contenu : Rewind Film sur un bouton (question, OK rembobine, MENU ou l'attente annule), fonctions de
+  GR Mod Film groupées en fin de liste (Film Advance, Rewind Film, White Balance, Macro Mode).
+- 0.9.6-RC1 construite par le moteur : auto-contrôle et inspection vérifiés ; la 0.9.5-RC1 reste
+  reconnue. Sondes sur un build équivalent (10, dont `rewind_button_probe.py`), tests (371).

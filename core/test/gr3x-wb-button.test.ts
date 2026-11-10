@@ -99,6 +99,14 @@ describe.skipIf(!input)('GR III WB button', () => {
     for (const k of ['holdFilter', 'holdOrig', 'hold0ListSet', 'hold4ListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, holdButtons: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
+  it('adds Rewind Film as button function 46, with the Macro button and without Snap DOF', async () => {
+    const plain = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true });
+    const rwb = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, rewindButton: true });
+    expect(rwb).toMatchObject({ rewindButton: true });
+    expect((rwb.entries as Record<string, number>).rewindPress).toBeGreaterThan(0x53000000);
+    await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, snapDof: true, rewindButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
+    await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, rewindButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
+  }, 240000);
   it('adds Fn + the front dial to the Hold buttons\' filter, with the rear dial off only', async () => {
     const hold = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true });
     const dial = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true, fnDial: true });
