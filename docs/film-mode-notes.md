@@ -3826,3 +3826,5 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   2. **Le grain logiciel** de GR Mod Film (`grainSoftware`, `jpeg_grain.c`, avec une ligne Size),
      déjà construit en T-GRAIN5 / T-GRAIN6 et écarté pour sa lenteur : la taille y existe ; à
      reconsidérer seulement si la lenteur est acceptable pour une « grosse » taille.
+
+- Décisions du 2026-11-10 sur le travail de nuit : ADJ / touches fermé (rien à faire) ; crop 40 mm documenté et fermé ; taille du grain fermée ; dust removal : un menu qui affiche la carte des poussières puis lance un dust removal (V2) ; T-SR3 en test sur le boîtier.

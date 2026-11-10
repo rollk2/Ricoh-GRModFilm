@@ -151,22 +151,22 @@ Décisions du 2026-11-10.
 
 ### Finitions de la v1
 1. Bogue de lecture restant (signalé avec la 0.9.4-RC1) : à décrire par l'utilisateur puis à corriger.
-2. Icône SR de l'écran de prise de vue : doit suivre la stabilisation selon la vitesse (SR affiché coupé au-dessus du seuil). Essai fait (choix de l'image `0x533676ac` et surveillance des réglages `0x532a4f18` passés par la vitesse, T-FN1 à T-FN5) : sans effet sur le boîtier, option `icon` gardée hors release.
-3. Uniformiser les fonctions du levier ADJ et celles des touches, fonction par fonction (ajout de fiches ADJ si besoin, comme le flou de GR Mod). Le levier ADJ a sa propre liste de 20 fonctions (0 Off, 1 Focus, 2 Snap Focus Distance, 3 File Format, 4 Aspect Ratio, 5 JPEG Recorded Pixels, 6 AE Metering, 7 ISO, 8 Flash Mode, 9 Flash Exp. Comp. (flou de GR Mod en round 10), 0x0a Drive, 0x0b Self-timer, 0x0c Image Control, 0x0d One Push AE, 0x0e Outdoor View, 0x0f Framerate, 0x10 Crop, 0x11 Touch AF, 0x12 Snap Distance Priority, 0x13 GF-2) : chaque case ADJ est un réglage à valeurs qu'on fait défiler, alors qu'une fonction de touche est une action.
+2. Icône SR de l'écran de prise de vue : doit suivre la stabilisation selon la vitesse (SR affiché coupé au-dessus du seuil). Le vrai choix de l'icône est trouvé (`0x532a9ae0`, appelé en `0x53170e30`) ; **build T-SR3 en test** (2026-11-10). L'essai de T-FN1 à T-FN5 visait une commande de la console de débogage.
+3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
 
 ### Mode pellicule
 4. Reprendre une surimpression après extinction et rallumage (réinjection de l'image, probablement via le développement RAW intégré).
 5. Vues bonus en fin de rouleau (37/36) : en réserve, pas prioritaire.
 
 ### Rendu
-6. Crop 40 mm en plus des crops existants (GR III, 28 mm natif).
-7. Grain : taille réglable en plus de l'intensité (Off / 1 / 2 / 3), sur le modèle du Grain Effect de Fujifilm.
+6. ~~Crop 40 mm~~ : **documenté et fermé le 2026-11-10.** Le crop natif est un flottant (1,25 / 1,7857 / 1,0) comparé à ces valeurs exactes en une dizaine d'endroits (un pointeur nul pour une autre valeur) : une quatrième valeur native est risquée. Voie possible si on rouvre : un format de GR Mod (cadre 3:2 réduit à 70 %, environ 11,8 Mpx). Détail dans les notes.
+7. ~~Grain : taille réglable~~ : **fermé le 2026-11-10.** Le grain natif n'a qu'une intensité (aucun paramètre de taille) ; le grain logiciel (avec Taille) reste écarté pour sa lenteur.
 8. Filtres argentiques : fuites de lumière et pellicule périmée (l'halation existe déjà).
 
 ### V2
 9. Développement dans l'appareil : diptyque, date au tirage et planche contact, en portant sur le boîtier le moteur déjà validé sur PC (`tools/develop`). Dépend du décodeur JPEG (décision D3 de `docs/ARCHITECTURE.md`).
-10. Dust removal à la demande : déclencher la routine native de nettoyage ultrasonique (DR II) depuis une fonction de touche ou un appui long, à la rentrée de l'objectif, ou en plusieurs passes. Ne jamais modifier la fréquence ni l'amplitude de l'ultrason.
-11. Carte des poussières, sur le modèle du Dust Alert des reflex Pentax : photographier une surface claire à f/16 et afficher les taches détectées, pour vérifier l'effet du nettoyage.
+10. Dust removal et carte des poussières (décision du 2026-11-10) : **un menu** qui affiche la carte des poussières (point 11), puis lance un dust removal. Le nettoyage manuel natif passe par `0x532ae708(modèle, 1)`, comme le menu du boîtier, sans jamais modifier la fréquence ni l'amplitude de l'ultrason. Le nettoyage à la rentrée de l'objectif existe déjà (option native « à l'extinction »).
+11. Carte des poussières, sur le modèle du Dust Alert des reflex Pentax : photographier une surface claire à f/16 et afficher les taches détectées, avant le dust removal du point 10 et pour vérifier son effet. Demande l'analyse d'une image dans le boîtier (avec le décodeur JPEG de la V2).
 
 ### Après la v1 stabilisée (ambitieux, à étudier)
 12. Améliorer l'autofocus en basse lumière.
