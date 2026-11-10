@@ -3643,3 +3643,97 @@ Certitude : **statique** (lecture du code), sauf mention.
 ## Après la 0.9.4 (2026-11-10)
 
 - 0.9.4 publiée (PR #7, fusionnée). Suite décidée : bogues trouvés à l'usage ou mode lecture.
+
+## Inventaire ADJ / touches (travail de nuit, 2026-11-10)
+
+Certitude : **émulée** pour les noms (fonctions natives `0x53292ed0` et `0x53292810` exécutées,
+textes de la ligne anglaise), **statique** pour les listes (tables lues dans le firmware 2.10).
+
+### Fonctions des touches (Fn, ISO, Drive, Wireless, Hold), numéros de `0x53292ed0`
+
+| N° | Nom | ADJ équivalent |
+|---|---|---|
+| 0 | Off | 0 Off |
+| 1 | Focus | 1 Focus |
+| 2 | Set MF | aucun (action) |
+| 3 | Set Snap | aucun (action) |
+| 4 | Set Tracking AF | aucun (action) |
+| 5 | Enable AF | aucun (action ; absent des listes Wireless) |
+| 6 | AF+AE Lock | aucun (action ; absent des listes Wireless) |
+| 7 | AE Lock | aucun (action ; absent des listes Wireless) |
+| 8 | Face/Eye Detection | **aucun** (masqué par GR Mod Film au choix) |
+| 9 | Snap Focus Distance | 2 Snap Focus Distance |
+| 10 | File Format | 3 File Format |
+| 11 | JPEG → RAW | aucun (action) |
+| 12 | JPEG → RAW+ | aucun (action) |
+| 13 | Aspect Ratio | 4 Aspect Ratio |
+| 14 | Crop | 0x10 Crop |
+| 15 | JPEG Recorded Pixels | 5 JPEG Recorded Pixels |
+| 16 | Framerate | 0x0f Framerate (vidéo, dans aucune liste ADJ photo) |
+| 17 | Still/Movie | aucun (retiré avec No movie) |
+| 18 | AE Metering | 6 AE Metering |
+| 19 | ISO Setting | 7 ISO |
+| 20 | Flash Mode | 8 Flash Mode |
+| 21 | Flash Exposure Comp. | 9 Flash Exp. Comp. (le flou de GR Mod en round 10) |
+| 22 | ND Filter | aucun (GR IIIx / selon le modèle) |
+| 23 | Drive Mode | **aucun** (seul Drive, 0x0a, est sur l'ADJ) |
+| 24 | Drive | 0x0a Drive |
+| 25 | Continuous Shooting | **aucun** |
+| 26 | Self-timer | 0x0b Self-timer |
+| 27 | Image Control | 0x0c Image Control |
+| 28 | Shake Reduction | **aucun** |
+| 29 | One Push AE in M Mode | 0x0d One Push AE (absent des listes Wireless) |
+| 30 | 4-way Controller Action | aucun (action) |
+| 31 | Outdoor View Setting | 0x0e Outdoor View |
+| 32 | Wireless LAN Setting | aucun (listes Wireless seulement) |
+| 33 à 36 | Preview | aucun (33 dans la liste Wireless seulement) |
+| 37 | (sans nom) | aucun |
+| 38 | Touch AF | 0x11 Touch AF |
+| 39 | Snap Distance Priority | 0x12 Snap Distance Priority |
+| 40 | HDF | aucun (selon le modèle) |
+| 41 | GF-2 Flash Mode | 0x13 GF-2 |
+| 42 | Film Advance (GR Mod Film) | **aucun** (action) |
+| 43 | Retake (formes de test seulement) | aucun |
+| 44 | White Balance (GR Mod Film) | **aucun** |
+| 45 | Macro Mode (GR Mod Film) | **aucun** |
+| 46 | Snap DOF (0.9.3, retiré en 0.9.4) | aucun |
+
+Listes des touches : Fn / ISO / Drive / Hold, table de 36 numéros `0x53b4eb7c` (0 à 22, 39, 41,
+23 à 26, 40, 27 à 30, 38, 31), filtrée par `0x531b9410`, plus 42, 44, 45 de GR Mod Film ; Wireless
+`0x53b4ebcc` (34 numéros) et Hold Wireless `0x53b4ebf4` (32) : sans 5, 6, 7, 29.
+
+### Levier ADJ
+
+- Les **cinq cases** (ADJ Mode Setting) proposent la **même liste de 19 fonctions** (`0x53b4eba0`,
+  `0x53b5a430`, `0x53b5a404`, `0x53b58fb0`, `0x53b5a4b4` : 0, 1, 2, 3, 4, 0x10, 5, 6, 7, 8, 9, 0x12,
+  0x13, 0x0a, 0x0b, 0x0c, 0x0d, 0x11, 0x0e ; Framerate 0x0f n'y est pas).
+- **Toute fonction ADJ existe déjà côté touches.** Uniformiser revient donc à amener sur l'ADJ des
+  fonctions de touches.
+- Une fiche ADJ est un **réglage à valeurs** (table `0x53b39a14`, 20 fiches de 0x44 octets :
+  dessin de la valeur i, valeur courante, choix, nombre de valeurs). Les **actions** (AE Lock, Set
+  MF, Preview, JPEG → RAW, Film Advance…) n'ont pas de sens sur l'ADJ.
+- Contraintes connues (GR Mod, `adj-softfocus.ts`) : le constructeur parcourt exactement 0x550
+  octets (20 fiches) ; **agrandir la table a figé le GR IV**. La boucle de dessin demande les
+  valeurs jusqu'au plus grand nombre de valeurs de toutes les fiches (32 aujourd'hui). La méthode
+  sûre est de **réutiliser un numéro de fiche** existant : c'est ce qu'a fait le flou (fiche 9 en
+  round 10).
+- Numéros réutilisables : **0x0f (Framerate)** n'est dans aucune liste photo, et sa fiche ne sert
+  qu'en vidéo (gabarit vidéo fixe 0xc, 1, 6, 0xf, 0xe) : libre dès que No movie est coché. **8
+  (Flash Mode)** et **0x13 (GF-2)** seulement si l'utilisateur les masque (réglages masqués), donc
+  pas garantis.
+
+### Candidats pour l'ADJ, par intérêt
+
+| Fonction | Valeurs | Faisabilité | Remarque |
+|---|---|---|---|
+| Shake Reduction (28) | Off, vitesses | bonne : nos fonctions de liste (T-SR2) existent ; fiche 0x0f avec No movie | au plus ~30 valeurs (boucle de dessin) : une sélection, par exemple Off, 1/4000, 1/250, 1/125, 1/60, 1/30, 1/15, 1/8, 1/4, 1/2, 1" |
+| White Balance (44) | Auto, Multi Auto, Daylight… | moyenne : il faut la liste native de WB (lignes et réglage fin) | le réglage fin et la température de couleur ne tiennent pas dans une fiche |
+| Macro Mode (45) | Off / On | bonne (deux valeurs) | utile si la touche Macro sert à autre chose |
+| Continuous Shooting (25), Drive Mode (23) | — | inutile | déjà couverts par Drive (0x0a) |
+| Face/Eye Detection (8) | 3 valeurs | bonne | masqué dans le build de l'utilisateur : sans intérêt pour lui |
+| Actions (2 à 7, 11, 12, 30, 33 à 36, 42) | — | non | pas des réglages |
+
+**Recommandation** : une seule fiche nouvelle garantie (0x0f, avec No movie). La mettre sur
+**Shake Reduction** (sélection de vitesses) ; Macro Mode et White Balance seulement si l'on accepte
+de prendre une fiche masquée (8 ou 0x13) quand elle est libre, ou de tenter l'agrandissement de la
+table (risque de blocage, à essayer en dernier). À décider par l'utilisateur.
