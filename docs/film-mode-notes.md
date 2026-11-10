@@ -2507,10 +2507,11 @@ Demande de l'utilisateur : que Mode Memory puisse s'appliquer aussi aux modes U.
 
 ## Liste v2 (après la 0.9.0)
 
-- **Memory for U** : une deuxième ligne de menu ouvrant Mode Memory avec un jeu de cases propre aux
-  modes U (bits dans des octets libres à vérifier, `0x806`, `0x84a`, `0x88e`, `0x943` ; écran réutilisé
+- **Memory for U** (jamais construit ; à ne pas confondre avec la case « Apply to U modes », livrée en
+  0.9.0) : une deuxième ligne de menu ouvrant Mode Memory avec un jeu de cases propre aux
+  modes U (bits dans des octets libres à vérifier ; `0x806`, `0x84a`, `0x88e` sont pris par les lignes Hold depuis la 0.9.3, `0x943` par Apply to U ; écran réutilisé
   avec un octet de mode ; fusion en U avec échange temporaire des 24 octets de cases). 3 à 5 builds.
-- **BOX suivante** (fonction Fn, plan T25-BOX1).
+- ~~**BOX suivante**~~ (fonction Fn, plan T25-BOX1) : abandonnée le 2026-11-09.
 - Réglages ADJ supplémentaires, Image Control custom supplémentaires, palier de crop 40 mm.
 - **Bogue (moyen, non traité)** : avec No movie, le bouton Wireless affiche encore au démarrage
   l'icône de bascule photo / vidéo (signalé le 2026-11-02). **Retiré le 2026-11-09** (décision de
@@ -3297,3 +3298,344 @@ Demande : rendre la touche WB réglable dans Fn Button Settings. Tout est statiq
 - **0.9.3-RC1** construit par le moteur de l'application avec les options qu'elle envoie (mode
   pellicule : WB, Macro, Snap DOF, Hold, grain ; No movie et Rear dial off cochés ; 3 films, XPan) :
   autocontrôle complet vrai, reconnu et reconstruit à l'octet près par l'inspection.
+- **0.9.3-RC1 validé sur le boîtier ; 0.9.3 publiée (2026-11-09)** : PR rollk2/Ricoh-GRModFilm#6
+  fusionnée dans `main`, release `v0.9.3` créée par l'utilisateur dans l'interface web (le push de
+  tag est refusé depuis la session), construction verte (Windows, macOS, Linux, SHA256SUMS).
+
+## Rouleau chargé : lignes de menu verrouillées (2026-11-09, préparation)
+
+- Inventaire des onglets (build T-HOLD3, émulé ; titres par la fonction de dessin de chaque ligne,
+  `TOP_SET_TITLE 0x5339dc70`, ou par le premier texte qu'elle charge quand elle demande des objets
+  absents). Table des onglets `0x5407d3f8` ; descripteur : nombre `+0x8b`, pages `+0x80`, dessin
+  `+0x8c + 8 × ligne`, identifiant `+0x1bc + 4 × ligne`.
+- Still Image Settings (`0x53b36dec`, 38 lignes, pages 0, 8, 16, 19, 26, 31, 35) : Focus 05d, Face/Eye
+  05e, AF Assist Light 05f, Snap Focus Distance 060, Full Press Snap 061, Focus Peaking 062, AF.C 063,
+  MF Auto Magnification 065 ; Exposure Mode 066, AE Metering 067, ISO Setting 0b8, Flash Mode 0dd,
+  Program Line 068, ND Filter 069, Auto EV Compensation 06a, Link AE and AF Point 06b ; White Balance
+  04e, WB Fine-tuning 06c, AWB in Tungsten Light 06d ; Still/Movie 06e, Snap Distance Priority 06f,
+  GF-2 Flash Mode 070, Macro Mode 071, Drive Mode 00e, AA Filter Simulator 0db, HDF 13f ; File Format
+  072, Aspect Ratio 073, Crop 074, JPEG Recorded Pixels 075, Color Space 076 ; Image Control 012,
+  Peripheral Illumin. Corr. 120, D-Range Correction 0ba, Noise Reduction 0bc ; Shake Reduction 07b,
+  Auto SR Off 07c, Horizon Correction 07d (identifiants 0x02000xxx).
+- Décision de l'utilisateur : masquer, rouleau entamé, Image Control, Aspect Ratio, Crop, Drive Mode,
+  File Format, JPEG Recorded Pixels, Color Space ; garder Setup (Format, dossiers, numérotation).
+  Question ADJ / Fn : ces réglages comme Off tant que le rouleau est chargé (à étudier).
+- **T-LOCK1** (`rollLock`, `GR3X_ROLL_LOCKED_LINES` dans `film-roll.ts`) : la fonction de visibilité
+  des lignes (`linesHidden`, appel du constructeur d'onglets `0x5319a978`) masque en plus les sept
+  lignes quand un rouleau est chargé : mode U (octet de mode 1 à 6, `*0x55063f30`), Film Roll Mode
+  (bit 0 de `0x9b1`), rouleau démarré (bit 1) et compteur `0x9b2` non nul, lus dans
+  l'enregistrement en cours ; sinon la visibilité du boîtier avec ses arguments. Le menu est
+  reconstruit à chaque ouverture (T18-HIDE1) : les lignes reviennent dès le rembobinage. Aucun site
+  nouveau. Application : option envoyée avec le mode pellicule, inscrite dans la recette.
+- Vérifié : `lock_probe.py` (122 cas sur la visibilité ; menu natif : 36 lignes photo, 29 rouleau
+  chargé, autres onglets identiques), `film_roll_check.py` (mis à jour pour Snap DOF, 46, et le
+  verrou), `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
+  `grain_native_probe.py`, tests.
+- **Résultat T-LOCK1 (2026-11-09) : validé par l'utilisateur** (« Tout fonctionne »).
+- Fonctions Fn (texte `0x53292ed0` émulé, 0 à 46) : 10 File Format, 11 JPEG → RAW, 12 JPEG → RAW+,
+  13 Aspect Ratio, 14 Crop, 15 JPEG Recorded Pixels, 23 Drive Mode, 24 Drive, 25 Continuous
+  Shooting, 26 Self-timer, 27 Image Control (Color Space n'en a pas). Fonctions du levier ADJ
+  (nom `0x53292810`, 0 = Off) : 1 Focus, 2 Snap Focus Distance, 3 File Format, 4 Aspect Ratio,
+  5 JPEG Recorded Pixels, 6 AE Metering, 7 ISO, 8 Flash Mode, 9 Flash Exp. Comp. (flou en round 10),
+  0x0a Drive, 0x0b Self-timer, 0x0c Image Control, 0x0d One Push AE, 0x0e Outdoor View, 0x0f
+  Framerate, 0x10 Crop, 0x11 Touch AF, 0x12 Snap Distance Priority, 0x13 GF-2.
+- **T-LOCK2** (`rollLock`) : rouleau chargé, les fonctions 10 à 15, 23 à 25 et 27 deviennent Off en
+  tête des crochets du mode pellicule sur `GetEventCustomize` (Fn, ISO, Drive, et donc aussi les
+  lignes Hold) et `GetEventSwitchWlan` (Wireless, `ip` gardé) ; les cinq lecteurs de case ADJ
+  (`0x5324633c` + 12 i) passent par une enveloppe (premier mot) qui lit la case comme avant puis
+  rend Off (0) pour 3, 4, 5, 0x0a, 0x0c, 0x10. Self-timer reste libre. Conséquence : l'écran ADJ Mode
+  Setting montre aussi Off pour ces cases tant que le rouleau est chargé (même lecteur).
+- Vérifié : `lock_probe.py` (Fn et Wireless : 10 Off, 66 gardées ; ADJ : 30 Off, 300 gardées ;
+  registres), `film_roll_check.py` (verrou pris en compte sur ses réglages aléatoires),
+  `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
+  `grain_native_probe.py`, tests.
+- **Résultat T-LOCK2 (2026-11-09) : validé par l'utilisateur** (« Cela fonctionne parfaitement »).
+
+## Lignes masquables depuis l'application (2026-11-09, préparation)
+
+- Décisions : les 7 réglages demandés ; masqués partout (comme la vidéo) ; chaque réglage masqué
+  prend la valeur choisie dans l'application (écrite au démarrage dans l'enregistrement en cours et
+  les BOX) ; un réglage masqué quitte aussi les listes des touches et du levier ADJ.
+- Réglages (fiche de liste du menu `0x53b3c6c0` + 0x40 × n : nombre, set → table d'index en valeur
+  puis écrivain ; lecteurs `0x5324xxxx`) :
+  | Réglage | Ligne | Octet | Valeurs (ordre du menu → valeur) | Fn | ADJ |
+  |---|---|---|---|---|---|
+  | Face/Eye Detection | `0x0200005e` | `0x12c` | 3 : 0, 1, 2 (écrivain `0x53273064`) | 8 | non |
+  | AF Assist Light | `0x0200005f` | `0x12e` | 2 : 1 (On), 0 (Off) (`0x5324bbb4`) | non | non |
+  | AF.C Setting | `0x02000063` | `0x13c` | 2 : 1 Focus-priority, 2 FPS-priority (`0x5324bc68`) | non | non |
+  | MF Auto Magnification | `0x02000065` | `0x140` | 2 : 1 (On), 0 (Off) (`0x532426c0`) | non | non |
+  | Flash Mode | `0x020000dd` | `0x164` | 4 : Flash On, On + Red-eye, Slow-speed Sync, Slow Sync + Red-eye = 0..3 (fiche 12 : 2 valeurs, selon le modèle) (`0x5324beac`) | 20 | 8 |
+  | GF-2 Flash Mode | `0x02000070` | `0xb22` | 2 : 0, 1 (`0x532734ec`, publie un événement) | 41 | 0x13 |
+  | Macro Mode | `0x02000071` | `0x110` | 2 : 1 (On), 0 (Off) (`0x53273438`) | 45 (GR Mod Film) | non |
+- Note : `+0x110` est Macro Mode (ce qu'on prenait pour la priorité Snap en T-DOF1) ; la valeur
+  vivante du DOF exige Macro Off (`0x532711e4`).
+- Décision (2026-11-09) : Macro Mode reste ; six réglages masquables.
+- Listes ADJ Mode Setting : fiches 65 à 69 (titres 0x1b0 à 0x1b4), tables `GR3X_ADJ_LISTS` de 19
+  fonctions, nombre `mov r0,#0x13` en `0x531b3bac` + 8 i. Le filtre des fonctions des touches
+  `0x531b9410` est appelé par les trois constructeurs (principal, Wireless, Hold Wireless).
+- **T-HIDE1** (`hiddenSettings`, `hidden-settings.ts`) : lignes masquées par identifiant (avec la
+  vidéo) ; fonctions des touches refusées par le filtre et rendues Off dans les crochets
+  `GetEventCustomize` / `GetEventSwitchWlan` ; fonctions ADJ lues Off par l'enveloppe des lecteurs
+  de case et retirées des cinq listes (après la retouche du flou), nombres réduits ; au chargement
+  des réglages (crochet de l'échafaudage round 10), chaque valeur écrite dans l'enregistrement en
+  cours (`*0x55063f34`) et les huit BOX (`0x55063f38` + 4 i, pointeurs hors RAM sautés).
+  Application : section « Hide camera settings » (interrupteur et valeur par réglage, avec le
+  mode pellicule), recette du firmware, inspection.
+- Vérifié : `hidden_probe.py` (lignes dans tous les modes, menu natif, filtre, boutons Off, ADJ Off
+  et listes, valeurs écrites et autres octets intacts), `film_roll_check.py`, `lock_probe.py` (mis
+  à jour), `hold_probe.py`, `wb_button_probe.py`, `dial_probe.py`, `snap_dof_probe.py`,
+  `grain_native_probe.py`, tests. Build T-HIDE1 : Face/Eye Off, AF Assist Off, AF.C Focus-priority,
+  MF Auto Magnification Off, Flash Mode Flash On, GF-2 Off (valeurs des menus par l'ordre des
+  tables, noms à confirmer sur le boîtier : les listes dessinent des icônes).
+- **Résultat T-HIDE1 (2026-11-09)** : « tout m'a l'air d'avoir disparu » (protocole détaillé non
+  suivi ; noms des valeurs Face/Eye et GF-2 non confirmés). Demande : sortir aussi Flash Exposure
+  Comp.
+- Flash Exposure Comp. : fiche de liste 13 (titre 0x7f, 10 valeurs) ; flottant en `+0x168`
+  (écrivain `0x5324bf68`, `vstr s0`), table `0x53b592e0` : +1.0, +0.67, +0.33, 0, -0.33 ... -2.0 ;
+  aucune ligne propre dans Still Image Settings ; fonction Fn 21 ; fonction ADJ 9, qui est le flou de
+  GR Mod en round 10 (retirée de l'ADJ seulement sans le flou).
+- **T-HIDE2** : `flashComp` ajouté (valeur = index de la table, 0.0 par défaut ; le mot exact lu
+  dans la table du firmware est écrit en 4 octets au chargement). Vérifié : `hidden_probe.py`,
+  `film_roll_check.py`, `lock_probe.py`, autres sondes, tests.
+- **Erreur sur T-HIDE1 / T-HIDE2 (signalée le 2026-11-09)** : GF-2 s'est retrouvé actif. Valeurs vérifiées
+  par les icônes que le menu dessine (extraites du firmware) : Face/Eye 0 = ON, 1 = Auto Area, 2 = OFF
+  (`0x532932e0`) ; GF-2 0 = ON (icône GF-2), 1 = OFF (icône barrée) (`0x53294120`) ; AF Assist 0 = OFF,
+  1 = ON ; AF.C 1 = priorité mise au point, 2 = FPS ; Flash Mode 0 Flash On, 1 anti-yeux rouges,
+  2 Slow, 3 Slow + anti-yeux rouges ; MF Auto Magnification 0 = Off. Les builds de test avaient donc
+  mis Face/Eye sur ON et GF-2 sur ON. Libellés de l'application corrigés. Leçon : ne plus choisir
+  seul les valeurs imposées d'un build de test ; les demander à l'utilisateur.
+- Les écrivains GF-2 (`0xb22`) et Snap Distance Priority (`0xa3c`, 0 = actif) s'excluent : activer
+  l'un écrit 1 (inactif) dans l'autre.
+
+## Bogue de la lecture (2026-11-09, T-PLAY1)
+
+- Protocole de l'utilisateur : P (tasse), U rouleau (livre), Lecture : livre ; extinction, Lecture :
+  livre ; U (clé), Lecture : clé ; P (stylo), Lecture : **clé** au lieu du stylo.
+- Lecture (certitude moyenne, cohérente avec la brique 5 de la phase 2) : la lecture s'ouvre dans
+  le « dossier en cours » `[0x53584c74() + 0x248] + 0x11c`, que le boîtier ne change qu'en créant un
+  dossier. Le dossier unique des modes libres (T22-NAME2) est plus ancien que ceux des rouleaux :
+  une photo de P y va sans création, le dossier en cours reste celui du rouleau.
+- **T-PLAY1** : à la sortie du crochet de SetFilePath du mode pellicule (forme du dossier des modes
+  libres), si le dossier de la photo est fixé (rouleau, mode libre ou donné), le dossier en cours le
+  prend. Vérifié : `film_roll_check.py` (678 cas « folder in use » : le dossier en cours suit la photo,
+  inchangé quand le boîtier choisit seul), autres sondes, tests. Build sans réglages masqués.
+- **Résultat T-PLAY1 (2026-11-09) : échec.** 1 : l'avant-dernière photo ; 2, 3 : la vue ; 4 : la
+  dernière vue du rouleau au lieu de la photo de P. Relecture du code : `+0x118` / `+0x11c` sont la
+  mémoire d'une **demande de nouveau dossier** (création `0x535b2ac4` : si `+0x117`, `0x53585188`
+  les remplit, sinon `0x5358519c` les remet à (−1, 0)), pas le dossier de la lecture. Correctif
+  retiré.
+- Lecture révisée (supposé, cohérent avec les quatre réponses) : la lecture s'ouvre sur le dernier
+  fichier dans l'ordre DCF, c'est-à-dire du dossier de plus grand numéro (une fonction nommée
+  `MoveToLastFile` existe). Les dossiers de rouleau, créés après, ont des numéros plus grands que le
+  dossier unique des modes libres. Piste : à l'ouverture de la lecture, se placer sur la **dernière
+  photo prise** (le boîtier la connaît : `RequestDeleteLastShot`) au lieu du dernier fichier DCF.
+- Lecture, statique : les noms de fonctions du service des fichiers (`0x53c5e6e8` ...) servent aux
+  messages d'erreur ; `MoveToLastFile` = `0x534e3e04`, `MoveToCreationFile` = `0x534e4030` (recherche
+  `0x534e91c4`, 0 si trouvé). Ouverture `0x534e40c8(this, kind)` (appelée par `0x534e0a80`,
+  `0x534e0aa0`) : contrôle du fichier en cours `0x534e3e84` (repli sur MoveToLastFile s'il n'est plus
+  valable), puis, si `this[2]` est nul et `this[3]` (« un fichier a été créé ») levé,
+  MoveToCreationFile, et `this[3]` remis à 0.
+- **T-PLAY0** (diagnostic, `playProbe`, `play-probe.ts`) : l'anneau des touches note à l'ouverture
+  10 + this[2], 20 + this[3], 30 + (this[6] & 7) ; MoveToCreationFile 50, sa recherche 60 (trouvé)
+  ou 61 ; MoveToLastFile 77. Imprimé par la photo suivante. Vérifié : `play_probe.py`,
+  `grain_tag_probe.py`.
+- **Résultat T-PLAY0 (2026-11-09)** : sans lecture préalable, la lecture montre la photo de P (anneau
+  vide : la première ouverture après l'allumage ne passe pas par `0x534e40c8`). Cas qui échoue (vue,
+  Lecture, P, Lecture → la vue) : « 61 10 20 30 10 20 30 » : une recherche du fichier créé ratée
+  (61), puis l'ouverture sans drapeau « créé » (this[3] = 0).
+- Le drapeau est levé par `0x534e3038` à la réception du message `0x2d601003` (aiguillage
+  `0x534e1994`). Message envoyé par `0x5358691c`, depuis la fermeture du fichier créé (`0x535a8938`,
+  `0x535a89a4`), selon `0x535ba278` (ajout à l'index des fichiers, `0x535b32d8`, qui rappelle
+  SetFilePath) : réussi → fichier créé retenu (`0x53584e74`, `0x53584da8`) et message ; sinon index
+  marqué à reconstruire (`+0x50`) et pas de message. Hypothèse : l'index suppose qu'une photo
+  s'ajoute à la fin (dossier le plus récent) ; une photo de P dans le dossier plus ancien échoue.
+- Idée de l'utilisateur : la dernière photo prise a le plus grand numéro de fichier (il avance de
+  un en un, tous dossiers confondus). Correctif visé : à l'ouverture, placer la lecture sur la
+  dernière photo (son dossier, retenu par le mode pellicule ; son numéro, compteur du boîtier).
+- **T-PLAY0b** (diagnostic, `playProbe: 'ref'`) : à l'ouverture, la référence du fichier courant
+  (octet de type `+6`, demi-mots `+8` et `+0xa`) en groupes de deux chiffres (+ 100 pour imprimer
+  « 00 ») ; MoveToLastFile 77. Vérifié : `play_probe.py`.
+- **Résultat T-PLAY0b (2026-11-09)** : photo 115 / 7404 affichée, imprint « 74 04 00 01 15 74 04 » :
+  la référence de la lecture est **type `+6` = 0, dossier `+8` = 115, numéro `+0xa` = 7404**
+  (certitude forte).
+- Requête d'enregistrement (`0x535a87a0`, r7) : `+0x10` dossier (rangé en `+6` du support, lu avec
+  100 par défaut par `0x535b2e64`), `+0x12` numéro (rangé en `+2`, comparé à 9999 par `0x535b2188`).
+- **T-PLAY2** (`playLast`, `play-last.ts`) : en `0x535a88ac`, dossier et numéro de chaque photo
+  retenus en `0x558043a8` avec un drapeau ; à l'ouverture (`0x534e40c8`), drapeau levé : référence
+  de la lecture = cette photo, this[3] = 0, drapeau baissé ; puis le contrôle natif (repli
+  MoveToLastFile si le fichier n'est pas là). Vérifié : `play_last_probe.py`, `film_roll_check.py`,
+  `lock_probe.py`, `hold_probe.py`, tests. Application : envoyé avec le mode pellicule.
+- **Résultat T-PLAY2 (2026-11-09) : échec** (étape 4 : la vue du rouleau). Hypothèse : la référence
+  posée est refusée par le contrôle (`0x534ea298`, fichier absent de l'index qui a refusé la photo
+  de P), d'où le repli MoveToLastFile.
+- Mémoire du correctif déplacée en `0x558043b8` (dossier avec le bit 15 pour drapeau, numéro), libre
+  dans les builds publiés, pour garder l'anneau de la sonde disponible.
+- **T-PLAY2d** (`playLast: 'diag'`) : T-PLAY2 avec relevés dans l'anneau : enregistrement retenu 41,
+  ouverture avec (42) ou sans (43) drapeau, contrôle de la référence 80 trouvé / 81 absent,
+  MoveToLastFile 77. Vérifié : `play_last_probe.py`, `grain_tag_probe.py`, `film_roll_check.py`.
+- **Résultat T-PLAY2d (2026-11-09)** : étape 5 = la vue ; anneau « 43 » sept fois : aucune photo
+  retenue (pas de 41), ouvertures sans drapeau. En `0x535a88ac`, le dossier et le numéro de la
+  requête valent encore 0 : la création `0x535ba278` les donne.
+- **T-PLAY3 / T-PLAY3d** : retenue déplacée après la création (ses deux appels `0x535a88d8`,
+  `0x535a890c` enveloppés : création, puis dossier et numéro de la requête, résultat rendu) ;
+  diagnostic : 41 retenue, 44 création sans valeurs valables. Vérifié : `play_last_probe.py`
+  (deux appels, résultats 0 et 1), `film_roll_check.py`, `grain_tag_probe.py`.
+- **Résultat T-PLAY3d (2026-11-09) : correctif validé sur le boîtier.** Étape 5 : la photo de P.
+  Anneau « 42 43 43 41 42 43 43 » : la photo de P retenue (41), la lecture placée dessus à
+  l'ouverture suivante (42), aucun repli (pas de 81 ni de 77), les ouvertures suivantes inchangées.
+  Le build publié prend `playLast` (sans relevés), envoyé par l'application avec le mode pellicule.
+
+## Stabilisation selon la vitesse : recherche statique (2026-11-09)
+
+Certitude : **statique** (lecture du code), sauf mention.
+
+- Réglages (enregistrement des réglages, `[objet + 4]`) :
+  - **Shake Reduction** : octet `+0x4f6`, 1 On, 0 Off (lecture `0x53245378`, écriture `0x532731d4`) ;
+  - **Auto SR Off** : octet `+0x4f8`, 0 On, 1 Off (lecture `0x53245384`, écriture `0x5327321c`) ;
+    lignes de menu `0x0200007b` et `0x0200007c` (enregistrements de liste 42 et 43).
+- **Valeur SR effective `0x53271dc4(objet)`** : `+0x4f6`, mise à 0 si `+0x44` non nul (vidéo), ou si
+  le mode d'entraînement (`0x53271738` : `+0x484`, ou `+0x486` / `+0x4a8` selon `+0x472`) n'est ni 0
+  ni 5 (retardateur, télécommande) et que `+0x4f8` vaut 0. C'est la seule fonction qui la calcule ;
+  appelée par `0x532731a0` et par la mise à jour complète `0x53272034` (rangée en `+0x10f` d'un
+  enregistrement de commande).
+- **Envoi `0x532731a0(objet)`** : `0x5354cdf8(*0x53525d5c(), valeur)`, propriété vivante **`0xed`**
+  (`0x5354b564(valeurs, 1, 0xed, &octet, 0)`). Les deux écritures du menu l'appellent après avoir
+  rangé leur octet.
+- **Vitesse courante** : `0x53548930(*0x53525d5c())` rend en `s0` un flottant, le **Tv APEX**
+  (log2 de 1/temps : 1/60 s ≈ 5,91 ; 1/30 ≈ 4,91 ; 1/125 ≈ 6,97), lu sous verrou en
+  `[[valeurs + 0x518]] + 0x4bc`. Preuve : l'affichage des infos de prise de vue (`0x531a2124`) le
+  passe à `0x532aae20`, qui le formate par `0x536c07a8` (index = arrondi de Tv × 8 + 0x44 dans la
+  table des fractions `0x53d63418`, chaîne « 1/%d » `0x53b22228`).
+- Exposition : `StartStillExpopsureProcess` (`0x534323d0`) lit un temps 64 bits en
+  `[[objet + 0x14]] + 0xa58` (« expTimeInMs »).
+- **Consommateurs de la SR vivante** (suite, statique) : l'octet vivant est en `+0x7d3` de
+  l'enregistrement vivant (`[[valeurs + 0x518]]`), rangé par `0x5355b964` (qui publie l'événement
+  `0xed`), lu par un seul accesseur, `0x5354ae2c(valeurs)`. Ses quatre appels donnent la valeur à
+  **`DspStateService::SetStatus`** (`0x535781c4`, chaîne `src/DspStateService.cpp`), élément 8 :
+  - `0x53497bc4` : à l'événement `0x82` (**changement de la vitesse vivante**), le gestionnaire
+    `0x53497b08` envoie la vitesse (élément `0x15`, Tv × 8), puis la SR (élément 8) ;
+  - `0x53497c24` : à l'événement `0xed` (changement de la SR) ;
+  - `0x535785b4` : envoi complet de l'état ; `0x5349786c` : copie de l'état de prise de vue.
+  Le boîtier renvoie donc lui-même la SR à chaque changement de vitesse.
+- **T-SR1** (`srSpeed: { seconds: 1/20, diag: true }`, `sr-speed.ts`) : les quatre appels passent
+  par notre accesseur : la SR vivante, puis, si elle est On, la vitesse vivante (`0x53548930`) ; plus
+  rapide que le seuil, 0. Frontière un sixième d'IL au-dessus du seuil (1/20 : Tv 4,5), comparaison
+  sur les bits du flottant (entiers signés). Le menu, ses écritures et la valeur vivante ne changent
+  pas. Diagnostic : l'anneau note chaque changement (60 SR Off, 61 On, 62 Off par la vitesse ; octet
+  `0x558043b6`, libre, après le nom du dossier du rouleau). Instruction `vmov` (cœur ↔ simple
+  précision) ajoutée à l'assembleur. Vérifié : `sr_speed_probe.py` (4 appels × 3 valeurs SR × 12
+  vitesses, anneau ; échoue avec un autre seuil ou sans le diagnostic annoncé), toutes les autres
+  sondes sur le même build, tests `gr3x-sr-speed.test.ts`.
+- **Résultat T-SR1 sur le boîtier (2026-11-09) : validé.** Mode Tv (en M la vitesse se règle à la
+  molette arrière, coupée par `rearDialOff`) : 1/15 → 61, 1/40 → 62, Shake Reduction Off → 60,
+  mode P scène sombre / claire → 61 / 62 selon la vitesse (« 62 61 62 60 62 61 62 », puis
+  « 61 62 60 62 61 62 61 »). **Test physique confirmé** par l'utilisateur : à 1/20 (SR active) les
+  photos sont plus nettes qu'à 1/25 (SR coupée), avec le même mouvement : le boîtier applique bien
+  la SR envoyée à `DspStateService`. Réglages masqués : disparus. Un petit bogue de lecture reste,
+  à traiter plus tard.
+- Conséquence relevée : avec la molette arrière coupée, le mode M ne permet plus de régler la
+  vitesse. Demande : Fn maintenu + molette avant pour remplacer la molette arrière.
+
+### T-SR2 : le seuil dans la liste de Shake Reduction (2026-11-09)
+
+- Décision de l'utilisateur : la ligne **Shake Reduction** porte le seuil elle-même : Off, 1/4000
+  (toujours active), 1/3200 … 30" (53 valeurs, tous les tiers d'IL du boîtier). Au-dessus du seuil la
+  SR est coupée, en dessous elle est active. Fn + molette avant remplacera Snap DOF si cela marche.
+- Plus aucun octet de bourrage libre dans l'enregistrement (`settings_layout_probe.py` : les 25
+  libres sont pris ; `0x93b` écarté, `0xb26` / `0xb27` hors recopie des BOX). Le seuil est donc
+  rangé dans **l'octet de Shake Reduction lui-même** (`+0x4f6`) : 0 Off, 1 = 1/4000 (le On d'usine :
+  rien ne change pour une BOX jamais réglée), 1 + k la vitesse k. Il suit les BOX et P, Av, Tv, M
+  comme Shake Reduction. Lecteurs de l'octet dans l'enregistrement : l'accesseur `0x53245378`
+  (bouton SR `0x53227550`, panneau `0x5328b010`, icônes `0x53197bb8`, `0x532a4f18`, `0x533676ac`), la
+  valeur vivante `0x53271dd8`, l'écriture `0x532731d4`, les recopies `0x53248b60`, `0x5326db68`.
+  Les deux premiers rendent désormais 1 pour toute vitesse ; les recopies gardent l'octet.
+- Liste (enregistrement 42 : fonctions `0x531b3af4` compte, `0x531b5258` dessin, `0x531b6d84`
+  écriture, `0x531b84dc` valeur courante, référencées par lui seul) : 53 valeurs ; dessin Off avec
+  l'icône `0x1ae` et le texte 2, une vitesse avec l'icône On `0x1b0` et son texte (52 textes ajoutés
+  dans les 21 langues) ; écriture par `0x532731d4` (Off puis la valeur : la valeur vivante change,
+  l'état du DSP est renvoyé). Le bouton SR fait vitesse → Off → 1/4000.
+- Correctif trouvé par la sonde : pour un seuil plus lent qu'une seconde (Tv négatif), la
+  comparaison des bits s'inversait. Clé d'ordre : bits négatifs inversés (`x ^ 0x7fffffff`).
+- Build T-SR2 : celui de T-SR1 sans relevé SR, avec la liste, plus la sonde des touches
+  (`dialProbe: 'hold'`, molette arrière coupée) pour relever les codes de la molette avant avec Fn
+  maintenu. Vérifié : `sr_speed_probe.py` (seuils de toute la liste, sans enregistrement, accesseur,
+  valeur vivante avec et sans vidéo, compte, dessin des 53 valeurs, textes des 21 langues, écriture,
+  valeur courante), toutes les autres sondes, tests.
+- **Résultat T-SR2 sur le boîtier (2026-11-09)** : la liste fonctionne ; le seuil 1/20 marche ; en U3
+  le seuil revient à 1/4000 tant que la BOX n'est pas enregistrée (comportement normal d'une BOX) ;
+  le bouton SR fait vitesse → Off → 1/4000. Demande : voir la main SR de l'écran apparaître et
+  disparaître selon la vitesse.
+- **Codes de la molette avant** (anneau des touches de T-SR2) : Fn maintenu, un cran dans chaque
+  sens : « 04 22 09 10 23 » ; sans Fn : « 19 09 10 09 10 ». La molette avant arrive à
+  `ActionModel::OnEvent` sous les codes **9 et 10** (un par sens ; certitude moyenne, le sens reste
+  à confirmer ; 19 non expliqué).
+- Main SR de l'écran (statique) : son image est choisie en `0x533676ac` (accesseur de Shake
+  Reduction, 1 → une image, sinon l'autre) ; la surveillance des réglages `0x532a4f18` compare la
+  valeur à sa copie (`+0x8f0`) et fait redessiner au changement.
+- **T-FN1** : T-SR2, plus (1) ces deux appels passent par un accesseur « affiché » : le réglage,
+  puis Off quand la vitesse vivante est plus rapide que le seuil ; (2) `fnDial` (filtre des appuis
+  longs, `hold.ts`) : en visée, pendant que l'appui de Fn est retenu, la molette avant (9, 10)
+  envoie à OnEvent les codes de la molette arrière (24, 25 ; sens supposé), puis le relâchement de
+  Fn est retenu ; l'appui de Fn est retenu même avec sa ligne Hold sur Off (un appui long y vaut un
+  appui court). Vérifié : `hold_probe.py` (Fn + molette, Fn seul avec et sans Hold, hors visée,
+  molette seule ; sans `fnDial` sur T-SR2), `sr_speed_probe.py` (icône), toutes les autres sondes,
+  tests.
+- **Résultat T-FN1 (2026-11-09) : échec.** Mode M, Fn maintenu + molette avant : rien ne bouge ;
+  anneau « 22 09 09 10 23 » (Fn retenu, la molette avant arrive bien en 9 / 10). Hold Fn marche,
+  l'appui court de Fn ne marche plus (à éclaircir : la fonction de Fn de l'utilisateur).
+- Lecture statique : `OnEvent` appelle pour la visée (`0x08000000`) le gestionnaire `0x5320c844`
+  (table de sauts `0x5320c874`, entrée code - 1) : 24 → action `0x24`, 25 → `0x25`, 9 → `0x22`,
+  10 → `0x23`, exécutées par `0x532a0d70`. L'envoi de 24 / 25 devrait donc y arriver.
+- **T-FN2** (`fnDial: 'diag'`) : T-FN1, plus l'anneau note le retour d'OnEvent après l'envoi (70 + 0
+  ou 1) et l'arrivée dans les cas 24 / 25 du gestionnaire de la visée (74, 75 : entrées de la table
+  détournées). Vérifié : `hold_probe.py` (notes, registres gardés), autres sondes, tests.
+- **Résultat T-FN2 (2026-11-09)** : « 22 09 74 71 23 » : le code 24 envoyé arrive dans le cas 24
+  du gestionnaire de la visée (74), OnEvent rend 1 (71), mais la vitesse ne change pas.
+- Statique : la traduction (`0x532231e4`) donne 9 / 10 pour les types bruts `0x22` / `0x23`
+  (molette avant) et 24 / 25 pour `0x24` / `0x25` (molette arrière), sans autre détail ; le cas
+  construit la liste d'événements de l'action (méthode 8 du singleton `0x5320b55c`, action 0x24) et
+  `0x532a0d70` poste chacun (`0x532289a0`).
+- **T-FN3** : T-FN2, plus le nombre d'événements de chaque action de molette (80 + n) noté avant le
+  poste, aux quatre appels (24, 25, 9, 10) : pour comparer l'envoi et la molette avant seule.
+- **Résultat T-FN3 (2026-11-09)** : Fn + molette avant « 22 09 74 81 71 23 » : l'action 0x24 poste
+  bien un événement (81), comme la molette avant seule (« 09 81 », qui change l'ouverture), mais la
+  vitesse ne change pas. Hypothèses : le traitement de l'événement relit l'événement brut (molette
+  avant), ou refuse pendant que Fn est physiquement tenu.
+- **T-FN4** : la réécriture se fait à la source : dans la traduction (`0x532231e4`, premier
+  `ldrh r3,[r1]`), pendant que l'appui de Fn est retenu, un événement brut de la molette avant
+  (`0x22` / `0x23`) devient celui de la molette arrière (`0x24` / `0x25`), dans `r3` et dans
+  l'événement (en RAM) ; « Hold exécuté » mis, le relâchement de Fn ne fait rien. Le filtre de la
+  molette coupée laisse passer 24 / 25 pendant ce temps. Relevés T-FN2 / T-FN3 gardés. Vérifié :
+  `hold_probe.py` (traduction avec et sans Fn, autres types, filtre de la molette, relâchement),
+  autres sondes, tests.
+- **Résultat T-FN4 (2026-11-09) : validé en Snap Distance Priority** : Fn + molette avant change le
+  DOF. En M, la vitesse se règle au levier ADJ, pas à la molette arrière (méprise de départ) : les
+  essais T-FN1 à T-FN3 en M ne pouvaient rien montrer. Décision : Snap DOF retiré ; Fn + molette
+  avant remplace la molette arrière coupée.
+- Constat de l'utilisateur : Fn réglé sur AE ne marche plus en M. Cause : depuis T-FN1 l'appui de Fn
+  était retenu jusqu'au relâchement même sans fonction Hold (un verrouillage tant que Fn est enfoncé
+  ne peut pas tenir). Avec la réécriture de T-FN4, retenir Fn n'est plus nécessaire.
+- **T-FN5** : Fn sans fonction Hold : appui et relâchement passent tout de suite, l'état note
+  seulement Fn enfoncé (22) jusqu'au relâchement ; avec une fonction Hold, Fn reste retenu comme en
+  0.9.3. Build sans relevé, sans Snap DOF. Vérifié : `hold_probe.py`, autres sondes, tests.
+- **Résultat T-FN5 (2026-11-09)** : AEL ne marche pas en M (comportement natif) ; avec une autre
+  fonction, Fn marche en M et P. Fn + molette avant marche, mais déclenche aussi la fonction de Fn :
+  l'utilisateur préfère la fonction au relâchement. La main SR ne suit pas la vitesse : reportée à
+  une version future.
+- Décisions pour la 0.9.4 : Fn toujours retenu avec Fn + molette avant (comme T-FN4 : la fonction
+  au relâchement, rien après un tour de molette) ; Fn + molette avant automatique avec « Rear dial
+  off » et les lignes Hold (mode pellicule), indiqué dans l'application ; la stabilisation selon la
+  vitesse a sa propre case (`srSpeed`), sans lien avec le mode pellicule ; la main SR (option `icon`)
+  hors de la release ; Snap DOF retiré de l'application.
+- Moteur et recette : options `srSpeed` (round 10) et `fnDial` (déduite de `rearDialOff` avec les
+  lignes Hold, enregistrée explicitement : les builds 0.9.3 se reconstruisent à l'identique).
+  Application : case « SR by shutter speed », texte de « Rear dial off » complété, Snap DOF plus
+  envoyé. **0.9.4-RC1** construite par le moteur (réglages masqués de l'utilisateur, verrou, lecture,
+  stabilisation, molette coupée) : auto-contrôle et inspection vérifiés ; sondes sur un build
+  équivalent ; tests.
+- Correction de l'utilisateur : pas de case pour la stabilisation selon la vitesse. Elle est mise
+  dans tout build GR III / IIIx complet, comme la case AF Point de Mode Memory (1/4000, le On
+  d'usine : rien ne change tant qu'une autre vitesse n'est pas choisie). La RC1 est inchangée (elle
+  avait déjà `srSpeed`).
+- **Résultat 0.9.4-RC1 (2026-11-10) : validée par l'utilisateur** (« Tout fonctionne »), sauf un
+  bogue de lecture restant, à décrire et traiter plus tard. Publication de la 0.9.4 demandée.

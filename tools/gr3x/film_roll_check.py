@@ -308,7 +308,14 @@ def verify(data,manifest,seed=3101):
                 # The record in use and the seven stored ones (0..6); the factory record (index 7) untouched.
                 for b in [want_c]+want_b[:7]:struct.pack_into('<H',b,PF,n)
             return n,want_c,want_b
+        play_cur=False   # T-PLAY1 (withdrawn): + 0x11c is the pending new folder's, not playback's folder
+        INFO,CURBLK=0x6304a600,0x6304a700
+        if play_cur:
+            cpu.mem_write(INFO+0x248,struct.pack('<I',CURBLK))
+            def info_stub(u,at,size,d):u.reg_write(reg.UC_ARM_REG_R0,INFO);u.reg_write(reg.UC_ARM_REG_PC,u.reg_read(reg.UC_ARM_REG_LR))
+            cpu.hook_add(UC_HOOK_CODE,info_stub,begin=0x53584c74,end=0x53584c74)
         def run(given):
+            if play_cur:cpu.mem_write(CURBLK+0x11c,struct.pack('<H',0xbeef))
             path=bytearray(rng.randrange(256) for _ in range(16));path[4:6]=struct.pack('<H',given);cpu.mem_write(PATH,bytes(path))
             regs={0:SVC,1:0x1111,2:PATH,3:0x3333,4:0x44,5:0x55,6:0x66};p.next_calls=0
             if folders:
@@ -317,7 +324,12 @@ def verify(data,manifest,seed=3101):
                 assert cpu.reg_read(reg.UC_ARM_REG_R0)==p.sfp_ret and cpu.reg_read(reg.UC_ARM_REG_LR)==STOP
                 for k in (4,5,6):assert cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==regs[k]
             else:p.run(SET_FILE_PATH,SET_FILE_PATH+4,regs);count('folder');kept(regs,True)
-            return path,struct.unpack_from('<H',bytes(cpu.mem_read(PATH,16)),4)[0],bytes(cpu.mem_read(PATH,16))
+            got_=struct.unpack_from('<H',bytes(cpu.mem_read(PATH,16)),4)[0]
+            # T-PLAY1 (film modes with the free modes' folder): the camera's folder in use follows the picture's folder.
+            if play_cur:
+                cur_=struct.unpack('<H',bytes(cpu.mem_read(CURBLK+0x11c,2)))[0]
+                assert cur_==(got_ if got_ else 0xbeef),(got_,hex(cur_));count('folder in use')
+            return path,got_,bytes(cpu.mem_read(PATH,16))
         log_n=cpu.mem_read(0x558043b8,1)[0]
         for mode in range(8):
             for started in (False,True):
@@ -498,9 +510,14 @@ def verify(data,manifest,seed=3101):
         cpu.mem_write(K,bytes([60,1,0x1a4&255,0x1a4>>8])+bytes(13));assert clock()==date(60,1,1,0x1a4)
     # 10. Form 'fn': Film Advance (function 42) in Fn Button Settings.
     if fn_form:
-        TABLE_OFF=bytes(cpu.mem_read(0x53b4eb7c,36));tbl=e['filmFnTable'];wb=manifest.get('wbButton')==True;mb=manifest.get('macroButton')==True;ADDED=bytes([42,43] if fn4 and not fn7 else [42,44,45] if mb else [42,44] if wb else [42])
+        TABLE_OFF=bytes(cpu.mem_read(0x53b4eb7c,36));tbl=e['filmFnTable'];wb=manifest.get('wbButton')==True;mb=manifest.get('macroButton')==True;sd=manifest.get('snapDof')==True;ADDED=bytes([42,43] if fn4 and not fn7 else [42,44,45,46] if sd else [42,44,45] if mb else [42,44] if wb else [42])
         assert bytes(cpu.mem_read(tbl,36+len(ADDED)))==TABLE_OFF+ADDED
         p.stubs_on=True;p.fn_stubs=True
+        # T-LOCK2 (rollLock): a locked function is Off while the record holds a loaded roll (lock_probe.py checks it).
+        def locked(mode,cur,fn):
+            # T-HIDE1: a hidden setting's function is Off always.
+            if fn in {f for k in (manifest.get('hiddenSettings') or {}) for f in {'faceEye':(8,),'flash':(20,),'gf2':(41,),'flashComp':(21,)}.get(k,())}:return True
+            return manifest.get('rollLock')==True and fn in (10,11,12,13,14,15,23,24,25,27) and 1<=mode<=6 and cur[FLAGS]&3==3 and cur[FRAME]!=0
         # The lists' constructor (native loop, table and count patched): the vector it fills.
         VEC=0x63055000;OBJF=0x63056000
         for model,dropped in ((0,0x28),(1,0x16),(2,None)):
@@ -508,20 +525,21 @@ def verify(data,manifest,seed=3101):
             p.run(0x531be67c,STOP,{0:OBJF});count('fn list')
             end=struct.unpack('<I',bytes(cpu.mem_read(OBJF+0x1a8,4)))[0]
             got=bytes(cpu.mem_read(VEC,end-VEC))
-            want=bytes(f for f in TABLE_OFF+ADDED if not (model!=0 and f==0x16) and not (model!=1 and f==0x28) and not (vid3 and f==17) and not (vid4 and f==16))
+            HIDDEN_FNS={'faceEye':(8,),'flash':(20,),'gf2':(41,),'flashComp':(21,)};hidden_fns={f for k in (manifest.get('hiddenSettings') or {}) for f in HIDDEN_FNS.get(k,())}
+            want=bytes(f for f in TABLE_OFF+ADDED if not (model!=0 and f==0x16) and not (model!=1 and f==0x28) and not (vid3 and f==17) and not (vid4 and f==16) and f not in hidden_fns)
             assert got==want,(model,got.hex(),want.hex())
         # Text and icon: 42 ours, the others the camera's.
         # WB button (wb-button.ts): White Balance (44) with the camera's text 0x94 and icon 213, Macro Mode (45)
         # with 0xac and 381 (macroButton); 43 and the numbers above them Off.
-        for fn,text0 in ((0,2),(42,None))+(((43,2),(200,2)) if fn7 else ((43,0x2b5),) if fn4 else ())+(((44,0x94),(45,0xac),(46,2)) if mb else ((44,0x94),(45,2)) if wb else ()):
+        for fn,text0 in ((0,2),(42,None))+(((43,2),(200,2)) if fn7 else ((43,0x2b5),) if fn4 else ())+(((44,0x94),(45,0xac),(46,None),(47,2)) if sd else ((44,0x94),(45,0xac),(46,2)) if mb else ((44,0x94),(45,2)) if wb else ()):
             p.call(0x53292ed0,0x1234,fn);t=cpu.reg_read(reg.UC_ARM_REG_R0)
-            if fn==42:assert 786<=t<1000,t
+            if fn in (42,46) and text0 is None:assert 786<=t<1000,t   # an added text (Film Advance, Snap DOF)
             else:assert t==text0
             count('fn text')
         # T21-TAB1: Film Advance's own icon, the one after the Film Mode tab's three (header + 0xa: the white one).
         fa_icon=e['filmIconBase']+3 if 'filmIconBase' in e else 0x121
         if tab1:assert struct.unpack('<H',bytes(cpu.mem_read(e['filmTab']+0xa,2)))[0]==e['filmIconBase']
-        for fn,icon in ((0,0x113),(23,0x121),(24,0x120),(42,fa_icon))+(((43,0x113),(200,0x113)) if fn7 else ((43,0x121),) if fn4 else ())+(((44,213),(45,381),(46,0x113)) if mb else ((44,213),(45,0x113)) if wb else ()):
+        for fn,icon in ((0,0x113),(23,0x121),(24,0x120),(42,fa_icon))+(((43,0x113),(200,0x113)) if fn7 else ((43,0x121),) if fn4 else ())+(((44,213),(45,381),(46,0x19),(47,0x113)) if sd else ((44,213),(45,381),(46,0x113)) if mb else ((44,213),(45,0x113)) if wb else ()):
             p.call(0x53293e6c,0x1234,fn);assert cpu.reg_read(reg.UC_ARM_REG_R0)==icon,(fn,hex(cpu.reg_read(reg.UC_ARM_REG_R0)));count('fn icon')
         # Pressed (Fn, ISO, Drive): GetEventCustomize's entry.
         FNS=(0,23,41,42,43) if fn4 else (0,23,41,42)
@@ -535,7 +553,7 @@ def verify(data,manifest,seed=3101):
                     adv=fn==42 and film and 1<=mode<=6
                     assert p.posters==(1 if adv else 0),(mode,film,fn)
                     assert p.events==(([('retake action',)] if fn5 else [(0xb7,0,0)]) if fn==43 and not fn7 and film and 1<=mode<=6 and st==2 else []),(mode,film,fn,st,p.events)
-                    want=dict(regs);want[2]=0 if fn in (42,43) else fn
+                    want=dict(regs);want[2]=0 if fn in (42,43) or locked(mode,cur,fn) else fn
                     kept(want,True);assert state()==before
         # Pressed (Movie/Wireless, Hold): the function in r6 at the switch.
         for mode in (0,3):
@@ -548,7 +566,7 @@ def verify(data,manifest,seed=3101):
                     adv=fn==42 and film and 1<=mode<=6
                     assert p.posters==(1 if adv else 0),(mode,film,fn)
                     assert p.events==(([('retake action',)] if fn5 else [(0xb7,0,0)]) if fn==43 and not fn7 and film and 1<=mode<=6 and st==2 else []),(mode,film,fn,st,p.events)
-                    want=dict(regs);want[6]=0 if fn in (42,43) else fn
+                    want=dict(regs);want[6]=0 if fn in (42,43) or locked(mode,cur,fn) else fn
                     for k,v in want.items():assert cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==v,k
                     cpsr=cpu.reg_read(reg.UC_ARM_REG_CPSR);C=(cpsr>>29)&1;Z=(cpsr>>30)&1
                     assert (C==0 or Z==1)==(want[6]<=0x29)
@@ -1091,8 +1109,11 @@ def verify(data,manifest,seed=3101):
             assert u_off[3][:2]==[0x020000e1,0x020001b0] and 0x020001b1 not in u_off[3] and u_off[1]==[0,5,14] and u_off[2]==23,u_off[:3]
             assert 0x020001b0 not in p_on[3] and 0x020001b1 not in p_on[3] and p_on[1]==[0,4,13] and p_on[2]==22,p_on[:3]
             assert p_on[3]==[i for i in u_on[3] if i not in (0x020001b0,0x020001b1)]
+        # T-LOCK1 (rollLock): Still Image Settings' film lines may be hidden in U (a random record can hold a loaded roll; lock_probe.py checks them).
+        LOCKED={0x02000012,0x02000073,0x02000074,0x0200000e,0x02000072,0x02000075,0x02000076} if manifest.get('rollLock') else set()
+        unlocked=lambda tab:[i for i in tab[3] if i not in LOCKED] if LOCKED else tab
         for t in range(5):
-            if t!=(1 if tab1 else 3):assert got[(3,True)][t]==got[(0,True)][t],t
+            if t!=(1 if tab1 else 3):assert unlocked(got[(3,True)][t])==unlocked(got[(0,True)][t]),t
         # T20-VID3: Still/Movie (0x0200006e) and Movie Edit (0x04000033) hidden in every tab, else present.
         allids=[i for t in range(5) for i in got[(3,True)][t][3]]
         for hid in (0x0200006e,0x04000033):assert (hid in allids)==(not vid3),(hex(hid),vid3)
@@ -1185,7 +1206,7 @@ def verify(data,manifest,seed=3101):
         p.menu_stubs=True;p.model_no=1;cpu.ctl_flush_tb()
         for f in range(43):
             p.call(0x531b9410,f);r=cpu.reg_read(reg.UC_ARM_REG_R0);count('fn filter')
-            if f==17 or (vid4 and f==16):assert r==0
+            if f==17 or (vid4 and f==16) or f in {x for k in (manifest.get('hiddenSettings') or {}) for x in {'faceEye':(8,),'flash':(20,),'gf2':(41,),'flashComp':(21,)}.get(k,())}:assert r==0
             elif f not in (0x16,0x28):assert r==1,f
         p.menu_stubs=False;cpu.ctl_flush_tb()
     # 38. Form 'vid4': the side button's texts (0x1c1..0x1c4) without the movie, in the camera's rows.

@@ -555,7 +555,7 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     /** Macro Mode (45): runs the Macro button's own handler as a short press (`press`: (this, events)). */
     macro?: { function: number; text: number; icon: number; press: number };
     /** Snap Focus Distance (46, wb-button.ts): the next distance (`press`), with the Macro button. */
-    snap?: { function: number; text: number; icon: number; press: number } }) {
+    snap?: { function: number; text: number; icon: number; press: number } }, lock = false, hiddenFns: readonly number[] = []) {
   // clamp (T13-FN7): a function above the last one (43 saved by an earlier build) reads as Off.
   // wb (WB button, wb-button.ts): White Balance is 44, so 43 and above 44 read as Off.
   if (wb && (retake || !clamp || wb.function !== GR3X_FILM_ADVANCE + 2 || (wb.macro && wb.macro.function !== wb.function + 1) || (wb.snap && (!wb.macro || wb.snap.function !== wb.macro.function + 1)))) throw new FirmwareError('unexpected-layout', 'IIIx film advance: White Balance needs the release form');
@@ -624,7 +624,9 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
   const snapWlan = N ? `b go;sw:cmp r6,#${N.function};bne go;push {r0,r1,r2,r3,ip,lr};bl #${N.press};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;` : '';
   const macroWlan = M ? `b go;mw:cmp r6,#${M.function};bne ${N ? 'sw' : 'go'};push {r0,r1,r2,r3,ip,lr};mov r0,r10;mov r1,r8;bl #${M.press};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;${snapWlan}` : '';
   const wbWlan = wb ? `cmp r6,#${wb.function};bne ${M ? 'mw' : 'go'};push {r0,r1,r2,r3,ip,lr};mov r0,r8;bl #${wb.open};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;${macroWlan}` : '';
-  entries.filmFnCustom = p.code(`${high('r2')}cmp r2,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'native'};${advance('kept')}mov r2,#0;${retake ? `b native;other:${retakeCustom}` : wb ? `b native;wb:${wbCustom}` : ''}native:mov ip,sp;b #${GR3X_FN_CUSTOM + 4};`);
+  // hidden-settings.ts: a hidden setting's function, still on a button, runs Off.
+  const gone = (r: string) => hiddenFns.map(f => `cmp ${r},#${f};moveq ${r},#0;`).join('');
+  entries.filmFnCustom = p.code(`${gone('r2')}${lock ? lockFunction('r2', 'lk') : ''}${high('r2')}cmp r2,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'native'};${advance('kept')}mov r2,#0;${retake ? `b native;other:${retakeCustom}` : wb ? `b native;wb:${wbCustom}` : ''}native:mov ip,sp;b #${GR3X_FN_CUSTOM + 4};`);
   p.patch(GR3X_FN_CUSTOM, 0xe1a0c00d, branchWord(GR3X_FN_CUSTOM, entries.filmFnCustom), 'film advance: Fn, ISO and Drive buttons');
   // 'cancel' (T13-FN6): the capture machine's Retake, when the flag is up, takes the sequence for its
   // first frame (+ 4 = 1), so it ends empty (state 0) as when the first frame is retaken; the flag
@@ -635,7 +637,8 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
       mov r1,#0;strb r1,[ip];mov r1,#1;str r1,[r0,#4];go:pop {r1};mov ip,sp;b #${GR3X_MACHINE_RETAKE + 4};`);
     p.patch(GR3X_MACHINE_RETAKE, 0xe1a0c00d, branchWord(GR3X_MACHINE_RETAKE, entries.filmCancelMachine), 'film retake: the whole frame is cancelled');
   }
-  entries.filmFnWlan = p.code(`${high('r6')}cmp r6,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'go'};${advance('kept')}mov r6,#0;${retake ? `b go;other:${retakeWlan}` : wb ? `b go;wb:${wbWlan}` : ''}go:cmp r6,#0x29;b #${GR3X_FN_WLAN + 4};`);
+  // In GetEventSwitchWlan's body: ip kept around the lock.
+  entries.filmFnWlan = p.code(`${gone('r6')}${lock ? `push {ip};${lockFunction('r6', 'lk')}pop {ip};` : ''}${high('r6')}cmp r6,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'go'};${advance('kept')}mov r6,#0;${retake ? `b go;other:${retakeWlan}` : wb ? `b go;wb:${wbWlan}` : ''}go:cmp r6,#0x29;b #${GR3X_FN_WLAN + 4};`);
   p.patch(GR3X_FN_WLAN, 0xe3560029, branchWord(GR3X_FN_WLAN, entries.filmFnWlan), 'film advance: Movie/Wireless buttons');
   return entries;
 }
@@ -1221,12 +1224,59 @@ export const GR3X_HIDDEN_LINES = [0x0200006e, 0x04000033] as const;
  * function of the table); T20-VID3 lists no Still/Movie (function 17). */
 export const GR3X_FN_FILTER = 0x531b9410, GR3X_FN_STILL_MOVIE = 17;
 
-/** T20-VID3: lines hidden by id (whatever the tab), and Fn functions taken out of the button lists. */
-export function installGr3xHideLines(p: Gr3xRollProgram, ids: readonly number[], functions: readonly number[]) {
+/** T-LOCK1: Still Image Settings' lines hidden while a roll is loaded (a U mode, Film Roll Mode on, a
+ * roll started and its counter not 0, as the roll's own checks read it): Image Control, Aspect Ratio,
+ * Crop, Drive Mode, File Format, JPEG Recorded Pixels, Color Space (ids and titles read from each
+ * line's draw function). */
+export const GR3X_ROLL_LOCKED_LINES = [0x02000012, 0x02000073, 0x02000074, 0x0200000e, 0x02000072, 0x02000075, 0x02000076] as const;
+
+/** T-LOCK2: the Fn functions of the locked settings (File Format, JPEG → RAW, JPEG → RAW+, Aspect
+ * Ratio, Crop, JPEG Recorded Pixels; Drive Mode, Drive, Continuous Shooting; Image Control), Off
+ * while a roll is loaded; the ADJ lever's (its own numbers: File Format 3, Aspect Ratio 4, JPEG
+ * Recorded Pixels 5, Drive 0x0a, Image Control 0x0c, Crop 0x10; 0 is Off). */
+export const GR3X_ROLL_LOCKED_FUNCTIONS = [10, 11, 12, 13, 14, 15, 23, 24, 25, 27] as const;
+export const GR3X_ROLL_LOCKED_ADJ = [3, 4, 5, 0x0a, 0x0c, 0x10] as const;
+/** ip = 1 while a roll is loaded (a U mode, Film Roll Mode on, a roll started, its counter not 0),
+ * else 0; r0, r2, r3 used; `t` makes the labels unique. */
+export const gr3xRollLoaded = (t: string) => `movw r3,#${lo(MODEL)};movt r3,#${hi(MODEL)};ldr r2,[r3];${ram('r2', `${t}no`)}ldrb r2,[r2];sub r2,r2,#1;cmp r2,#5;bhi ${t}no;
+  ldr r2,[r3,#4];${ram('r2', `${t}no`)}ldrb r0,[r2,#${GR3X_ROLL_FLAGS}];and r0,r0,#${GR3X_FILM_ON | GR3X_ROLL_STARTED};cmp r0,#${GR3X_FILM_ON | GR3X_ROLL_STARTED};bne ${t}no;
+  ldrb r0,[r2,#${GR3X_ROLL_FRAME}];cmp r0,#0;beq ${t}no;mov ip,#1;b ${t}end;${t}no:mov ip,#0;${t}end:`;
+/** The function in `r` becomes Off (0) when it is a locked one and a roll is loaded; r0..r3 kept
+ * (unless `r` is one of them: then it is the one changed), ip used, flags changed. */
+const lockFunction = (r: string, t: string) => `sub ip,${r},#10;cmp ip,#5;bls ${t}chk;sub ip,${r},#23;cmp ip,#2;bls ${t}chk;cmp ${r},#27;bne ${t}done;
+  ${t}chk:push {r0,r1,r2,r3};${gr3xRollLoaded(t)}pop {r0,r1,r2,r3};cmp ip,#1;moveq ${r},#0;${t}done:`;
+
+/** The ADJ lever's five slot getters (0x5324633c + 12 i: `ldr r3,[r0,#4]; ldrb r0,[r3,#0x918 + 2 i];
+ * bx lr`, the second word replaced by the round 10 soft focus's getter when it is built). */
+export const GR3X_ADJ_SLOT_GETTERS = [0x5324633c, 0x53246348, 0x53246354, 0x53246360, 0x5324636c] as const;
+/** T-LOCK2: each slot getter's first word to a wrapper: the slot read as before (its second word on,
+ * native or soft focus's), then a locked function reads as Off (0) while a roll is loaded. */
+export function installGr3xRollLockAdj(p: Gr3xRollProgram, lock = true, hidden: readonly number[] = []) {
+  const entries: Record<string, number> = {};
+  const locked = lock ? GR3X_ROLL_LOCKED_ADJ.map((f, k) => `${k ? 'cmpne' : 'cmp'} r4,#${f};`).join('') + 'bne done;' : 'b done;';
+  // hidden-settings.ts: a hidden setting's ADJ function always reads as Off.
+  const gone = hidden.map(f => `cmp r4,#${f};moveq r4,#0;`).join('');
+  GR3X_ADJ_SLOT_GETTERS.forEach((at, i) => {
+    if (p.sites.some(s => s.address === at)) throw new FirmwareError('unexpected-instruction', 'IIIx roll lock: ADJ slot getter already patched');
+    entries[`rollLockAdj${i}`] = p.code(`push {r4,lr};ldr r3,[r0,#4];bl #${at + 4};mov r4,r0;${gone}${locked}
+      ${lock ? `${gr3xRollLoaded('a')}cmp ip,#1;moveq r4,#0;` : ''}done:mov r0,r4;pop {r4,pc};`);
+    p.patch(at, 0xe5903004, branchWord(at, entries[`rollLockAdj${i}`]), `${lock ? 'roll lock: an ADJ slot\'s locked function as Off while a roll is loaded' : 'hidden settings: an ADJ slot\'s hidden function as Off'}`);
+  });
+  return entries;
+}
+
+/** T20-VID3: lines hidden by id (whatever the tab), and Fn functions taken out of the button lists.
+ * `locked` (T-LOCK1): lines hidden only while a roll is loaded. */
+export function installGr3xHideLines(p: Gr3xRollProgram, ids: readonly number[], functions: readonly number[], locked: readonly number[] = []) {
   if (p.sites.some(s => s.address === GR3X_LINE_VISIBLE_CALL || (functions.length && s.address === GR3X_FN_FILTER))) throw new FirmwareError('unexpected-instruction', 'IIIx hidden lines: already patched');
   const entries: Record<string, number> = {};
+  // The visibility's arguments (r0..r2) kept for it; r3 and ip free (sl points to the line's id).
+  const loaded = locked.length ? `lock:push {r0,r1,r2};movw r3,#${lo(MODEL)};movt r3,#${hi(MODEL)};ldr r2,[r3];${ram('r2', 'shown')}ldrb r2,[r2];sub r2,r2,#1;cmp r2,#5;bhi shown;
+    ldr r2,[r3,#4];${ram('r2', 'shown')}ldrb r0,[r2,#${GR3X_ROLL_FLAGS}];and r0,r0,#${GR3X_FILM_ON | GR3X_ROLL_STARTED};cmp r0,#${GR3X_FILM_ON | GR3X_ROLL_STARTED};bne shown;
+    ldrb r0,[r2,#${GR3X_ROLL_FRAME}];cmp r0,#0;beq shown;pop {r0,r1,r2};b hidden;shown:pop {r0,r1,r2};b #${GR3X_LINE_VISIBLE};` : '';
   entries.linesHidden = p.code(`ldr ip,[sl];${ids.map(id => `movw r3,#${lo(id)};movt r3,#${hi(id)};cmp ip,r3;beq hidden;`).join('')}
-    b #${GR3X_LINE_VISIBLE};hidden:mov r0,#0;bx lr;`);
+    ${locked.map(id => `movw r3,#${lo(id)};movt r3,#${hi(id)};cmp ip,r3;beq lock;`).join('')}
+    b #${GR3X_LINE_VISIBLE};hidden:mov r0,#0;bx lr;${loaded}`);
   p.patch(GR3X_LINE_VISIBLE_CALL, bl(GR3X_LINE_VISIBLE_CALL, GR3X_LINE_VISIBLE), bl(GR3X_LINE_VISIBLE_CALL, entries.linesHidden), 'menu: lines hidden by id');
   if (!functions.length) return entries;
   entries.fnHidden = p.code(`${functions.map(f => `cmp r0,#${f};moveq r0,#0;bxeq lr;`).join('')}cmp r0,#0x16;b #${GR3X_FN_FILTER + 4};`);

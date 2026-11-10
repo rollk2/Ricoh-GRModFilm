@@ -72,12 +72,74 @@ def verify(data,manifest):
             assert got[0]==THIS and got[1]==code and c.reg_read(reg.UC_ARM_REG_R12)==STACK;return ('on',list(calls))
         assert pc==LR;return (got[0],list(calls))
     own=(7,8,9,10,11)
-    # Hold lines Off: as before.
+    fnDial=bool(manifest.get('fnDial'))
+    # Hold lines Off: as before (with Fn + front dial, Fn's press kept back: a short press on release).
     setup()
     for k in KEYS:
         for code in k[:3]:
             if code is None:continue
+            if fnDial and k[0]==22:continue
             assert key(code)==('on',[]),code;count('off')
+    if fnDial:
+        # Fn with its Hold line Off: kept back too, a short press on release, however long.
+        for dt in (0,HOLD_MS+500):
+            env['ms']=1000;assert key(22)==(1,[]);env['ms']=1000+dt
+            assert key(23)==('on',[(THIS,22,7)]),dt;count('Fn short, Hold Off')
+        # Fn held + the front dial: the events' translation (0x532231e4) makes its turns (types 0x22,
+        # 0x23) the rear dial's (0x24, 0x25), in r3 and in the event, and sets « hold run ».
+        EV=0x63047800
+        def xlat(t,state):
+            c.mem_write(STATE_RAM,bytes(state));c.mem_write(EV,struct.pack('<H',t))
+            regs=[0x4000+j for j in range(13)];regs[1]=EV
+            for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
+            c.reg_write(reg.UC_ARM_REG_SP,STACK)
+            h=c.hook_add(UC_HOOK_CODE,lambda u,a_,s_,d:u.emu_stop() if a_==0x532231e8 else None)
+            c.emu_start(0x532231e4,0x532231e8,count=200);c.hook_del(h)
+            got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%j)) for j in range(13)]
+            assert c.reg_read(reg.UC_ARM_REG_PC)==0x532231e8 and c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[:3]==regs[:3] and got[4:12]==regs[4:12]
+            return got[3],struct.unpack('<H',bytes(c.mem_read(EV,2)))[0],list(c.mem_read(STATE_RAM,2))
+        for t in (0x22,0x23):
+            assert xlat(t,[22,0])==(t+2,t+2,[22,1]);count('front dial as rear, Fn held')
+            for st in ([0,0],[26,0],[23,0]):assert xlat(t,st)==(t,t,st);count('front dial, Fn not held')
+        for t in (0x1b,0x21,0x24,0x25,0x26,0x10):assert xlat(t,[22,0])==(t,t,[22,0]);count('other events')
+        # The rear dial's codes go on while Fn is held (they are the front dial's), else ignored.
+        for holds in ((0,0,0,0,0),(44,0,0,0,0)):
+            setup(holds);env['ms']=1000
+            assert key(22)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==22
+            assert key(24)==('on',[]) and key(25)==('on',[]);count('rear codes, Fn held')
+            c.mem_write(STATE_RAM+1,bytes([1]))
+            env['ms']=5000;assert key(23)==(1,[]) and c.mem_read(STATE_RAM,1)[0]==0;count('Fn released after the dial')
+            assert key(24)==(1,[]) and key(25)==(1,[]);count('rear codes, Fn not held')
+            assert key(9)==('on',[]) and key(10)==('on',[]);count('front dial alone')
+        if manifest.get('fnDial')=='diag':
+            # The viewfinder's cases 24, 25: noted 74, 75, then the case, registers kept.
+            for i,(k,target) in enumerate(((24,0x5320d890),(25,0x5320d800))):
+                stub=struct.unpack('<I',bytes(c.mem_read(0x5320c874+4*(k-1),4)))[0];assert stub!=target
+                c.mem_write(0x558043a8,bytes(8));regs=[0x3000+j for j in range(13)]
+                for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
+                c.reg_write(reg.UC_ARM_REG_SP,STACK)
+                h=c.hook_add(UC_HOOK_CODE,lambda u,a,s_,d:u.emu_stop() if a==target else None)
+                c.emu_start(stub,target,count=200);c.hook_del(h)
+                got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%j)) for j in range(13)]
+                assert c.reg_read(reg.UC_ARM_REG_PC)==target and got==regs and c.reg_read(reg.UC_ARM_REG_SP)==STACK and list(c.mem_read(0x558043a8,2))==[74+i,0];count('case noted')
+            # The dial actions' events counted (80 + n, 19 at most) before the poster, registers kept.
+            for at in (0x5320d8c4,0x5320d834,0x5320e3ac,0x5320e31c):
+                w=struct.unpack('<I',bytes(c.mem_read(at,4)))[0];d_=w&0xffffff;d_=d_-0x1000000 if d_&0x800000 else d_;stub=at+8+4*d_
+                for n,vec in ((0,True),(0,False),(1,True),(3,True),(25,True)):
+                    BUF,VEC=0x63047000,0x63047100
+                    c.mem_write(BUF,struct.pack('<I',VEC if vec else 0));c.mem_write(VEC,struct.pack('<II',0x63048000,0x63048000+12*n))
+                    c.mem_write(0x558043a8,bytes(8));regs=[0x3000+j for j in range(13)];regs[1]=BUF
+                    for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
+                    c.reg_write(reg.UC_ARM_REG_SP,STACK);c.reg_write(reg.UC_ARM_REG_LR,0x5a5a5a5a)
+                    h=c.hook_add(UC_HOOK_CODE,lambda u,a,s_,d:u.emu_stop() if a==0x532a0d70 else None)
+                    c.emu_start(stub,0x532a0d70,count=500);c.hook_del(h)
+                    got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%j)) for j in range(13)]
+                    assert c.reg_read(reg.UC_ARM_REG_PC)==0x532a0d70 and got==regs and c.reg_read(reg.UC_ARM_REG_SP)==STACK and c.reg_read(reg.UC_ARM_REG_LR)==0x5a5a5a5a
+                    assert list(c.mem_read(0x558043a8,2))==[80+min(n,19),0],(hex(at),n,list(c.mem_read(0x558043a8,2)));count('events counted')
+        env['ctrl']=0x02000104;setup()
+        assert key(22)==('on',[]) and key(9)==('on',[]) and key(23)==('on',[]);count('Fn + dial, not viewfinder');env['ctrl']=0x08000000
+    else:
+        for code in (9,10):setup();assert key(code)==('on',[]);count('front dial')
     for code in (24,25):assert key(code)==((1,[]) if manifest.get('rearDialOff') else ('on',[]));count('rear dial')
     for code in (50,14,5):assert key(code)==('on',[]);count('other keys')
     for i,k in enumerate(KEYS):

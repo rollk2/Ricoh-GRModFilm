@@ -8,7 +8,8 @@ import { Engine } from '../src/app/engine';
 import { planGr3xMenu } from '../src/fw/gr3x/geometry';
 import { GR3X_ISO_GETTER_CALL, GR3X_ISO_KEY_ID, GR3X_MACRO_KEY_HANDLER, GR3X_MACRO_LINE_NAMES, GR3X_WB_KEY_EVENT, GR3X_WB_KEY_HANDLER, gr3xWbLineName } from '../src/fw/gr3x/wb-button';
 import { readGr3xBuildRecipe, encodeGr3xRatioRecipe } from '../src/fw/gr3x/ratio-recipe';
-import { GR3X_KEY_EVENT_ENTRY, gr3xHoldLineName } from '../src/fw/gr3x/hold';
+import { GR3X_EVENT_TRANSLATION, GR3X_KEY_EVENT_ENTRY, gr3xHoldLineName } from '../src/fw/gr3x/hold';
+import { GR3X_ADJ_SLOT_GETTERS } from '../src/fw/gr3x/film-roll';
 
 const input = process.env.GRMOD_GR3_FIRMWARE;
 const menu = planGr3xMenu([{ ratio: '65:24', name: 'XPan' }]);
@@ -98,6 +99,37 @@ describe.skipIf(!input)('GR III WB button', () => {
     for (const k of ['holdFilter', 'holdOrig', 'hold0ListSet', 'hold4ListIsCurrent']) expect(e[k]).toBeGreaterThan(0x53000000);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, holdButtons: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);
+  it('adds Fn + the front dial to the Hold buttons\' filter, with the rear dial off only', async () => {
+    const hold = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true });
+    const dial = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, rearDialOff: true, fnDial: true });
+    expect(dial).toMatchObject({ fnDial: true });
+    // One more site: the events' translation (the front dial's turns as the rear dial's while Fn is held).
+    expect(dial.sites.map(s => s.address).sort()).toEqual([...hold.sites.map(s => s.address), GR3X_EVENT_TRANSLATION].sort());
+    await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, holdButtons: true, fnDial: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
+  }, 240000);
+  it('locks the film settings while a roll is loaded: menu lines, Fn functions, ADJ slots', async () => {
+    const plain = await buildGr3xAdjResearch(raw, menu, film);
+    const lock = await buildGr3xAdjResearch(raw, menu, { ...film, rollLock: true });
+    expect(lock).toMatchObject({ rollLock: true });
+    // T-LOCK2: the ADJ lever's five slot getters; the lines and the Fn functions use sites the film mode has.
+    const added = lock.sites.filter(s => !plain.sites.some(t => t.address === s.address)).map(s => s.address).sort();
+    expect(added).toEqual([...GR3X_ADJ_SLOT_GETTERS].sort());
+    expect((lock.entries as Record<string, number>).linesHidden).toBeGreaterThan(0x53000000);
+    await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, rollLock: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
+  }, 240000);
+  it('hides camera settings (menu, buttons, ADJ lever) with their values, recorded and recognised', async () => {
+    const engine = await Engine.open(raw);
+    const ratios = [{ ratio: '65:24', name: 'XPan' }];
+    const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
+    const hiddenSettings = { faceEye: 0, afc: 2, flash: 1, gf2: 0, flashComp: 3 };
+    const built = await engine.buildFirmware([], ratios, [], { ...base, hiddenSettings });
+    expect(await (await Engine.open(raw)).inspect(built.file)).toMatchObject({ verified: true });
+    const plain = await engine.buildFirmware([], ratios, [], base);
+    expect(plain.sha256).not.toBe(built.sha256);
+    await expect(engine.buildFirmware([], ratios, [], { ...base, hiddenSettings: { flash: 7 } })).rejects.toThrow(/value 7/);
+    await expect(engine.buildFirmware([], ratios, [], { ...base, hiddenSettings: { macro: 0 } as never })).rejects.toThrow(/unknown setting/);
+    await expect(engine.buildFirmware([], ratios, [], { filmCount: 3, hiddenSettings })).rejects.toThrow(/film mode/);
+  }, 900000);
   it('needs the film mode', async () => {
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, filmRoll: 'fn7', wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
@@ -116,7 +148,7 @@ describe.skipIf(!input)('GR III WB button', () => {
     const engine = await Engine.open(raw);
     const ratios = [{ ratio: '65:24', name: 'XPan' }];
     const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
-    const built = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true, holdButtons: true, rearDialOff: true });
+    const built = await engine.buildFirmware([], ratios, [], { ...base, snapDof: true, holdButtons: true, rollLock: true, playLast: true, rearDialOff: true });
     const seen = await (await Engine.open(raw)).inspect(built.file);
     expect(seen).toMatchObject({ verified: true });
     const plain = await engine.buildFirmware([], ratios, [], base);
@@ -126,5 +158,21 @@ describe.skipIf(!input)('GR III WB button', () => {
     for (const b of [snap, dial]) expect(await (await Engine.open(raw)).inspect(b.file)).toMatchObject({ verified: true });
     await expect(engine.buildFirmware([], ratios, [], { ...base, macroButton: false, snapDof: true })).rejects.toThrow(/Snap DOF/);
     await expect(engine.buildFirmware([], ratios, [], { ...base, macroButton: false, holdButtons: true })).rejects.toThrow(/Hold lines/);
+  }, 900000);
+  it('builds SR by shutter speed and Fn + the front dial from the engine, recorded and recognised', async () => {
+    const engine = await Engine.open(raw);
+    const ratios = [{ ratio: '65:24', name: 'XPan' }];
+    const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, holdButtons: true, grain: true } as const;
+    const full = await engine.buildFirmware([], ratios, [], { ...base, rollLock: true, playLast: true, rearDialOff: true, srSpeed: true });
+    expect(await (await Engine.open(raw)).inspect(full.file)).toMatchObject({ verified: true });
+    const sr = await engine.buildFirmware([], ratios, [], { ...base, srSpeed: true });
+    const dial = await engine.buildFirmware([], ratios, [], { ...base, rearDialOff: true });
+    const plain = await engine.buildFirmware([], ratios, [], base);
+    expect(new Set([plain.sha256, sr.sha256, dial.sha256, full.sha256]).size).toBe(4);
+    for (const b of [sr, dial]) expect(await (await Engine.open(raw)).inspect(b.file)).toMatchObject({ verified: true });
+    // The rear dial off without the Hold lines: no Fn + front dial.
+    const bare = await engine.buildFirmware([], ratios, [], { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, rearDialOff: true, srSpeed: true });
+    expect(await (await Engine.open(raw)).inspect(bare.file)).toMatchObject({ verified: true });
+    await expect(engine.buildFirmware([], ratios, [], { filmCount: 3, srSpeed: true, gr3Round: 9 } as never)).rejects.toThrow(/round 10/);
   }, 900000);
 });
