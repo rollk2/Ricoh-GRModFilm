@@ -3850,3 +3850,12 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   00 à 99) ; 44 une création sans dossier ni numéro valables ; ouverture 42 (photo retenue) ou 43 ;
   contrôle 80 / 81 ; MoveToLastFile 77. Vérifié : `play_last_probe.py` (notes par appel, dossier et
   numéro), toutes les autres sondes, tests.
+- **Résultats T-PLAY4d (2026-11-10)** : scénario N juste (U1 100-7401, P 101-7472, ouverture sur la
+  photo de P ; anneau « 42 43 43 43 43 43 43 » : la lecture s'ouvre à chaque photo parcourue, seule
+  la première ouverture prend la photo retenue). Avec un rouleau rembobiné (dossier de U1 plus grand
+  que celui de P) : juste aussi, anneau « 01 75 42 43 43 43 43 » (photo de P retenue, dossier 101,
+  numéro …75, puis ouverture dessus). Variantes V1 à V7 (attente, aller-retour de la molette,
+  extinction, vue sans avance, deux photos en P, U2, menu ouvert) : **aucune en défaut**. Le bogue
+  vu avec la 0.9.4-RC1 n'est pas reproduit.
+- Signalé en passant (2026-11-10) : le compteur des pellicules ne repart pas à zéro après un
+  formatage de la carte. À traiter avec son propre protocole.
