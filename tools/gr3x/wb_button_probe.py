@@ -92,7 +92,7 @@ def verify(data,manifest):
             assert not any(x[0].startswith('bad') for x in p.log),p.log
             count('wb open')
     # --- 2. GetEventCustomize's entry and GetEventSwitchWlan's switch with 44 (and 45: Macro Mode).
-    macro=manifest.get('macroButton')==True;snap=manifest.get('snapDof')==True;hold=manifest.get('holdButtons')==True
+    macro=manifest.get('macroButton')==True;snap=manifest.get('snapDof')==True or manifest.get('rewindButton')==True;hold=manifest.get('holdButtons')==True
     MAX=46 if snap else 45 if macro else 44
     # With Snap DOF (46, snap_dof_probe.py runs it): 47 is the first function read as Off.
     OFF1=MAX+1

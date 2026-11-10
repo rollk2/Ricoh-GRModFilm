@@ -39,7 +39,7 @@ def verify(data,manifest):
     assert manifest.get('holdButtons')==True
     e=manifest['entries'];p=RollProbe(data,manifest);c=p.uc;cases={}
     count=lambda k:cases.__setitem__(k,cases.get(k,0)+1)
-    MAX=46 if manifest.get('snapDof') else 45
+    MAX=46 if manifest.get('snapDof') or manifest.get('rewindButton') else 45
     sites={s['address']:s for s in manifest['sites']}
     assert 0x53223708 not in sites
     orig=e['holdOrig'];calls=[];env={'ctrl':0x08000000,'af':0,'ms':0}

@@ -3905,3 +3905,22 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   l'utilisateur, verrou, lecture, stabilisation, molette coupée avec Fn + molette avant) : auto-contrôle
   et inspection vérifiés ; la 0.9.4-RC1 reste reconnue. Sondes sur un build équivalent (dont
   `format_probe.py`), tests (370, les 5 échecs connus des données privées).
+
+## Rewind Film sur un bouton (2026-11-10, T-RWB1)
+
+- Demande : « Rewind Film » assignable dans Fn Button Settings, avec une confirmation. Décision :
+  double appui ; sur le boîtier, l'écran de message prend les touches pendant qu'il est affiché,
+  d'où : appui sur le bouton → la question de Rewind Film, ~4 s ; **OK pendant ce temps → le rouleau
+  est rembobiné**, puis « New roll loaded. » ; sans OK, rien.
+- Ouvrir l'écran Execute / Cancel du menu depuis un bouton : non trouvé (les fonctions ouvrent leurs
+  écrans par des événements propres, 0x93 pour White Balance) ; écarté.
+- **T-RWB1** (`rewindButton`) : fonction 46 (la place de Snap DOF, retiré en 0.9.4), texte « Rewind
+  Film » (celui de la ligne du menu), icône de Film Advance. Appui (U, Film Roll Mode, rouleau
+  entamé) : octet du message à 2, étape 0, passage à l'écran de message `0x08000007`
+  (`0x5316c9d8(gestionnaire, id, courant)`, comme l'action d'ouverture `0x53226738`). Texte : 2 → la
+  question (texte du film + 4). Minuterie : 4 s pour la question. Retour de l'écran de message par
+  OK avec 2 : `filmRollRewind` ; rembobiné → octet 1, l'écran de message rouvert sur « New roll
+  loaded. » ; sinon effacé. Minuterie seule : effacé, rien. Moteur : mis avec le mode pellicule
+  (WB et Macro), enregistré dans la recette (`rewindButton`). Vérifié : `rewind_button_probe.py`
+  (appui dans 25 cas, textes, OK avec et sans rembobinage, minuterie), toutes les autres sondes
+  (mises à jour pour la fonction 46), tests. La 0.9.5-RC1 reste reconnue.

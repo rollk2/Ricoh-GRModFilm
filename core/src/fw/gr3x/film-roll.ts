@@ -1008,7 +1008,7 @@ const PENDING_FRAME = KEY_LAST + 11;
 
 /** The screen switch as the opening action 0x53226738 does it: 0x5316c9d8(0x53228a90(queue), id,
  * 0x53228c4c(queue)), queue = 0x5320aefc(0x5320ad88()). */
-export const GR3X_SCREEN_MANAGER = 0x53228a90, GR3X_SCREEN_CURRENT = 0x53228c4c, GR3X_SCREEN_SWITCH = 0x5316c9d8;
+export const GR3X_SCREEN_MANAGER = 0x53228a90, GR3X_SCREEN_CURRENT = 0x53228c4c, GR3X_SCREEN_SWITCH = 0x5316c9d8, GR3X_SCREEN_QUEUE = 0x5320aefc;
 /** The camera's message screen « Unable to store image. » (text 0x2be at 0x531ce174), closed after 5 s. */
 export const GR3X_MESSAGE_SCREEN = 0x08000007, GR3X_MESSAGE_TEXT_AT = 0x531ce174, GR3X_MESSAGE_TEXT_SET = 0x531ce128;
 /** T15-END1: a film mode message is waiting (a byte, zero at start-up, the key probe's area). */
@@ -1044,11 +1044,15 @@ export const GR3X_FILM_REWIND_QUESTIONS: readonly string[] = [
  * T15-END1: the message screen 0x08000007 shows our text (`text`) instead of its own while a film mode
  * message waits (the byte is then cleared): `movw r1,#0x2be` at 0x531ce174 becomes that choice.
  */
-export function installGr3xFilmMessage(p: Gr3xRollProgram, text: number, redirect = false, guard = false, probe = guard, check = 0, fromMenu = false, quick = false) {
+/** `question` (T-RWB1, the Rewind Film button): a waiting byte of 2 shows `text` (Rewind Film's
+ * question) for GR3X_FILM_QUESTION_MS; OK then rewinds the roll (`rewind`, filmRollRewind) and, when it
+ * did, the message screen opens again on « New roll loaded. »; its timer alone changes nothing. */
+export function installGr3xFilmMessage(p: Gr3xRollProgram, text: number, redirect = false, guard = false, probe = guard, check = 0, fromMenu = false, quick = false,
+  question?: { text: number; rewind: number }) {
   if (p.sites.some(s => s.address === GR3X_MESSAGE_TEXT_AT)) throw new FirmwareError('unexpected-instruction', 'IIIx film message: already patched');
   const entries: Record<string, number> = {};
   entries.filmMessageText = p.code(`movw ip,#${lo(NEW_ROLL_MESSAGE)};movt ip,#${hi(NEW_ROLL_MESSAGE)};ldrb r1,[ip];cmp r1,#0;movweq r1,#0x2be;beq back;
-    ${redirect ? '' : 'mov r1,#0;strb r1,[ip];'}movw r1,#${text};back:b #${GR3X_MESSAGE_TEXT_SET};`);
+    ${redirect ? '' : 'mov r1,#0;strb r1,[ip];'}${question ? `cmp r1,#2;movweq r1,#${question.text};beq back;` : ''}movw r1,#${text};back:b #${GR3X_MESSAGE_TEXT_SET};`);
   // redirect (T15-END2): the review screen that follows the last frame (Instant Review) covered the
   // message at once; while the message waits, the review's way back to the live view goes to the
   // message screen instead, and the message screen's own way back clears the byte (also cleared at
@@ -1077,7 +1081,11 @@ export function installGr3xFilmMessage(p: Gr3xRollProgram, text: number, redirec
       cmp r1,#0x8000000;bne native;${hold}ldr r3,[r0];
       movw r2,#${lo(GR3X_REVIEW_VTABLE)};movt r2,#${hi(GR3X_REVIEW_VTABLE)};cmp r3,r2;bne other;
       mov r1,#${GR3X_MESSAGE_SCREEN & 0xff};movt r1,#${GR3X_MESSAGE_SCREEN >>> 16};b native;
-      other:movw r2,#${lo(GR3X_MESSAGE_VTABLE)};movt r2,#${hi(GR3X_MESSAGE_VTABLE)};cmp r3,r2;moveq r2,#0;strbeq r2,[ip];
+      other:movw r2,#${lo(GR3X_MESSAGE_VTABLE)};movt r2,#${hi(GR3X_MESSAGE_VTABLE)};cmp r3,r2;${question ? `bne native;
+      ldrb r2,[ip];cmp r2,#2;bne clear;movw r2,#${lo(GR3X_MESSAGE_OK_RETURN)};movt r2,#${hi(GR3X_MESSAGE_OK_RETURN)};cmp lr,r2;bne clear;
+      push {r0,r1,ip,lr};bl #${question.rewind};mov r2,r0;pop {r0,r1,ip,lr};cmp r2,#0;beq clear;
+      mov r2,#1;strb r2,[ip];mov r2,#0;strb r2,[ip,#${MESSAGE_STAGE - NEW_ROLL_MESSAGE}];mov r1,#${GR3X_MESSAGE_SCREEN & 0xff};movt r1,#${GR3X_MESSAGE_SCREEN >>> 16};b native;
+      clear:mov r2,#0;strb r2,[ip];` : 'moveq r2,#0;strbeq r2,[ip];'}
       native:pop {r2,r3};mov ip,sp;b #${GR3X_SCREEN_SWITCH + 4};`);
     p.patch(GR3X_SCREEN_SWITCH, 0xe1a0c00d, branchWord(GR3X_SCREEN_SWITCH, entries.filmMessageSwitch), 'film roll: the review gives way to the waiting message');
   }
@@ -1092,7 +1100,8 @@ export function installGr3xFilmMessage(p: Gr3xRollProgram, text: number, redirec
       mov r1,#1;strb r1,[ip,#${MESSAGE_STAGE - NEW_ROLL_MESSAGE}];movw r1,#${GR3X_FILM_MESSAGE_GRACE_MS};arm:b #${GR3X_MESSAGE_TIMER_ARM + 4};`);
     p.patch(GR3X_MESSAGE_TIMER_ARM, 0xe3011388, branchWord(GR3X_MESSAGE_TIMER_ARM, entries.filmMessageArm), 'film roll: the message timer, first its grace (0.5 s)');
     entries.filmMessageFire = p.code(`${stage}ldrb r2,[ip];cmp r2,#1;bne native;ldr r2,[r0,#0x168];cmp r2,r1;bne native;mov r2,#2;strb r2,[ip];
-      push {r4,lr};mov r4,r0;bl #${APP};bl #${GR3X_TIMER_QUEUE};movw r1,#${GR3X_FILM_MESSAGE_MS - GR3X_FILM_MESSAGE_GRACE_MS};add r2,r4,#0x158;
+      push {r4,lr};mov r4,r0;bl #${APP};bl #${GR3X_TIMER_QUEUE};movw r1,#${GR3X_FILM_MESSAGE_MS - GR3X_FILM_MESSAGE_GRACE_MS};
+      ${question ? `movw r2,#${lo(NEW_ROLL_MESSAGE)};movt r2,#${hi(NEW_ROLL_MESSAGE)};ldrb r2,[r2];cmp r2,#2;movweq r1,#${GR3X_FILM_QUESTION_MS - GR3X_FILM_MESSAGE_GRACE_MS};` : ''}add r2,r4,#0x158;
       bl #${GR3X_TIMER_START};str r0,[r4,#0x168];pop {r4,pc};
       native:mov ip,sp;b #${GR3X_MESSAGE_TIMER_FIRE + 4};`);
     p.patch(GR3X_MESSAGE_TIMER_FIRE, 0xe1a0c00d, branchWord(GR3X_MESSAGE_TIMER_FIRE, entries.filmMessageFire), 'film roll: the message timer, after its grace the rest (1.5 s)');
@@ -1538,6 +1547,8 @@ export const GR3X_MESSAGE_OK_RETURN = 0x531cddc0;
 export const GR3X_MESSAGE_TIMER_ARM = 0x531ce2d0, GR3X_MESSAGE_TIMER_FIRE = 0x531cdd58, GR3X_MESSAGE_MS = 5000;
 /** T17-MSG1: our message's length, and its first part during which OK is held. */
 export const GR3X_FILM_MESSAGE_MS = 2000, GR3X_FILM_MESSAGE_GRACE_MS = 500;
+/** T-RWB1: Rewind Film's question, from the button, stays this long (OK confirms). */
+export const GR3X_FILM_QUESTION_MS = 4000;
 /** T17-MSG1: the message timer's stage (1 grace, 2 OK closes; a byte, zero at start-up). */
 const MESSAGE_STAGE = KEY_LAST + 13;
 /** T15-END3: the switch log (bytes: previous, last, count; zero at start-up, the key probe's area). */
@@ -1546,3 +1557,19 @@ const MESSAGE_LOG = KEY_LAST + 16;
 /** T16-CLO1: the roll's film (look) and format (ratio), noted at its start: two padding bytes of the
  * record (no exact access by the firmware; one word read at + 0x9c0 by a debug dump, 0x537381d4). */
 export const GR3X_ROLL_LOOK = 0x9c2, GR3X_ROLL_RATIO = 0x9c3;
+
+/**
+ * T-RWB1 (`rewindButton`): « Rewind Film » as a button function (Snap DOF's place, 46). Pressed in a U
+ * mode with Film Roll Mode on and a going roll (started, frame not 0): the film message waits with 2
+ * (Rewind Film's question, installGr3xFilmMessage's `question`) and the message screen opens
+ * (GR3X_SCREEN_SWITCH, as the opening action 0x53226738 does); OK there rewinds. Otherwise nothing.
+ * Every register kept.
+ */
+export function installGr3xRewindButton(p: Gr3xRollProgram) {
+  return p.code(`push {r0,r1,r2,r3,r4,ip,lr};${records('out', true)}
+    ldrb r0,[r2,#${GR3X_ROLL_FLAGS}];tst r0,#${GR3X_ROLL_STARTED};beq out;ldrb r0,[r2,#${GR3X_ROLL_FRAME}];cmp r0,#0;beq out;
+    movw ip,#${lo(NEW_ROLL_MESSAGE)};movt ip,#${hi(NEW_ROLL_MESSAGE)};mov r0,#2;strb r0,[ip];mov r0,#0;strb r0,[ip,#${MESSAGE_STAGE - NEW_ROLL_MESSAGE}];
+    bl #${APP};bl #${GR3X_SCREEN_QUEUE};mov r4,r0;bl #${GR3X_SCREEN_MANAGER};push {r0};mov r0,r4;bl #${GR3X_SCREEN_CURRENT};mov r2,r0;pop {r0};
+    mov r1,#${GR3X_MESSAGE_SCREEN & 0xff};movt r1,#${GR3X_MESSAGE_SCREEN >>> 16};bl #${GR3X_SCREEN_SWITCH};
+    out:pop {r0,r1,r2,r3,r4,ip,pc};`);
+}
