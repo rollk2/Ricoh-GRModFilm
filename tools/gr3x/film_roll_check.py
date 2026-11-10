@@ -510,7 +510,7 @@ def verify(data,manifest,seed=3101):
         cpu.mem_write(K,bytes([60,1,0x1a4&255,0x1a4>>8])+bytes(13));assert clock()==date(60,1,1,0x1a4)
     # 10. Form 'fn': Film Advance (function 42) in Fn Button Settings.
     if fn_form:
-        TABLE_OFF=bytes(cpu.mem_read(0x53b4eb7c,36));tbl=e['filmFnTable'];wb=manifest.get('wbButton')==True;mb=manifest.get('macroButton')==True;sd=manifest.get('snapDof')==True or manifest.get('rewindButton')==True;ADDED=bytes([42,43] if fn4 and not fn7 else [42,44,45,46] if sd else [42,44,45] if mb else [42,44] if wb else [42])
+        TABLE_OFF=bytes(cpu.mem_read(0x53b4eb7c,36));tbl=e['filmFnTable'];wb=manifest.get('wbButton')==True;mb=manifest.get('macroButton')==True;sd=manifest.get('snapDof')==True or manifest.get('rewindButton')==True;ADDED=bytes([42,43] if fn4 and not fn7 else [42,46,44,45] if manifest.get('rewindButton')==True else [42,44,45,46] if sd else [42,44,45] if mb else [42,44] if wb else [42])
         assert bytes(cpu.mem_read(tbl,36+len(ADDED)))==TABLE_OFF+ADDED
         p.stubs_on=True;p.fn_stubs=True
         # T-LOCK2 (rollLock): a locked function is Off while the record holds a loaded roll (lock_probe.py checks it).

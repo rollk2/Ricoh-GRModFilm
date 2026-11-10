@@ -555,7 +555,7 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     /** Macro Mode (45): runs the Macro button's own handler as a short press (`press`: (this, events)). */
     macro?: { function: number; text: number; icon: number; press: number };
     /** Snap Focus Distance (46, wb-button.ts): the next distance (`press`), with the Macro button. */
-    snap?: { function: number; text: number; icon: number; press: number } }, lock = false, hiddenFns: readonly number[] = []) {
+    snap?: { function: number; text: number; icon: number; press: number; first?: boolean } }, lock = false, hiddenFns: readonly number[] = []) {
   // clamp (T13-FN7): a function above the last one (43 saved by an earlier build) reads as Off.
   // wb (WB button, wb-button.ts): White Balance is 44, so 43 and above 44 read as Off.
   if (wb && (retake || !clamp || wb.function !== GR3X_FILM_ADVANCE + 2 || (wb.macro && wb.macro.function !== wb.function + 1) || (wb.snap && (!wb.macro || wb.snap.function !== wb.macro.function + 1)))) throw new FirmwareError('unexpected-layout', 'IIIx film advance: White Balance needs the release form');
@@ -571,7 +571,7 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     free(at); if (p.u32(at) !== w) fail(`instruction at ${at.toString(16)}`);
   }
   const entries: Record<string, number> = {};
-  const added = retake ? [GR3X_FILM_ADVANCE, GR3X_FILM_RETAKE] : wb ? [GR3X_FILM_ADVANCE, wb.function, ...(wb.macro ? [wb.macro.function] : []), ...(wb.snap ? [wb.snap.function] : [])] : [GR3X_FILM_ADVANCE];
+  const added = retake ? [GR3X_FILM_ADVANCE, GR3X_FILM_RETAKE] : wb ? (wb.snap?.first ? [GR3X_FILM_ADVANCE, wb.snap.function, wb.function, ...(wb.macro ? [wb.macro.function] : [])] : [GR3X_FILM_ADVANCE, wb.function, ...(wb.macro ? [wb.macro.function] : []), ...(wb.snap ? [wb.snap.function] : [])]) : [GR3X_FILM_ADVANCE];
   const table = p.append(Uint8Array.from([...official, ...added]));
   entries.filmFnTable = table;
   for (const at of [GR3X_FN_LOOP_LOW, GR3X_FN_LOOP_LOW + 4, GR3X_FN_LOOP_END]) free(at);
@@ -1045,8 +1045,9 @@ export const GR3X_FILM_REWIND_QUESTIONS: readonly string[] = [
  * message waits (the byte is then cleared): `movw r1,#0x2be` at 0x531ce174 becomes that choice.
  */
 /** `question` (T-RWB1, the Rewind Film button): a waiting byte of 2 shows `text` (Rewind Film's
- * question) for GR3X_FILM_QUESTION_MS; OK then rewinds the roll (`rewind`, filmRollRewind) and, when it
- * did, the message screen opens again on « New roll loaded. »; its timer alone changes nothing. */
+ * question, then « MENU: Cancel », T-RWB2) for GR3X_FILM_QUESTION_MS; OK then rewinds the roll
+ * (`rewind`, filmRollRewind) and, when it did, the message screen opens again on « New roll
+ * loaded. »; its timer alone changes nothing; MENU goes back to the live view (T-RWB2). */
 export function installGr3xFilmMessage(p: Gr3xRollProgram, text: number, redirect = false, guard = false, probe = guard, check = 0, fromMenu = false, quick = false,
   question?: { text: number; rewind: number }) {
   if (p.sites.some(s => s.address === GR3X_MESSAGE_TEXT_AT)) throw new FirmwareError('unexpected-instruction', 'IIIx film message: already patched');
@@ -1077,7 +1078,12 @@ export function installGr3xFilmMessage(p: Gr3xRollProgram, text: number, redirec
     const menuOnly = fromMenu ? 'ldr r2,[r0,#0x124];mov r2,r2,lsr #24;cmp r2,#2;bne native;' : '';
     const closing = check ? `bne waiting;cmp r1,#0x8000000;bne native;${menuOnly}push {r0,r1,ip,lr};bl #${check};mov r2,r0;pop {r0,r1,ip,lr};cmp r2,#0;beq native;
       mov r2,#1;strb r2,[ip];mov r1,#${GR3X_MESSAGE_SCREEN & 0xff};movt r1,#${GR3X_MESSAGE_SCREEN >>> 16};b native;waiting:` : 'beq native;';
-    entries.filmMessageSwitch = p.code(`push {r2,r3};movw ip,#${lo(NEW_ROLL_MESSAGE)};movt ip,#${hi(NEW_ROLL_MESSAGE)};ldrb r2,[ip];cmp r2,#0;${closing}${log}
+    // question (T-RWB2): from the message screen while the question waits, any other way (MENU opens
+    // the menu) goes back to the live view instead, the question cleared (MENU cancels).
+    const cancel = question ? `ldrb r2,[ip];cmp r2,#2;bne asked;ldr r3,[r0];movw r2,#${lo(GR3X_MESSAGE_VTABLE)};movt r2,#${hi(GR3X_MESSAGE_VTABLE)};cmp r3,r2;bne asked;
+      cmp r1,#0x8000000;beq asked;mov r2,#${GR3X_MESSAGE_SCREEN & 0xff};movt r2,#${GR3X_MESSAGE_SCREEN >>> 16};cmp r1,r2;beq asked;
+      mov r2,#0;strb r2,[ip];mov r1,#0x8000000;b native;asked:` : '';
+    entries.filmMessageSwitch = p.code(`push {r2,r3};movw ip,#${lo(NEW_ROLL_MESSAGE)};movt ip,#${hi(NEW_ROLL_MESSAGE)};ldrb r2,[ip];cmp r2,#0;${closing}${log}${cancel}
       cmp r1,#0x8000000;bne native;${hold}ldr r3,[r0];
       movw r2,#${lo(GR3X_REVIEW_VTABLE)};movt r2,#${hi(GR3X_REVIEW_VTABLE)};cmp r3,r2;bne other;
       mov r1,#${GR3X_MESSAGE_SCREEN & 0xff};movt r1,#${GR3X_MESSAGE_SCREEN >>> 16};b native;

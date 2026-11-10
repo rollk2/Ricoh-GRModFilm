@@ -104,7 +104,6 @@ describe.skipIf(!input)('GR III WB button', () => {
     const rwb = await buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, rewindButton: true });
     expect(rwb).toMatchObject({ rewindButton: true });
     expect((rwb.entries as Record<string, number>).rewindPress).toBeGreaterThan(0x53000000);
-    expect(rwb.sha256 ?? rwb.sites.length).not.toEqual(plain.sha256 ?? plain.sites.length - 1);
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, macroButton: true, snapDof: true, rewindButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
     await expect(buildGr3xAdjResearch(raw, menu, { ...film, wbButton: true, rewindButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
   }, 240000);

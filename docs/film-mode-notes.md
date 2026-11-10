@@ -3924,3 +3924,15 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   (WB et Macro), enregistré dans la recette (`rewindButton`). Vérifié : `rewind_button_probe.py`
   (appui dans 25 cas, textes, OK avec et sans rembobinage, minuterie), toutes les autres sondes
   (mises à jour pour la fonction 46), tests. La 0.9.5-RC1 reste reconnue.
+- **Résultat T-RWB1 (2026-11-10) : la fonction marche** (question, OK rembobine et affiche « New roll
+  loaded. », sans OK rien ; hors U, rien). Demandes : MENU pendant la question doit annuler et revenir
+  à la visée (il ouvrait le menu) ; afficher « MENU : Cancel » dans la question ; ranger les
+  fonctions de GR Mod Film groupées en fin de liste.
+- **T-RWB2** : (1) la question du bouton est un texte à part (celui de l'écran du menu reste
+  inchangé) : la question de Rewind Film, puis « MENU: » et le « Cancel » du boîtier dans chaque
+  langue (texte `0x2aa`, à côté d'Execute `0x2a9`) ; (2) depuis l'écran de message, pendant la
+  question, tout autre écran demandé (MENU ouvre le menu) devient la visée, la question effacée ;
+  (3) ordre des fonctions ajoutées : Film Advance, Rewind Film, White Balance, Macro Mode (avec Snap
+  DOF, l'ancien ordre est gardé : les builds 0.9.3 se reconstruisent à l'identique). Vérifié :
+  `rewind_button_probe.py` (21 langues, MENU), `film_roll_check.py` (ordre), toutes les autres
+  sondes, tests. La 0.9.5-RC1 reste reconnue.

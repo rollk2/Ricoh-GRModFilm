@@ -77,7 +77,13 @@ def verify(data,manifest):
         else:count('text %d'%b)
         if b==1:new_roll=texts
         if b==2:question=texts
-    assert question==new_roll+2,(hex(question),hex(new_roll));count('texts')
+    # T-RWB2: the button's question is a text of its own (not the menu dialog's): Rewind Film's question, « MENU: » and the row's own Cancel (0x2aa).
+    cat=manifest['catalogs'];assert 786<=question<cat['textColumns'] and question!=new_roll+2,(hex(question),cat['textColumns'])
+    u32=lambda a:struct.unpack('<I',bytes(c.mem_read(a,4)))[0]
+    def tx(row,i):rec=u32(u32(cat['textRoots']+4*row)+4*i);n=c.mem_read(rec,1)[0]-1;return bytes(c.mem_read(u32(rec+4),2*n)).decode('utf-16le')
+    for row in range(21):
+        q=tx(row,question);cancel=tx(row,0x2aa);assert q.endswith('\nMENU: '+cancel) and q.count('\n')>=2,(row,q);count('question row')
+    assert 'Rewind the film?' in [tx(r,question).split('\n')[0] for r in range(21)];count('texts')
     c.hook_del(hs)
     # The way back from the message screen.
     rewound={'v':1}
@@ -98,6 +104,12 @@ def verify(data,manifest):
         else:
             assert not rw and c.mem_read(MSG,1)[0]==0 and got[1]==0x08000000,(b,hex(lr),hex(got[1]),list(c.mem_read(MSG,1)));count('back: cleared')
         assert got[0]==OBJ
+    # T-RWB2: MENU (any other screen) while the question waits: the live view instead, the question cleared.
+    for b,target in ((2,0x0200004a),(2,0x02000075),(1,0x0200004a),(0,0x0200004a)):
+        c.mem_write(MSG,bytes([b]));c.mem_write(STAGE,bytes([2]));calls.clear()
+        got=run(e['filmMessageSwitch'],SWITCH+4,[OBJ,target]+[0x3000+i for i in range(2,13)],lr=0x531c0000)
+        if b==2:assert got[1]==0x08000000 and c.mem_read(MSG,1)[0]==0 and not calls,(hex(got[1]));count('MENU: cancelled')
+        else:assert got[1]==target and c.mem_read(MSG,1)[0]==b;count('other screen: as before')
     c.hook_del(hr)
     for h in hooks:c.hook_del(h)
     return dict(cases=cases,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
