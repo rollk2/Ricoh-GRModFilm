@@ -8,8 +8,9 @@
  * loaded roll (U1, U2, U3 and the other BOXes) is rewound as soon as the card is formatted.
  *
  *  - The format (MediaFormat, src/MediaFormat.cpp): its one call, 0x534e62a0 `bl 0x534f0658`, in the
- *    media task, which returns its error flag (0 done; the caller then posts 0x25480206). Done: a RAM
- *    byte (GR3X_FORMAT_FLAG) set, nothing else (no settings written from that task).
+ *    media task, which returns the byte + 0x11 of its object (the caller then posts 0x25480206). A
+ *    format done on the camera gives 1 (T-FMT2, ring « 51 »; T-FMT1 took 0 for done and never
+ *    rewound). 1: a RAM byte (GR3X_FORMAT_FLAG) set, nothing else (no settings written from that task).
  *  - The screen counter's hook (film-roll.ts, at 0x532aa1f4, the user interface's task, as the Rewind
  *    Film line's action): first, with the byte set, the byte cleared and every going roll (started,
  *    frame not 0) of the six BOXes ended as the Rewind does (frame 0, the BOX's record saved), and the
@@ -54,7 +55,7 @@ export function installGr3xFormatRewind(p: Gr3xFormatProgram, counter: number, d
   const ram = (r: string, label: string) => `cmp ${r},#0x40000000;blo ${label};cmp ${r},#0xc0000000;bhs ${label};tst ${r},#3;bne ${label};`;
   // `diag` (T-FMT2): the key ring notes 50 + the format's result (9 at most), and 60 + the rolls rewound (9 at most).
   const fnote = diag ? `push {r0,r1};cmp r0,#9;movhi r0,#9;add r1,r0,#50;${gr3xRingNote}pop {r0,r1};` : '';
-  const formatted = p.code(`push {r4,lr};bl #${GR3X_FORMAT};${fnote}cmp r0,#0;bne out;${F}mov r4,#1;strb r4,[ip];out:pop {r4,pc};`);
+  const formatted = p.code(`push {r4,lr};bl #${GR3X_FORMAT};${fnote}cmp r0,#1;bne out;${F}mov r4,#1;strb r4,[ip];out:pop {r4,pc};`);
   // r4 the mode in use (0 none), r5 the BOX, r6 its record; r7 the record in use.
   const end = (rec: string, index: string) => `add r9,r9,#1;mov r0,#0;strb r0,[${rec},#${GR3X_ROLL_FRAME}];bl #${GR3X_APP_DATA};ldr r0,[r0,#8];${index}movw r2,#${RECORD};mov r3,${rec};bl #${GR3X_APP_DATA_WRITE};`;
   const going = (rec: string, label: string) => `ldrb r0,[${rec},#${GR3X_ROLL_FLAGS}];tst r0,#${GR3X_ROLL_STARTED};beq ${label};ldrb r0,[${rec},#${GR3X_ROLL_FRAME}];cmp r0,#0;beq ${label};`;

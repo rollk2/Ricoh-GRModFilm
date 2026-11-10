@@ -3,7 +3,7 @@
   python3 format_probe.py --rtos GR3.rtos --manifest patch-manifest.json --report out.json
 
   - the format's call (0x534e62a0; the format 0x534f0658 stubbed, giving 0 done or 1 failed): its
-    result in r0, r4..r11 kept; done: the flag byte 0x558043b6 set, failed: unchanged;
+    result in r0, r4..r11 kept; 1 (a format done, T-FMT2): the flag byte 0x558043b6 set, else unchanged;
   - the screen counter's hook (0x532aa1f4): run up to the film roll's counter (entries
     filmRollCounter), every register and the flags kept; flag clear: nothing written; flag set: the
     flag cleared, every going roll (started bit 2 of 0x9b1, frame 0x9b2 not 0) of the six BOXes
@@ -42,7 +42,7 @@ def verify(data,manifest):
         c.emu_start(CALL,LR,count=200);c.hook_del(hs)
         got=[r_(c,i) for i in range(12)]
         assert c.reg_read(reg.UC_ARM_REG_PC)==CALL+4 and c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[0]==v and got[4:12]==regs[4:12]
-        assert c.mem_read(FLAG,1)[0]==(1 if v==0 else before),(v,before);count('format done' if v==0 else 'format failed')
+        assert c.mem_read(FLAG,1)[0]==(1 if v==1 else before),(v,before);count('format done' if v==1 else 'format other')
         if diag:rg=list(c.mem_read(RING,8));assert rg[(rg[7]-1)%7]==50+min(v,9),rg;count('format noted')
     c.hook_del(h)
     # The counter's hook.
