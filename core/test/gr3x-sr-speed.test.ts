@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { assembleWords } from '../src/fw/aspect/arm';
 import { buildGr3xAdjResearch } from '../src/fw/gr3x/adj';
+import { encodeGr3xRatioRecipe, readGr3xBuildRecipe } from '../src/fw/gr3x/ratio-recipe';
 import { planGr3xMenu } from '../src/fw/gr3x/geometry';
 import { GR3X_SR_GET_CALLS, GR3X_SR_GETTER, GR3X_SR_ICON_CALL, GR3X_SR_LIST, GR3X_SR_LIVE_LOAD, GR3X_SR_SPEEDS, gr3xSrBoundary, gr3xSrSpeedText } from '../src/fw/gr3x/sr-speed';
 
@@ -40,6 +41,19 @@ describe('SR by shutter speed', () => {
       expect(Math.log2(1 / GR3X_SR_SPEEDS[i])).toBeLessThan(b);
       expect(Math.log2(1 / GR3X_SR_SPEEDS[i - 1])).toBeGreaterThan(b);
     }
+  });
+});
+
+describe('SR by shutter speed in the build recipe', () => {
+  const menu0 = planGr3xMenu([{ ratio: '65:24', name: 'XPan' }]);
+  const base = { round7: true, round8: true, round9: true, round10: true } as const;
+  it('records the icon apart, so that 0.9.4 builds (list without icon) rebuild as they were', () => {
+    const plain = readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: {} }))!;
+    expect(plain).toMatchObject({ srSpeed: true });
+    expect(plain.srIcon).toBeUndefined();
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: { icon: true } }))).toMatchObject({ srSpeed: true, srIcon: true });
+    // Test forms are never recorded.
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: { icon: 'diag' } }))!.srSpeed).toBeUndefined();
   });
 });
 

@@ -3828,3 +3828,11 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
      reconsidérer seulement si la lenteur est acceptable pour une « grosse » taille.
 
 - Décisions du 2026-11-10 sur le travail de nuit : ADJ / touches fermé (rien à faire) ; crop 40 mm documenté et fermé ; taille du grain fermée ; dust removal : un menu qui affiche la carte des poussières puis lance un dust removal (V2) ; T-SR3 en test sur le boîtier.
+- **Résultat T-SR3 (2026-11-10) : validé sur le boîtier.** La main change ; anneau « 61 69 61 » puis
+  « 61 69 61 69 » : SR affichée On (61), forcée Off par la vitesse (69), à chaque passage du seuil.
+  L'écran redessine bien l'icône quand seule la vitesse change.
+- Intégration : le moteur met l'icône avec `srSpeed` (enveloppe sans relevé) ; la recette l'enregistre
+  à part (`srIcon`), si bien que les firmwares 0.9.4 (liste sans icône) se reconstruisent à
+  l'identique : la 0.9.4-RC1 est toujours reconnue (inspection vérifiée), un nouveau build l'est
+  aussi. Vérifié : test de la recette, `sr_speed_probe.py` et les autres sondes sur un build
+  équivalent, tests.
