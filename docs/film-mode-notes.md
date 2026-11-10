@@ -3892,3 +3892,7 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   inconnue (aucun échec provoqué).
 - **T-FMT3** : rembobinage quand le résultat vaut 1 ; relevés gardés. Vérifié : `format_probe.py`
   (0, 1, 7), autres sondes, tests.
+- **Résultat T-FMT3 (2026-11-10) : validé sur le boîtier.** Le compteur revient à zéro après le
+  formatage ; anneau « 51 64 » : formatage vu (résultat 1), puis 4 rouleaux rembobinés au crochet du
+  compteur (BOX de U1 et U2, enregistrement en cours, et un autre rouleau entamé). Les builds de
+  l'application prennent `formatRewind` (sans relevés) avec le mode pellicule.
