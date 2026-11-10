@@ -41,7 +41,7 @@ export interface Gr3xPlayLastProgram {
   sites: readonly Gr3xSite[];
 }
 
-export function installGr3xPlayLast(p: Gr3xPlayLastProgram, diag = false) {
+export function installGr3xPlayLast(p: Gr3xPlayLastProgram, diag: boolean | 'files' = false) {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `IIIx play last: ${m}`); };
   const bl = (from: number, to: number) => branchWord(from, to, 14, true);
   for (const at of GR3X_CREATE_CALLS) if (p.u32(at) !== bl(at, GR3X_CREATE)) fail('the save\'s creation call');
@@ -50,14 +50,19 @@ export function installGr3xPlayLast(p: Gr3xPlayLastProgram, diag = false) {
   const L = `movw ip,#${lo(GR3X_PLAY_LAST)};movt ip,#${hi(GR3X_PLAY_LAST)};`;
   // The creation, then (r7 the request, kept by it) its folder and number; its result returned.
   const n = (v: number) => diag ? `push {r1};mov r1,#${v};${gr3xRingNote}pop {r1};` : '';
-  const saved = p.code(`push {r4,lr};bl #${GR3X_CREATE};mov r4,r0;ldrh r0,[r7,#0x10];ldrh r1,[r7,#0x12];sub r2,r0,#100;cmp r2,#900;bhs bad;
-    sub r2,r1,#1;movw r3,#9999;cmp r2,r3;bhs bad;${L}orr r0,r0,#0x8000;strh r0,[ip];strh r1,[ip,#2];${n(41)}b done;
+  // T-PLAY4d (`files`): each save noted by its call (41 the first, 45 the second), then its folder and
+  // number, each modulo 100, plus 100 (the ring prints 00 .. 99).
+  const mod = (r: string) => `mod${r}:cmp ${r},#100;blo end${r};sub ${r},${r},#100;b mod${r};end${r}:`;
+  const files = diag === 'files' ? `push {r0,r1};bic r0,r0,#0x8000;${mod('r0')}${mod('r1')}push {r1};add r1,r0,#100;${gr3xRingNote}pop {r1};add r1,r1,#100;${gr3xRingNote}pop {r0,r1};` : '';
+  const savedAt = (note: number) => p.code(`push {r4,lr};bl #${GR3X_CREATE};mov r4,r0;ldrh r0,[r7,#0x10];ldrh r1,[r7,#0x12];sub r2,r0,#100;cmp r2,#900;bhs bad;
+    sub r2,r1,#1;movw r3,#9999;cmp r2,r3;bhs bad;${L}orr r0,r0,#0x8000;strh r0,[ip];strh r1,[ip,#2];${n(note)}${files}b done;
     bad:${n(44)}done:mov r0,r4;pop {r4,pc};`);
+  const saved = savedAt(41), saved2 = diag === 'files' ? savedAt(45) : saved;
   // At the opening (r0 this, r1 the kind).
   const open = p.code(`push {r2};${L}ldrh r2,[ip];tst r2,#0x8000;beq go;bic r2,r2,#0x8000;strh r2,[ip];
     strb r1,[r0,#6];strh r2,[r0,#8];ldrh r2,[ip,#2];strh r2,[r0,#0xa];mov r2,#0;strb r2,[r0,#3];${n(42)}pop {r2};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};
     go:${n(43)}pop {r2};mov ip,sp;b #${GR3X_PLAY_OPEN + 4};`);
-  for (const at of GR3X_CREATE_CALLS) p.patch(at, bl(at, GR3X_CREATE), bl(at, saved), 'play last: each created picture\'s folder and number kept');
+  GR3X_CREATE_CALLS.forEach((at, i) => p.patch(at, bl(at, GR3X_CREATE), bl(at, i ? saved2 : saved), 'play last: each created picture\'s folder and number kept'));
   p.patch(GR3X_PLAY_OPEN, 0xe1a0c00d, branchWord(GR3X_PLAY_OPEN, open), 'play last: playback opens on the last picture taken');
   if (!diag) return { playLastSaved: saved, playLastOpen: open };
   if (p.u32(GR3X_PLAY_CHECK_CALL) !== bl(GR3X_PLAY_CHECK_CALL, GR3X_PLAY_CHECK) || p.u32(GR3X_MOVE_TO_LAST) !== 0xe1a0c00d) fail('diagnostic sites');

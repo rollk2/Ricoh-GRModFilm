@@ -146,8 +146,34 @@ Sources : code de GR Mod (`core/src/fw/gr3x`) et réponse de son auteur, Maxwooo
 Chaque étape suit le même cycle : test en émulateur, flash, essai sur le boîtier, retour au firmware officiel si besoin.
 
 ## Évolutions envisagées
-- Reprendre une surimpression après extinction et rallumage (réinjection de l'image, probablement via le développement RAW intégré).
-- Une ou deux vues bonus en fin de rouleau, comme sur une vraie 36 poses.
+
+Décisions du 2026-11-10.
+
+### Finitions de la v1
+1. ~~Bogue de lecture restant~~ : **abandonné le 2026-11-10** (non reproduit avec T-PLAY4d, scénarios A à N et variantes V1 à V7 justes).
+2. ~~Icône SR de l'écran de prise de vue~~ : **validée sur le boîtier (T-SR3, 2026-11-10)** : la main suit la stabilisation selon la vitesse. Choix de l'icône `0x532a9ae0`, appelé en `0x53170e30`. Intégrée aux builds de l'application (option `srIcon` de la recette), pour la prochaine version.
+- Formatage de la carte : **tous les rouleaux rembobinés** dès la fin du formatage (décision du 2026-11-10 ; avant, le compteur continuait). **Validé sur le boîtier (T-FMT3)**, mis dans les builds avec le mode pellicule, pour la prochaine version.
+3. ~~Uniformiser3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
+
+### Mode pellicule
+4. Reprendre une surimpression après extinction et rallumage (réinjection de l'image, probablement via le développement RAW intégré).
+5. Vues bonus en fin de rouleau (37/36) : en réserve, pas prioritaire.
+
+### Rendu
+6. ~~Crop 40 mm~~ : **documenté et fermé le 2026-11-10.** Le crop natif est un flottant (1,25 / 1,7857 / 1,0) comparé à ces valeurs exactes en une dizaine d'endroits (un pointeur nul pour une autre valeur) : une quatrième valeur native est risquée. Voie possible si on rouvre : un format de GR Mod (cadre 3:2 réduit à 70 %, environ 11,8 Mpx). Détail dans les notes.
+7. ~~Grain : taille réglable~~ : **fermé le 2026-11-10.** Le grain natif n'a qu'une intensité (aucun paramètre de taille) ; le grain logiciel (avec Taille) reste écarté pour sa lenteur.
+8. Filtres argentiques : fuites de lumière et pellicule périmée (l'halation existe déjà).
+
+### V2
+9. Développement dans l'appareil : diptyque, date au tirage et planche contact, en portant sur le boîtier le moteur déjà validé sur PC (`tools/develop`). Dépend du décodeur JPEG (décision D3 de `docs/ARCHITECTURE.md`).
+10. Dust removal et carte des poussières (décision du 2026-11-10) : **un menu** qui affiche la carte des poussières (point 11), puis lance un dust removal. Le nettoyage manuel natif passe par `0x532ae708(modèle, 1)`, comme le menu du boîtier, sans jamais modifier la fréquence ni l'amplitude de l'ultrason. Le nettoyage à la rentrée de l'objectif existe déjà (option native « à l'extinction »).
+11. Carte des poussières, sur le modèle du Dust Alert des reflex Pentax : photographier une surface claire à f/16 et afficher les taches détectées, avant le dust removal du point 10 et pour vérifier son effet. Demande l'analyse d'une image dans le boîtier (avec le décodeur JPEG de la V2).
+
+### Après la v1 stabilisée (ambitieux, à étudier)
+12. Améliorer l'autofocus en basse lumière.
+13. Améliorer l'autonomie de la batterie.
+
+### Fait ou abandonné
 - **Prochain chantier (décidé le 2026-11-09) : rouleau chargé, réglages verrouillés.** En U1 à U3, Film Roll Mode sur On et rouleau entamé (compteur différent de 0, pas rembobiné), ces lignes de Still Image Settings disparaissent du menu (elles reviennent après le rembobinage, et en P, Av, Tv, M) :
   - Image Control (`0x02000012`), Aspect Ratio (`0x02000073`), Crop (`0x02000074`), Drive Mode (`0x0200000e`) ;
   - File Format (`0x02000072`), JPEG Recorded Pixels (`0x02000075`), Color Space (`0x02000076`).
@@ -158,12 +184,10 @@ Chaque étape suit le même cycle : test en émulateur, flash, essai sur le boî
 - ~~BOX suivante (fonction Fn, plan T25-BOX1)~~ : abandonnée (décision du 2026-11-09).
 - Stabilisation (IBIS) selon la vitesse (demande du 2026-11-09, rappelée le 2026-11-09) : SR activé sous une vitesse d'obturation choisie et coupé au-dessus, réglable dans Shake Reduction ou dans Auto SR Off (renommée « Auto SR On/Off »). En cours : recherche statique faite (valeur SR effective `0x53271dc4`, Tv courant `0x53548930`, voir les notes), Validée sur le boîtier (T-SR1, T-SR2) : la liste de Shake Reduction devient Off, 1/4000 (toujours active) … 30" ; seuil rangé dans l’octet de Shake Reduction (`+0x4f6`), donc par BOX et pour P, Av, Tv, M. Mise dans tout build GR III / IIIx complet, sans case (0.9.4). La main SR de l’écran ne suit pas encore la vitesse : version future.
 - Lignes de menu masquables depuis GR Mod Film (demande du 2026-11-09), comme pour la vidéo : une liste au choix dans l'application. Premières lignes demandées : Face/Eye Detection (`0x0200005e`), AF Assist Light (`0x0200005f`), AF.C Setting (`0x02000063`), MF Auto Magnification (`0x02000065`), Flash Mode (`0x020000dd`), GF-2 Flash Mode (`0x02000070`), Macro Mode (`0x02000071`). Même brique que le chantier ci-dessus. Un réglage masqué doit aussi disparaître des fonctions des touches et du levier ADJ (demande du 2026-11-09) : Face/Eye Detection est la fonction Fn 8 ; Flash Mode Fn 20 et ADJ 8 ; GF-2 Flash Mode Fn 41 et ADJ 0x13 ; Macro Mode Fn 45 (GR Mod Film) ; AF Assist Light, AF.C Setting et MF Auto Magnification n'ont ni fonction Fn ni fonction ADJ (à revérifier au moment du chantier, filtre des listes `0x531b9410` et listes ADJ).
-- Uniformiser les fonctions du levier ADJ et celles des touches (demande du 2026-11-09), dans la mesure du possible. Le levier ADJ a sa propre liste de 20 fonctions (0 Off, 1 Focus, 2 Snap Focus Distance, 3 File Format, 4 Aspect Ratio, 5 JPEG Recorded Pixels, 6 AE Metering, 7 ISO, 8 Flash Mode, 9 Flash Exp. Comp. (flou de GR Mod en round 10), 0x0a Drive, 0x0b Self-timer, 0x0c Image Control, 0x0d One Push AE, 0x0e Outdoor View, 0x0f Framerate, 0x10 Crop, 0x11 Touch AF, 0x12 Snap Distance Priority, 0x13 GF-2) : chaque case ADJ est un réglage à valeurs qu'on fait défiler, alors qu'une fonction de touche est une action. À étudier fonction par fonction (ajout de fiches ADJ, comme le flou de GR Mod).
 - Ordre décidé le 2026-11-09 : lignes masquables, puis bogue de la lecture, puis publication 0.9.4.
-- **Après la v1 stabilisée** (demande du 2026-11-09, ambitieux) : améliorer l'autofocus en basse lumière, et l'autonomie de la batterie. À étudier.
 - Lecture de la dernière photo (bogue signalé le 2026-11-09) : après une vue de rouleau, une photo de P (dossier plus ancien) n'était pas annoncée à la lecture, qui restait sur la vue. Correctif : chaque photo créée est retenue (dossier, numéro), et la lecture s'ouvre dessus après une nouvelle photo (`playLast`). **Validé sur le boîtier (T-PLAY3d).**
 - Touche WB dans la liste des touches réglables de Fn Button Settings (demande du 2026-11-02) : **validée sur le boîtier (WB-RC1)** ; touche Macro ajoutée (WB-RC2, validée sur le boîtier, 0.9.2) ; White Balance devient aussi une fonction des autres touches.
-- Bogue de lecture restant (signalé le 2026-11-10 avec la 0.9.4-RC1) : à décrire par l'utilisateur et à traiter après la 0.9.4.
+- **Priorités après la 0.9.4** (décision du 2026-11-10) : les bogues découverts à l'usage, ou le mode lecture (dont le bogue de lecture restant). Puis, plus tard : unifier les fonctions ADJ et boutons, la main SR qui suit la vitesse, l'AF en basse lumière et l'autonomie.
 - Désactiver la molette arrière (demande du 2026-11-08) : option « Rear dial off » de l'application (pas un réglage du boîtier). Les codes 24 et 25 sont ignorés à l'entrée de `ActionModel::OnEvent` (`0x53221a1c`), partout ; les quatre touches et OK restent. **Validée sur le boîtier (T-DIAL3, puis T-HOLD3)**, case dans l'application (0.9.3).
 - Fn maintenu + molette avant à la place de la molette arrière (demande du 2026-11-09) : avec la molette arrière coupée, le mode M ne règle plus la vitesse. Codes de la molette avant relevés (9, 10). Pendant que Fn est maintenu, la molette avant envoie les codes de la molette arrière (24, 25) ; Fn relâché ensuite ne fait rien. Validé en Snap (T-FN4) ; automatique avec « Rear dial off » (0.9.4) ; Snap DOF retiré.
 - Appuis longs (demande du 2026-11-08) : lignes « Hold » sous Fn, ISO, Drive, WB et Macro Button dans Fn Button Settings. Touches du pavé : au premier code de maintien ; Fn (aucun code de maintien) : chronométré par `tk_get_otm`, 600 ms, au relâchement. Réglages dans les octets libres `0x806`, `0x84a`, `0x88e`, `0xacf`, `0xae3`. **Validés sur le boîtier (T-HOLD3)**, 0.9.3.

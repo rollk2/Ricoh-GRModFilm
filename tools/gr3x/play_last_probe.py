@@ -19,14 +19,14 @@ from native_probe import STACK
 
 L=0x558043b8;RING=0x558043a8;REQ=0x6304a400;OBJ=0x6304a500;LR=0x5a5a5a5a
 def verify(data,manifest):
-    assert manifest.get('playLast') in (True,'diag');diag=manifest.get('playLast')=='diag'
+    assert manifest.get('playLast') in (True,'diag','files');diag=manifest.get('playLast') in ('diag','files');files=manifest.get('playLast')=='files'
     p=RollProbe(data,manifest);c=p.uc;cases={}
     count=lambda k:cases.__setitem__(k,cases.get(k,0)+1)
     def run(start,stop,regs):
         for i,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%i),v)
         c.reg_write(reg.UC_ARM_REG_SP,STACK);c.reg_write(reg.UC_ARM_REG_LR,LR)
         h=c.hook_add(UC_HOOK_CODE,lambda u,a,s,d:u.emu_stop() if a in (stop,LR) else None)
-        c.emu_start(start,LR,count=500);c.hook_del(h)
+        c.emu_start(start,LR,count=5000);c.hook_del(h)
         assert c.reg_read(reg.UC_ARM_REG_PC)==stop and c.reg_read(reg.UC_ARM_REG_SP)==STACK
         return [c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]
     def create(u,a_,s_,d):
@@ -42,7 +42,8 @@ def verify(data,manifest):
                 assert got[0]==res and got[4:12]==regs[4:12],(folder,num,[hex(x) for x in got])
                 mem=bytes(c.mem_read(L,4))
                 assert mem==(struct.pack('<HH',folder|0x8000,num) if ok else bytes([0x11]*4)),(folder,num,mem.hex());count('save kept' if ok else 'save ignored')
-                if diag:assert list(c.mem_read(RING,2))==([41,0] if ok else [44,0])
+                if files:assert list(c.mem_read(RING,4))==([45 if site==0x535a890c else 41,folder%100+100,num%100+100,0] if ok else [44,0,0,0]),(hex(site),folder,num,list(c.mem_read(RING,4)))
+                elif diag:assert list(c.mem_read(RING,2))==([41,0] if ok else [44,0])
     c.hook_del(h)
     for flag in (1,0):
         c.mem_write(L,struct.pack('<HH',115|(0x8000 if flag else 0),7404));c.mem_write(RING,bytes(8))

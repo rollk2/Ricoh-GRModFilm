@@ -3639,3 +3639,269 @@ Certitude : **statique** (lecture du code), sauf mention.
   avait déjà `srSpeed`).
 - **Résultat 0.9.4-RC1 (2026-11-10) : validée par l'utilisateur** (« Tout fonctionne »), sauf un
   bogue de lecture restant, à décrire et traiter plus tard. Publication de la 0.9.4 demandée.
+
+## Après la 0.9.4 (2026-11-10)
+
+- 0.9.4 publiée (PR #7, fusionnée). Suite décidée : bogues trouvés à l'usage ou mode lecture.
+
+## Inventaire ADJ / touches (travail de nuit, 2026-11-10)
+
+Certitude : **émulée** pour les noms (fonctions natives `0x53292ed0` et `0x53292810` exécutées,
+textes de la ligne anglaise), **statique** pour les listes (tables lues dans le firmware 2.10).
+
+### Fonctions des touches (Fn, ISO, Drive, Wireless, Hold), numéros de `0x53292ed0`
+
+| N° | Nom | ADJ équivalent |
+|---|---|---|
+| 0 | Off | 0 Off |
+| 1 | Focus | 1 Focus |
+| 2 | Set MF | aucun (action) |
+| 3 | Set Snap | aucun (action) |
+| 4 | Set Tracking AF | aucun (action) |
+| 5 | Enable AF | aucun (action ; absent des listes Wireless) |
+| 6 | AF+AE Lock | aucun (action ; absent des listes Wireless) |
+| 7 | AE Lock | aucun (action ; absent des listes Wireless) |
+| 8 | Face/Eye Detection | **aucun** (masqué par GR Mod Film au choix) |
+| 9 | Snap Focus Distance | 2 Snap Focus Distance |
+| 10 | File Format | 3 File Format |
+| 11 | JPEG → RAW | aucun (action) |
+| 12 | JPEG → RAW+ | aucun (action) |
+| 13 | Aspect Ratio | 4 Aspect Ratio |
+| 14 | Crop | 0x10 Crop |
+| 15 | JPEG Recorded Pixels | 5 JPEG Recorded Pixels |
+| 16 | Framerate | 0x0f Framerate (vidéo, dans aucune liste ADJ photo) |
+| 17 | Still/Movie | aucun (retiré avec No movie) |
+| 18 | AE Metering | 6 AE Metering |
+| 19 | ISO Setting | 7 ISO |
+| 20 | Flash Mode | 8 Flash Mode |
+| 21 | Flash Exposure Comp. | 9 Flash Exp. Comp. (le flou de GR Mod en round 10) |
+| 22 | ND Filter | aucun (GR IIIx / selon le modèle) |
+| 23 | Drive Mode | **aucun** (seul Drive, 0x0a, est sur l'ADJ) |
+| 24 | Drive | 0x0a Drive |
+| 25 | Continuous Shooting | **aucun** |
+| 26 | Self-timer | 0x0b Self-timer |
+| 27 | Image Control | 0x0c Image Control |
+| 28 | Shake Reduction | **aucun** |
+| 29 | One Push AE in M Mode | 0x0d One Push AE (absent des listes Wireless) |
+| 30 | 4-way Controller Action | aucun (action) |
+| 31 | Outdoor View Setting | 0x0e Outdoor View |
+| 32 | Wireless LAN Setting | aucun (listes Wireless seulement) |
+| 33 à 36 | Preview | aucun (33 dans la liste Wireless seulement) |
+| 37 | (sans nom) | aucun |
+| 38 | Touch AF | 0x11 Touch AF |
+| 39 | Snap Distance Priority | 0x12 Snap Distance Priority |
+| 40 | HDF | aucun (selon le modèle) |
+| 41 | GF-2 Flash Mode | 0x13 GF-2 |
+| 42 | Film Advance (GR Mod Film) | **aucun** (action) |
+| 43 | Retake (formes de test seulement) | aucun |
+| 44 | White Balance (GR Mod Film) | **aucun** |
+| 45 | Macro Mode (GR Mod Film) | **aucun** |
+| 46 | Snap DOF (0.9.3, retiré en 0.9.4) | aucun |
+
+Listes des touches : Fn / ISO / Drive / Hold, table de 36 numéros `0x53b4eb7c` (0 à 22, 39, 41,
+23 à 26, 40, 27 à 30, 38, 31), filtrée par `0x531b9410`, plus 42, 44, 45 de GR Mod Film ; Wireless
+`0x53b4ebcc` (34 numéros) et Hold Wireless `0x53b4ebf4` (32) : sans 5, 6, 7, 29.
+
+### Levier ADJ
+
+- Les **cinq cases** (ADJ Mode Setting) proposent la **même liste de 19 fonctions** (`0x53b4eba0`,
+  `0x53b5a430`, `0x53b5a404`, `0x53b58fb0`, `0x53b5a4b4` : 0, 1, 2, 3, 4, 0x10, 5, 6, 7, 8, 9, 0x12,
+  0x13, 0x0a, 0x0b, 0x0c, 0x0d, 0x11, 0x0e ; Framerate 0x0f n'y est pas).
+- **Toute fonction ADJ existe déjà côté touches.** Uniformiser revient donc à amener sur l'ADJ des
+  fonctions de touches.
+- Une fiche ADJ est un **réglage à valeurs** (table `0x53b39a14`, 20 fiches de 0x44 octets :
+  dessin de la valeur i, valeur courante, choix, nombre de valeurs). Les **actions** (AE Lock, Set
+  MF, Preview, JPEG → RAW, Film Advance…) n'ont pas de sens sur l'ADJ.
+- Contraintes connues (GR Mod, `adj-softfocus.ts`) : le constructeur parcourt exactement 0x550
+  octets (20 fiches) ; **agrandir la table a figé le GR IV**. La boucle de dessin demande les
+  valeurs jusqu'au plus grand nombre de valeurs de toutes les fiches (32 aujourd'hui). La méthode
+  sûre est de **réutiliser un numéro de fiche** existant : c'est ce qu'a fait le flou (fiche 9 en
+  round 10).
+- Numéros réutilisables : **0x0f (Framerate)** n'est dans aucune liste photo, et sa fiche ne sert
+  qu'en vidéo (gabarit vidéo fixe 0xc, 1, 6, 0xf, 0xe) : libre dès que No movie est coché. **8
+  (Flash Mode)** et **0x13 (GF-2)** seulement si l'utilisateur les masque (réglages masqués), donc
+  pas garantis.
+
+### Candidats pour l'ADJ, par intérêt
+
+| Fonction | Valeurs | Faisabilité | Remarque |
+|---|---|---|---|
+| Shake Reduction (28) | Off, vitesses | bonne : nos fonctions de liste (T-SR2) existent ; fiche 0x0f avec No movie | au plus ~30 valeurs (boucle de dessin) : une sélection, par exemple Off, 1/4000, 1/250, 1/125, 1/60, 1/30, 1/15, 1/8, 1/4, 1/2, 1" |
+| White Balance (44) | Auto, Multi Auto, Daylight… | moyenne : il faut la liste native de WB (lignes et réglage fin) | le réglage fin et la température de couleur ne tiennent pas dans une fiche |
+| Macro Mode (45) | Off / On | bonne (deux valeurs) | utile si la touche Macro sert à autre chose |
+| Continuous Shooting (25), Drive Mode (23) | — | inutile | déjà couverts par Drive (0x0a) |
+| Face/Eye Detection (8) | 3 valeurs | bonne | masqué dans le build de l'utilisateur : sans intérêt pour lui |
+| Actions (2 à 7, 11, 12, 30, 33 à 36, 42) | — | non | pas des réglages |
+
+**Recommandation** : une seule fiche nouvelle garantie (0x0f, avec No movie). La mettre sur
+**Shake Reduction** (sélection de vitesses) ; Macro Mode et White Balance seulement si l'on accepte
+de prendre une fiche masquée (8 ou 0x13) quand elle est libre, ou de tenter l'agrandissement de la
+table (risque de blocage, à essayer en dernier). À décider par l'utilisateur.
+
+## Icône SR de l'écran de prise de vue (travail de nuit, 2026-11-10)
+
+- **Pourquoi T-FN1 à T-FN5 n'ont rien changé** (statique, certitude forte) : `0x533676ac` choisit
+  entre les chaînes « On\n » (`0x540560bc`) et « Off\n » (`0x54055968`) et les passe à
+  `0x536b8150` : c'est une **commande de la console de débogage**, pas l'icône. `0x532a4f18` est une
+  surveillance de réglages (copies datées en `+0x8c0` … `+0x900`) qui ne dessine rien.
+- **Le vrai choix de l'icône** (statique, certitude moyenne) : `0x532a9ae0(modèle, r1, r2, r3, [sp])`,
+  appelé une seule fois, en `0x53170e30`, par l'affichage des informations de prise de vue, avec des
+  octets de l'enregistrement d'affichage `[vue + 0x4e8]` (le même qui donne la vitesse affichée,
+  `+0x4ec`) : r1 `+0x940`, r2 `+0x8c8`, r3 `+0x928`, [sp] `+0x8f8`. Si r1 n'est pas nul : l'icône de
+  [sp] par `0x53293a20` ; sinon r2 et r3 choisissent `0x1ae` (0, 0), `0x1af` (0, 1), **`0x1b0` (1, 0)**,
+  `0x1b1` (1, 1). `0x1b0` / `0x1ae` sont les icônes On / Off de la ligne Shake Reduction du menu
+  (`0x53293990`). Le sens exact de r1 (`+0x940`, probablement la vidéo) et de r3 reste à confirmer.
+  Autre choix des mêmes icônes, `0x532b656c`, pour la lecture (données de la note constructeur de
+  la photo, balises 0x0e, 0x0f, 0x55, 0x80) : sans rapport avec la prise de vue.
+- **T-SR3** (`srSpeed: { icon: 'diag' }`, `sr-speed.ts`) : l'appel `0x53170e30` passe par une
+  enveloppe : si r1 = 0 et r2 non nul (SR affichée On) et que la vitesse vivante est plus rapide que
+  le seuil de Shake Reduction, r2 est donné nul (icône Off) ; le cinquième argument reste en [sp]
+  (tout ce qui est empilé est dépilé avant le saut). Relevé : l'anneau des touches note chaque
+  changement de 60 + (r2 non nul) + 2 (r3 non nul) + 4 (r1 non nul) + 8 (r2 forcé à 0), octet RAM
+  `0x558043b7` (libre). Build : la configuration de la 0.9.4 (réglages masqués de l'utilisateur,
+  verrou, lecture, molette coupée avec Fn + molette avant), plus l'icône et l'impression de
+  l'anneau. Vérifié : `sr_speed_probe.py` (360 appels : l'icône forcée seulement dans les cas
+  attendus, arguments, pile et registres gardés, notes), toutes les autres sondes, tests.
+- Inconnue que seul le boîtier tranchera : l'affichage redessine-t-il l'icône quand seule la vitesse
+  change ? Si les notes montrent 69 (SR forcée) sans que l'icône change, il faudra provoquer le
+  rafraîchissement.
+
+## Études de faisabilité (travail de nuit, 2026-11-10)
+
+Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
+
+### Crop 40 mm (point 6)
+
+- Le crop natif est un **flottant**, l'agrandissement par rapport au 28 mm : réglage en `+0x4c4` de
+  l'enregistrement, écrit par `0x53252684(objet, s0)` (valeur vivante par `0x5354c918`) ; la liste
+  prend ses valeurs dans la table `0x53b591d4` : 1,25 (35 mm), 1,7857 (50 mm), 1,0 (Off). 40 mm
+  serait 1,4286.
+- Mais le reste du boîtier **classe** cette valeur : par seuils (`0x536a30c0`, `0x5355da18` : au moins
+  1,7857 → 2, au moins 1,25 → 1, sinon 0 ; 1,4286 tomberait dans la classe du 35 mm, donc les tailles
+  d'image et l'affichage du 35 mm) ou par **égalité exacte** (`0x535f4810` : un pointeur de table
+  pour 1,0 / 1,25 / 1,7857, **0 sinon**, donc un risque de plantage). 1,7857 est chargé à 13 endroits
+  (`0x530189b0`, `0x5301a67c`, `0x53283744`, `0x532837c4`, `0x532aa520`, `0x532aa574`, `0x532aa6d8`,
+  `0x532aa72c`, `0x535544ac`, `0x5355da18`, `0x5355dbd8`, `0x535f4828` … `0x535f48d8`,
+  `0x536a30c0`), 1,25 en immédiat (`vmov`) à d'autres. Une quatrième valeur native demanderait une
+  classe 3 partout, avec ses tables (tailles, affichage, Exif, AF) : **long et risqué**.
+- **Voie recommandée** : la mécanique des formats de GR Mod (identités 4 à 10, `image-pipeline.ts`,
+  `liveview.ts`, `geometry.ts`), déjà validée sur le boîtier (XPan 65:24). Un format « 40 mm » serait
+  un cadre 3:2 réduit à 70 % (28/40) au centre : environ 11,8 Mpx, visée avec le cadre affiché
+  (pas d'agrandissement de la visée comme le crop natif), Exif à 28 mm. Il faut ajouter à la
+  géométrie un facteur d'échelle (aujourd'hui un format prend la plus grande zone possible). Effort
+  moyen, 2 ou 3 builds de test.
+
+### Dust removal à la demande (point 10)
+
+- `DustRemovalModel` (`0x5320b6dc(0x5320ad88())`, assertions « Model/DustRemovalModel.cpp ») :
+  entrée **`0x532ae708(modèle, type)`** → `0x532ae59c` :
+  - type 1 : **nettoyage manuel**, celui du menu (`0x531e9bd0`, `0x531a9608`, contrôleur
+    `DustRemovalMenuController`) ;
+  - type 2 : au démarrage (`0x53225a80`), si le réglage `+0x9b6` (`SetupStartUpDustRemoval`) le
+    permet ;
+  - type 3 : à l'extinction (`0x53225aa0`), selon `+0x9b8` (`SetupShutDownDustRemoval`).
+  Chaque type poste le message `0x4c418809` (`0x532286dc`) avec son numéro ; la routine elle-même
+  (ultrason) reste celle du boîtier, **sans rien toucher à sa fréquence ni à son amplitude**.
+- **Faisable** : une fonction de touche (ou de ligne Hold) « Dust Removal » qui appelle
+  `0x532ae708(modèle, 1)`, exactement comme le menu. À vérifier sur le boîtier : ce que le menu fait
+  autour (écran d'attente `0x531a94f0`), et que l'appel depuis la visée est accepté. Plusieurs
+  passes : enchaîner à la fin de la précédente (événement de fin à trouver).
+- **« À la rentrée de l'objectif » existe déjà** : c'est le réglage natif de Dust Removal « à
+  l'extinction » (type 3). Rien à développer, seulement à l'activer dans le menu.
+- Carte des poussières (point 11) : demande d'analyser une image sur le boîtier (comme le
+  développement de la V2) ; à étudier avec le décodeur JPEG.
+
+### Taille du grain (point 7)
+
+- Le grain natif (« Granulation », `0x5367ad3c`) ne reçoit qu'**un niveau** (`+6` des paramètres
+  d'effet, lu en `0x535031b0` : 0 sans, puis 3 / 2 / 1). Le niveau ne règle que l'**intensité** : 0x100,
+  0x80 ou 0x40, appliquée à des courbes de 256 valeurs construites depuis trois tables
+  (`0x538f19d4`, `0x538f1bd4`, `0x538f1dd4`). La texture est faite par le moteur d'image du boîtier
+  (objets `0x5376bba0`, `0x53678b7c(…, 0x40, 0x40, …)` : une tuile de 64 × 64 ?). **Aucun paramètre de
+  taille** natif.
+- Deux voies :
+  1. **Essai sur le natif** (hypothèse) : changer la taille de tuile 0x40 (`0x5367b018`) ou étirer
+     la texture. Un build de test par valeur, à comparer à l'œil ; risque de blocage si le
+     tampon ne suit pas (essayer d'abord plus petit, 0x20).
+  2. **Le grain logiciel** de GR Mod Film (`grainSoftware`, `jpeg_grain.c`, avec une ligne Size),
+     déjà construit en T-GRAIN5 / T-GRAIN6 et écarté pour sa lenteur : la taille y existe ; à
+     reconsidérer seulement si la lenteur est acceptable pour une « grosse » taille.
+
+- Décisions du 2026-11-10 sur le travail de nuit : ADJ / touches fermé (rien à faire) ; crop 40 mm documenté et fermé ; taille du grain fermée ; dust removal : un menu qui affiche la carte des poussières puis lance un dust removal (V2) ; T-SR3 en test sur le boîtier.
+- **Résultat T-SR3 (2026-11-10) : validé sur le boîtier.** La main change ; anneau « 61 69 61 » puis
+  « 61 69 61 69 » : SR affichée On (61), forcée Off par la vitesse (69), à chaque passage du seuil.
+  L'écran redessine bien l'icône quand seule la vitesse change.
+- Intégration : le moteur met l'icône avec `srSpeed` (enveloppe sans relevé) ; la recette l'enregistre
+  à part (`srIcon`), si bien que les firmwares 0.9.4 (liste sans icône) se reconstruisent à
+  l'identique : la 0.9.4-RC1 est toujours reconnue (inspection vérifiée), un nouveau build l'est
+  aussi. Vérifié : test de la recette, `sr_speed_probe.py` et les autres sondes sur un build
+  équivalent, tests.
+
+## Bogue de lecture restant (2026-11-10)
+
+- Questionnaire (0.9.4) : scénarios A à M justes (P seul, U seul, U → P (C), P → U, vue sans avance,
+  rallumage, rallumage + photo, parcours, suppression, RAW+JPEG, U1 → U2 avec ou sans avance, U1 → U2
+  sans photo). **Bogue : scénario N** : en U1, une vue avec Film Advance, molette sur P, une photo,
+  lecture : **la vue de U1 s'affiche** (l'avant-dernière). Le scénario C, semblable, était juste :
+  la différence reste à trouver.
+- **T-PLAY4d** (`playLast: 'files'`) : la configuration de la prochaine version (avec la main SR),
+  plus les relevés de la lecture : chaque photo retenue est notée 41 (premier appel de la création,
+  `0x535a88d8`) ou 45 (second, `0x535a890c`), puis son dossier et son numéro modulo 100 (imprimés
+  00 à 99) ; 44 une création sans dossier ni numéro valables ; ouverture 42 (photo retenue) ou 43 ;
+  contrôle 80 / 81 ; MoveToLastFile 77. Vérifié : `play_last_probe.py` (notes par appel, dossier et
+  numéro), toutes les autres sondes, tests.
+- **Résultats T-PLAY4d (2026-11-10)** : scénario N juste (U1 100-7401, P 101-7472, ouverture sur la
+  photo de P ; anneau « 42 43 43 43 43 43 43 » : la lecture s'ouvre à chaque photo parcourue, seule
+  la première ouverture prend la photo retenue). Avec un rouleau rembobiné (dossier de U1 plus grand
+  que celui de P) : juste aussi, anneau « 01 75 42 43 43 43 43 » (photo de P retenue, dossier 101,
+  numéro …75, puis ouverture dessus). Variantes V1 à V7 (attente, aller-retour de la molette,
+  extinction, vue sans avance, deux photos en P, U2, menu ouvert) : **aucune en défaut**. Le bogue
+  vu avec la 0.9.4-RC1 n'est pas reproduit.
+- Signalé en passant (2026-11-10) : le compteur des pellicules ne repart pas à zéro après un
+  formatage de la carte. À traiter avec son propre protocole.
+- Décision de l'utilisateur (2026-11-10) : bogue de lecture **abandonné** (non reproduit).
+
+## Formatage : tous les rouleaux rembobinés (2026-11-10, T-FMT1)
+
+- Constat : après un formatage, le compteur ne repartait pas à zéro. Le firmware ne surveillait pas
+  le formatage : un dossier de rouleau disparu n'était vu qu'à l'avance suivante (T19-CARD3), et le
+  formatage recrée le dossier 100 (un rouleau rangé dans 100 continuait). Décision : **tous les
+  rouleaux rembobinés dès la fin du formatage**.
+- Formatage (statique) : `MediaFormat` (`src/MediaFormat.cpp`), un seul appel, `0x534e62a0`
+  (`bl 0x534f0658`, tâche des supports), qui rend son indicateur d'erreur (`[this + 0x11]`, 0 fait) ;
+  l'appelant poste ensuite `0x25480206` avec le résultat.
+- **T-FMT1** (`formatRewind`, `film-format.ts`) : formatage réussi → octet RAM `0x558043b6` à 1 (rien
+  d'autre dans cette tâche). Au crochet du compteur (`0x532aa1f4`, tâche de l'interface, comme
+  l'action Rewind) : octet effacé, puis chaque rouleau entamé (bit 2 de `0x9b1`, vue non nulle) des
+  six BOX remis à la vue 0 et enregistré (`0x53826c54`, n + 2), ainsi que l'enregistrement en cours
+  (1) si son mode est un mode U ; puis le compteur comme avant. Tous les registres et les drapeaux
+  gardés. Moteur : mis avec le mode pellicule, enregistré à part dans la recette (`formatRewind`) :
+  la 0.9.4-RC1 reste reconnue. Vérifié : `format_probe.py` (formatage réussi ou raté, 90
+  combinaisons de BOX, de mode et d'enregistrement en cours), toutes les autres sondes, tests (370).
+  Build de test construit par le moteur (configuration de la prochaine version, avec la main SR),
+  auto-contrôle et inspection vérifiés.
+- **Résultat T-FMT1 (2026-11-10) : échec.** Après le formatage en U1 : compteur de U1 inchangé (3/xx),
+  U2 inchangé (2/xx) ; en U1, une vue + Film Advance : nouveau rouleau (l'ancien mécanisme du dossier
+  disparu, T19-CARD3) ; rallumage : compteurs gardés ; formatage annulé : U2 inchangé.
+- **T-FMT2** (`formatRewind: 'diag'`) : T-FMT1 plus l'anneau des touches imprimé : 50 + le résultat du
+  formatage (0 réussi), 60 + le nombre de rouleaux rembobinés au crochet du compteur. Vérifié :
+  `format_probe.py` (notes), toutes les autres sondes, tests.
+- **Résultat T-FMT2 (2026-11-10)** : après formatage, compteurs de U1 et U2 inchangés ; anneau
+  « 51 » : le formatage a été vu, **son résultat vaut 1 quand il réussit** (T-FMT1 attendait 0, d'où
+  aucun rembobinage ; pas de 60). Certitude forte pour la valeur 1 ; la valeur d'un échec reste
+  inconnue (aucun échec provoqué).
+- **T-FMT3** : rembobinage quand le résultat vaut 1 ; relevés gardés. Vérifié : `format_probe.py`
+  (0, 1, 7), autres sondes, tests.
+- **Résultat T-FMT3 (2026-11-10) : validé sur le boîtier.** Le compteur revient à zéro après le
+  formatage ; anneau « 51 64 » : formatage vu (résultat 1), puis 4 rouleaux rembobinés au crochet du
+  compteur (BOX de U1 et U2, enregistrement en cours, et un autre rouleau entamé). Les builds de
+  l'application prennent `formatRewind` (sans relevés) avec le mode pellicule.
+
+## Release 0.9.5 (2026-11-10)
+
+- Contenu : la main SR qui suit la vitesse (T-SR3), le rembobinage de tous les rouleaux au formatage
+  (T-FMT3). Version 0.9.5, README mis à jour.
+- **0.9.5-RC1** construite par le moteur (même configuration que la 0.9.4-RC1 : réglages masqués de
+  l'utilisateur, verrou, lecture, stabilisation, molette coupée avec Fn + molette avant) : auto-contrôle
+  et inspection vérifiés ; la 0.9.4-RC1 reste reconnue. Sondes sur un build équivalent (dont
+  `format_probe.py`), tests (370, les 5 échecs connus des données privées).

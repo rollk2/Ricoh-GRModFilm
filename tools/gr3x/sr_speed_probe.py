@@ -104,18 +104,39 @@ def verify(data,manifest):
                 c.mem_write(SET+0x44,bytes([movie]));c.mem_write(SET+0x472,bytes(1));c.mem_write(SET+0x484,bytes(1))
                 assert call(0x53271dc4,[OBJ])==(1 if raw and not movie else 0),(raw,movie);count('live value')
         c.mem_write(SET+0x44,bytes(1))
-        # The SR icon (its choice and the settings monitor): the setting, Off when faster than the threshold.
+        # The shooting screen's SR icon (T-SR3): its chooser's call (0x53170e30): r2 (SR shown On) made 0
+        # when r1 is 0 and the live speed is faster than the threshold; every other argument, the stack
+        # argument and r4..r11 as given.
         e=manifest['entries'];sh=e.get('srSpeedShown');sites={x['address']:x for x in manifest['sites']}
-        assert (sh is not None)==bool(sr.get('icon')) and all((a in sites)==bool(sh) for a in (0x532a4f18,0x533676ac))
-        for at in ((0x532a4f18,0x533676ac) if sh else ()):
-            w=struct.unpack('<I',bytes.fromhex(sites[at]['replacement']))[0];assert w>>24==0xeb and (at+8+((w&0xffffff)<<2))&0xffffffff==sh or (at+8+(((w&0xffffff)-0x1000000)<<2))&0xffffffff==sh,hex(at)
-        for raw in ((0,1,24,38,52,60) if sh else ()):
-            c.mem_write(SET+0x4f6,bytes([raw]))
-            for k in (0,23,24,37,51):
-                for d in (-0.15,0.15):
-                    tv=12-k/3+d;c.mem_write(REC+0x4bc,struct.pack('<f',tv));f=struct.unpack('<f',struct.pack('<f',tv))[0]
-                    want=0 if raw==0 else (1 if not 2<=raw<=52 or f<12-(raw-1)/3+1/6 else 0)
-                    assert call(sh,[OBJ],{0x53525d5c:lambda u:LVC})==want,(raw,tv);count('icon '+('on' if want else 'off'))
+        assert (sh is not None)==bool(sr.get('icon')) and ((0x53170e30 in sites)==bool(sh))
+        if sh:
+            w=struct.unpack('<I',bytes.fromhex(sites[0x53170e30]['replacement']))[0];dd=w&0xffffff;dd=dd-0x1000000 if dd&0x800000 else dd
+            assert w>>24==0xeb and 0x53170e30+8+4*dd==sh
+            got_args=[]
+            def chooser(u,a_,s_,d):
+                got_args.append((r_(u,0),r_(u,1),r_(u,2),r_(u,3),struct.unpack('<I',bytes(u.mem_read(u.reg_read(reg.UC_ARM_REG_SP),4)))[0],u.reg_read(reg.UC_ARM_REG_SP)))
+                u.reg_write(reg.UC_ARM_REG_R0,0x1b0);u.reg_write(reg.UC_ARM_REG_PC,u.reg_read(reg.UC_ARM_REG_LR))
+            hc=c.hook_add(UC_HOOK_CODE,chooser,begin=0x532a9ae0,end=0x532a9ae0)
+            hl=c.hook_add(UC_HOOK_CODE,lambda u,a_,s_,d:(u.reg_write(reg.UC_ARM_REG_R0,LVC),u.reg_write(reg.UC_ARM_REG_PC,u.reg_read(reg.UC_ARM_REG_LR))),begin=0x53525d5c,end=0x53525d5c)
+            for raw in (0,1,24,38,52,60):
+                c.mem_write(SET+0x4f6,bytes([raw]))
+                for k in (0,23,24,37,51):
+                    for d_ in (-0.15,0.15):
+                        tv=12-k/3+d_;c.mem_write(REC+0x4bc,struct.pack('<f',tv));f=struct.unpack('<f',struct.pack('<f',tv))[0]
+                        for a1,a2,a3 in ((0,1,0),(0,1,1),(0,0,0),(0,0,1),(1,1,0),(2,1,1)):
+                            off=a1==0 and a2!=0 and 2<=raw<=52 and not f<12-(raw-1)/3+1/6
+                            got_args.clear();regs=[0x5000+j for j in range(13)];regs[:4]=[0x7700,a1,a2,a3]
+                            for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
+                            c.reg_write(reg.UC_ARM_REG_SP,STACK-16);c.mem_write(STACK-16,struct.pack('<I',0xabcd))
+                            c.reg_write(reg.UC_ARM_REG_LR,LR);c.emu_start(sh,LR,count=3000)
+                            assert c.reg_read(reg.UC_ARM_REG_PC)==LR and c.reg_read(reg.UC_ARM_REG_SP)==STACK-16 and r_(c,0)==0x1b0
+                            assert [r_(c,j) for j in range(4,12)]==regs[4:12]
+                            assert got_args==[(0x7700,a1,0 if off else a2,a3,0xabcd,STACK-16)],(raw,tv,a1,a2,a3,got_args)
+                            count('icon off' if off else 'icon as given')
+                            if sr.get('icon')=='diag':
+                                code=60+(a2!=0)+2*(a3!=0)+4*(a1!=0)+8*off;rg=list(c.mem_read(RING,8))
+                                assert rg[(rg[7]-1)%7]==code and c.mem_read(0x558043b7,1)[0]==code+1,(rg,code);count('icon noted')
+            c.hook_del(hc);c.hook_del(hl)
         # Record 42: count, draw, set, current.
         st=e['srSpeedText']
         assert call(0x531b3af4,[0])==53;count('count')
@@ -150,7 +171,7 @@ def verify(data,manifest):
         exp=(notes[-7:] if len(notes)>=7 else notes)
         seq=ring[k:7]+ring[:k] if len(notes)>=7 else ring[:len(notes)]
         assert seq==exp and ring[7]==k,(ring,notes);count('ring')
-    else:assert list(c.mem_read(RING,8))==[0]*8
+    elif sr.get('icon')!='diag':assert list(c.mem_read(RING,8))==[0]*8
     return dict(cases=cases,threshold_tv=tv0,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':
