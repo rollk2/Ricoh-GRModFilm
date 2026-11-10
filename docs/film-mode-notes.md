@@ -3896,3 +3896,12 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   formatage ; anneau « 51 64 » : formatage vu (résultat 1), puis 4 rouleaux rembobinés au crochet du
   compteur (BOX de U1 et U2, enregistrement en cours, et un autre rouleau entamé). Les builds de
   l'application prennent `formatRewind` (sans relevés) avec le mode pellicule.
+
+## Release 0.9.5 (2026-11-10)
+
+- Contenu : la main SR qui suit la vitesse (T-SR3), le rembobinage de tous les rouleaux au formatage
+  (T-FMT3). Version 0.9.5, README mis à jour.
+- **0.9.5-RC1** construite par le moteur (même configuration que la 0.9.4-RC1 : réglages masqués de
+  l'utilisateur, verrou, lecture, stabilisation, molette coupée avec Fn + molette avant) : auto-contrôle
+  et inspection vérifiés ; la 0.9.4-RC1 reste reconnue. Sondes sur un build équivalent (dont
+  `format_probe.py`), tests (370, les 5 échecs connus des données privées).

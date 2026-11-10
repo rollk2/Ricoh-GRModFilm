@@ -8,7 +8,7 @@ does for these cameras is kept. Not a Ricoh product, not an official GR Mod rele
 > tested for it here. GR IV owners should use [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod).
 > (GR Mod's GR IV code is still in this repository, untouched, because the program is shared.)
 
-Version 0.9.4 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page). Camera-tested on a GR III 2.10. The GR IIIx 1.60 is the same program (same
+Version 0.9.5 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page). Camera-tested on a GR III 2.10. The GR IIIx 1.60 is the same program (same
 addresses, same emulator checks) but has **not been tested on a camera**.
 
 ## What the film mode does (GR III / IIIx)
@@ -25,6 +25,8 @@ addresses, same emulator checks) but has **not been tested on a camera**.
   `174POR36`; the camera's own looks have codes too (STND, VIVD, MONO, NEGF…). The photos of P, Av,
   Tv and M always go into one folder.
 - **Changed card**: a roll whose folder is gone starts again on a new roll.
+- **Formatting the card** (0.9.5) rewinds every loaded roll (U1, U2, U3 and the other BOXes): the
+  counters start again from the first frame.
 - **No movie** (an option of its own): Movie Settings, Still/Movie, Movie Edit and the movie Fn
   functions are taken out; the side button is called « Wireless Button ». Its tab becomes the
   « Film Mode » tab, shown in U modes only.
@@ -67,7 +69,7 @@ addresses, same emulator checks) but has **not been tested on a camera**.
   speed is faster. 1/4000 means always on (the factory On, so nothing changes until you choose
   another speed). The speed is kept per BOX like Shake Reduction (and once for P, Av, Tv, M). A
   button set to Shake Reduction turns a speed Off, then back to 1/4000. The SR icon on the shooting
-  screen does not follow the speed yet.
+  screen follows the speed (0.9.5): it goes out when the speed is faster than the one chosen.
 - The film mode builds on GR Mod's date imprint stage; when the date imprint itself is not
   wanted, its menu line is hidden and nothing is printed on the photos (0.9.2: even when a date
   had been turned on before).
