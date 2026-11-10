@@ -8,7 +8,7 @@ does for these cameras is kept. Not a Ricoh product, not an official GR Mod rele
 > tested for it here. GR IV owners should use [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod).
 > (GR Mod's GR IV code is still in this repository, untouched, because the program is shared.)
 
-Version 0.9.5 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page). Camera-tested on a GR III 2.10. The GR IIIx 1.60 is the same program (same
+Version 0.9.6 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page). Camera-tested on a GR III 2.10. The GR IIIx 1.60 is the same program (same
 addresses, same emulator checks) but has **not been tested on a camera**.
 
 ## What the film mode does (GR III / IIIx)
@@ -56,6 +56,10 @@ addresses, same emulator checks) but has **not been tested on a camera**.
   the front dial** to do what the rear dial did (the depth of field in Snap Distance Priority, for
   one). Fn's own function then runs when Fn is released, and not at all after such a turn. The Snap
   DOF button function of 0.9.3 is gone (Fn + front dial does it).
+- **Rewind Film on a button** (0.9.6): Fn Button Settings offers « Rewind Film » (with Film Advance,
+  White Balance and Macro Mode, at the end of the lists). In a U mode with a started roll, the
+  button asks « Rewind the film? » for 4 s: OK rewinds (then « New roll loaded. »), MENU or waiting
+  cancels.
 - **Roll lock** (0.9.4): while a roll is loaded (not rewound), Image Control, Aspect Ratio, Crop,
   Drive Mode, File Format, JPEG Recorded Pixels and Color Space leave the menu, their button and
   ADJ lever functions run Off: the roll's film and format cannot change by mistake.

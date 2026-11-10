@@ -1045,9 +1045,9 @@ export const GR3X_FILM_REWIND_QUESTIONS: readonly string[] = [
  * message waits (the byte is then cleared): `movw r1,#0x2be` at 0x531ce174 becomes that choice.
  */
 /** `question` (T-RWB1, the Rewind Film button): a waiting byte of 2 shows `text` (Rewind Film's
- * question, then « MENU: Cancel », T-RWB2) for GR3X_FILM_QUESTION_MS; OK then rewinds the roll
- * (`rewind`, filmRollRewind) and, when it did, the message screen opens again on « New roll
- * loaded. »; its timer alone changes nothing; MENU goes back to the live view (T-RWB2). */
+ * question; the message screen shows its first line only, T-RWB3) for GR3X_FILM_QUESTION_MS; OK then
+ * rewinds the roll (`rewind`, filmRollRewind) and, when it did, the message screen opens again on
+ * « New roll loaded. »; its timer alone changes nothing; MENU goes back to the live view (T-RWB2). */
 export function installGr3xFilmMessage(p: Gr3xRollProgram, text: number, redirect = false, guard = false, probe = guard, check = 0, fromMenu = false, quick = false,
   question?: { text: number; rewind: number }) {
   if (p.sites.some(s => s.address === GR3X_MESSAGE_TEXT_AT)) throw new FirmwareError('unexpected-instruction', 'IIIx film message: already patched');

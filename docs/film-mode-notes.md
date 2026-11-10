@@ -3943,3 +3943,14 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   Film, « OK: » et l'Execute du boîtier (`0x2a9`), « MENU: » et son Cancel (`0x2aa`), dans chaque
   langue (« Rewind the film? / OK: Execute / MENU: Cancel »). Vérifié : `rewind_button_probe.py`
   (21 langues, trois lignes), autres sondes, tests.
+- **Résultat T-RWB3 (2026-11-10)** : l'écran de message n'affiche que la **première ligne** du texte
+  (photo de l'utilisateur : « Rewind the film? » et le bouton OK). Décision : pas de texte pour MENU ;
+  MENU garde l'annulation (retour à la visée). La question redevient celle de Rewind Film (T-RWB1) ;
+  le texte à part de T-RWB2 / T-RWB3 est retiré.
+
+## Release 0.9.6 (2026-11-10)
+
+- Contenu : Rewind Film sur un bouton (question, OK rembobine, MENU ou l'attente annule), fonctions de
+  GR Mod Film groupées en fin de liste (Film Advance, Rewind Film, White Balance, Macro Mode).
+- 0.9.6-RC1 construite par le moteur : auto-contrôle et inspection vérifiés ; la 0.9.5-RC1 reste
+  reconnue. Sondes sur un build équivalent (10, dont `rewind_button_probe.py`), tests (371).
