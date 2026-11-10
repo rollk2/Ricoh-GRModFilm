@@ -78,7 +78,7 @@ function utf16z(s: string): Uint8Array {
   for (let i = 0; i < s.length; i++) view.setUint16(i * 2, s.charCodeAt(i), true);
   return out;
 }
-/** The camera's own « Cancel » of its Execute / Cancel screens (0x2a9 Execute), in every text row. */
+/** The camera's own « Cancel » of its Execute / Cancel screens (0x2a9 its « Execute »), in every text row. */
 const GR3X_CANCEL_TEXT = 0x2aa;
 function fail(message: string): never { throw new FirmwareError('unexpected-layout', message); }
 /** GR III text rows (ja en fr de es pt it nl da sv fi pl cs hu tr el ru ko zh-TW zh-CN th) as indices of `LANGS`. */
@@ -380,7 +380,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   // Pictures: round 5 line name, Original, names; round 6 Type, Picture, Original, names.
   const pictureTexts = pictureCount ? (pictureSub ? 3 : 2) + pictureCount : 0;
   const srCount = features.srSpeed && features.srSpeed.seconds === undefined ? GR3X_SR_SPEEDS.length : 0;
-  // T-RWB2: the Rewind Film button's question (Rewind Film's, then « MENU: » and the row's own Cancel), the very last text.
+  // T-RWB3: the Rewind Film button's question (Rewind Film's first line, « OK: » Execute, « MENU: » Cancel, the row's own words), adj's last text.
   const askCount = features.rewindButton === true ? 1 : 0;
   const columns = m.textCount + additions.length + (softFocus ? 1 : 0) + dateTexts + pictureTexts + (filmMenu ? 1 : 0) + (filmFn ? 1 : 0) + (filmMessage ? 1 : 0) + (filmRewind ? 2 : 0) + (filmTab ? 1 : 0) + (features.afPoint ? 1 : 0) + (features.afPoint && features.memoryU ? 1 : 0) + (wbButton ? 1 : 0) + (macroButton ? 1 : 0) + (snapButton ? 1 : 0) + (holdButtons ? GR3X_HOLD_KEYS.length : 0) + srCount + askCount;
   // The SR speeds' texts, the very last (sr-speed.ts); before them the Hold lines' names (Fn, Macro, WB, ISO, Drive).
@@ -515,7 +515,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     const v = new DataView(row.buffer);
     const own = (id: number) => { const record = v.getUint32(id * 4, true), length = read(record, 1)[0] - 1; return String.fromCharCode(...new Uint16Array(read(word(record + 4), length * 2).slice().buffer)); };
     const lang = GR3X_SOFT_FOCUS_ROWS[r];
-    const name = `${GR3X_FILM_REWIND_QUESTIONS[lang]}\nMENU: ${own(GR3X_CANCEL_TEXT)}`, text = append(utf16z(name));
+    // Three lines (T-RWB2 had four, the message screen shows three): the question's first line, then OK and MENU with the row's own Execute and Cancel.
+    const name = `${GR3X_FILM_REWIND_QUESTIONS[lang].split('\n')[0]}\nOK: ${own(GR3X_CANCEL_TEXT - 1)}\nMENU: ${own(GR3X_CANCEL_TEXT)}`, text = append(utf16z(name));
     v.setUint32(askText * 4, append(Uint8Array.from([name.length + 1, 1, 0, 0, ...words([text])])), true);
   });
   if (srCount) GR3X_SR_SPEEDS.forEach((sec, k) => {

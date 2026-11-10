@@ -77,12 +77,13 @@ def verify(data,manifest):
         else:count('text %d'%b)
         if b==1:new_roll=texts
         if b==2:question=texts
-    # T-RWB2: the button's question is a text of its own (not the menu dialog's): Rewind Film's question, « MENU: » and the row's own Cancel (0x2aa).
+    # T-RWB3: the button's question is a text of its own, three lines: Rewind Film's question's first line, « OK: » the row's Execute (0x2a9), « MENU: » its Cancel (0x2aa).
     cat=manifest['catalogs'];assert 786<=question<cat['textColumns'] and question!=new_roll+2,(hex(question),cat['textColumns'])
     u32=lambda a:struct.unpack('<I',bytes(c.mem_read(a,4)))[0]
     def tx(row,i):rec=u32(u32(cat['textRoots']+4*row)+4*i);n=c.mem_read(rec,1)[0]-1;return bytes(c.mem_read(u32(rec+4),2*n)).decode('utf-16le')
     for row in range(21):
-        q=tx(row,question);cancel=tx(row,0x2aa);assert q.endswith('\nMENU: '+cancel) and q.count('\n')>=2,(row,q);count('question row')
+        q=tx(row,question);cancel=tx(row,0x2aa);execute=tx(row,0x2a9);lines=q.split('\n')
+        assert len(lines)==3 and lines[1]=='OK: '+execute and lines[2]=='MENU: '+cancel,(row,q);count('question row')
     assert 'Rewind the film?' in [tx(r,question).split('\n')[0] for r in range(21)];count('texts')
     c.hook_del(hs)
     # The way back from the message screen.

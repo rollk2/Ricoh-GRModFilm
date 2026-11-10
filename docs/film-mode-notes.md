@@ -3936,3 +3936,10 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   DOF, l'ancien ordre est gardé : les builds 0.9.3 se reconstruisent à l'identique). Vérifié :
   `rewind_button_probe.py` (21 langues, MENU), `film_roll_check.py` (ordre), toutes les autres
   sondes, tests. La 0.9.5-RC1 reste reconnue.
+- **Résultat T-RWB2 (2026-11-10)** : MENU annule et revient à la visée ; OK rembobine ; ordre des
+  fonctions juste. Mais « MENU: Cancel » n'apparaît pas : la question avait quatre lignes, l'écran de
+  message n'en montre que trois (certitude moyenne).
+- **T-RWB3** : la question du bouton en trois lignes : la première ligne de la question de Rewind
+  Film, « OK: » et l'Execute du boîtier (`0x2a9`), « MENU: » et son Cancel (`0x2aa`), dans chaque
+  langue (« Rewind the film? / OK: Execute / MENU: Cancel »). Vérifié : `rewind_button_probe.py`
+  (21 langues, trois lignes), autres sondes, tests.
