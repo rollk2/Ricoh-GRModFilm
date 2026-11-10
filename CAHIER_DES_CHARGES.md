@@ -147,15 +147,16 @@ Chaque étape suit le même cycle : test en émulateur, flash, essai sur le boî
 
 ## Évolutions envisagées
 
-Décisions du 2026-11-10.
+Décisions des 2026-11-10 et 2026-11-11.
 
 ### Finitions de la v1
 1. ~~Bogue de lecture restant~~ : **abandonné le 2026-11-10** (non reproduit avec T-PLAY4d, scénarios A à N et variantes V1 à V7 justes).
 2. ~~Icône SR de l'écran de prise de vue~~ : **validée sur le boîtier (T-SR3, 2026-11-10)** : la main suit la stabilisation selon la vitesse. Choix de l'icône `0x532a9ae0`, appelé en `0x53170e30`. Intégrée aux builds de l'application (option `srIcon` de la recette), pour la prochaine version.
+3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
 - Formatage de la carte : **tous les rouleaux rembobinés** dès la fin du formatage (décision du 2026-11-10 ; avant, le compteur continuait). **Validé sur le boîtier (T-FMT3)**, mis dans les builds avec le mode pellicule, pour la prochaine version.
 - **Rewind Film sur un bouton** (demande du 2026-11-10) : fonction 46 de Fn Button Settings ; la question « Rewind the film? », OK rembobine, MENU ou l'attente annule. **Validé sur le boîtier (T-RWB1 à T-RWB3)**, publié en 0.9.6.
 - Réorganiser les ratios (Aspect Ratio) comme les recettes d'Image Control (demande du 2026-11-10) : à faire.
-3. ~~Uniformiser3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
+- **GF-2 Flash Mode dans Mode Memory** (correctif, décision du 2026-11-11) : masqué depuis l'application, GF-2 Flash Mode reste proposé dans la liste de Mode Memory. Quand il est masqué, il doit aussi disparaître de cette liste. Vérifier au passage tous les réglages masquables : un réglage masqué ne doit apparaître nulle part, Mode Memory compris.
 
 ### Mode pellicule
 4. Reprendre une surimpression après extinction et rallumage (réinjection de l'image, probablement via le développement RAW intégré).
@@ -170,22 +171,74 @@ Décisions du 2026-11-10.
 9. Développement dans l'appareil : diptyque, date au tirage et planche contact, en portant sur le boîtier le moteur déjà validé sur PC (`tools/develop`). Dépend du décodeur JPEG (décision D3 de `docs/ARCHITECTURE.md`).
 10. Dust removal et carte des poussières (décision du 2026-11-10) : **un menu** qui affiche la carte des poussières (point 11), puis lance un dust removal. Le nettoyage manuel natif passe par `0x532ae708(modèle, 1)`, comme le menu du boîtier, sans jamais modifier la fréquence ni l'amplitude de l'ultrason. Le nettoyage à la rentrée de l'objectif existe déjà (option native « à l'extinction »).
 11. Carte des poussières, sur le modèle du Dust Alert des reflex Pentax : photographier une surface claire à f/16 et afficher les taches détectées, avant le dust removal du point 10 et pour vérifier son effet. Demande l'analyse d'une image dans le boîtier (avec le décodeur JPEG de la V2).
+24. Gain map HDR dans les JPEG (Ultra HDR, norme ISO 21496-1, décision du 2026-11-11). Le JPEG garde l'image normale et embarque une carte de gain : sur un écran HDR (téléphones et Mac récents, Chrome), les hautes lumières brillent au-delà du blanc normal ; ailleurs, le JPEG s'affiche comme d'habitude. Source : Maxwooow, GR Mod 0.8.9 et 0.8.10 (GR IV 1.11 et 1.20 : carte calculée depuis la photo finie, gain plafonné à 1,2 diaphragme, interrupteur dans le menu photo après Color Space). Sur GR III : interrupteur par film ou par BOX, désactivé par défaut (le rendu HDR va à l'opposé des hautes lumières douces de l'argentique). Étudier l'interaction avec l'halation (la lueur pourrait profiter de la marge HDR) et avec le développement dans l'appareil (point 9 : la carte devrait être calculée au tirage, après le grain et la date).
 
 ### Après la v1 stabilisée (ambitieux, à étudier)
 12. Améliorer l'autofocus en basse lumière.
 13. Améliorer l'autonomie de la batterie.
 
 ### Nouvelles fonctions
-Décisions du 2026-11-10.
+Décisions des 2026-11-10 et 2026-11-11.
 
 14. Obturation électronique à 1/8000e de seconde. Objectif : grande ouverture en plein soleil sans filtre ND. L'obturateur mécanique du GR III plafonne à 1/4000e. À étudier d'abord : chercher dans le firmware un mode de lecture rapide du capteur déjà existant (aperçu, vidéo) plutôt que d'écrire un pilote ; mesurer le rolling shutter et les bandes sous éclairage artificiel ; décider entre bascule automatique au-delà de 1/4000e ou mode séparé ; rester cohérent avec la vitesse plancher du SR (0.9.4). Pas de flash en électronique. Chantier ambitieux, réservé à une session Fable.
-15. Export et import des réglages sur la carte SD.
-    - Deux lignes dans Setup (ou dans l'onglet Film Mode) : « Export Settings » et « Import Settings ».
-    - Contenu exporté : les réglages sauvegardés par le boîtier (BOX U1 à U3, réglages de P / Av / Tv / M, Fn Button Settings avec les lignes Hold, ADJ, Mode Memory, paramètres des films GR Mod et leur grain, seuil SR par BOX, enregistrements HTData de GR Mod). À décider : inclure ou non l'état des rouleaux (compteurs), par défaut non (un import rembobine tout, comme le formatage).
-    - Format : un fichier binaire unique dans un dossier dédié de la carte, avec en-tête (signature, version du format, modèle GR III / IIIx, version de GR Mod Film, empreinte de la recette des films) et somme de contrôle. Plusieurs exports possibles (horodatés), l'import propose la liste.
-    - Sécurité à l'import : refus si somme de contrôle fausse ou modèle différent ; avertissement si la version ou les films de la recette diffèrent ; passage systématique par le garde-fou de GR Mod (valeurs inconnues ramenées aux valeurs d'usine) ; sauvegarde immédiate des réglages après import (la veille ne sauvegarde pas, voir « Sauvegarde des réglages »).
-    - Bonus côté application : lire un fichier exporté pour l'afficher, le partager ou le réappliquer après une mise à jour de GR Mod Film.
-    - À vérifier pendant l'exploration : le GR III n'a-t-il pas déjà une fonction native de sauvegarde des réglages réutilisable ; la taille et l'emplacement exacts des réglages en mémoire ; l'écriture de fichier depuis le menu (même brique que les dossiers de rouleau).
+
+15. Image des réglages : export, import et flash avec réglages.
+
+    Principe : un fichier « image des réglages » est une copie complète et fidèle de tous les réglages du boîtier à un instant donné. Il peut être réappliqué en tout ou en partie, depuis le boîtier ou depuis l'application au moment de construire le firmware.
+
+    Contenu, découpé en blocs sélectionnables :
+    - Une BOX par bloc : U1, U2, U3, chacune avec tout ce qu'elle mémorise (film, format, réglages de prise de vue, seuil SR, Film Roll Mode).
+    - Les modes P, Av, Tv, M. À vérifier dans le firmware : ont-ils chacun leurs réglages ou un bloc commun (le seuil SR est « une fois pour P, Av, Tv, M ») ? La granularité proposée suit la structure réelle du firmware, sans en promettre plus.
+    - Les réglages généraux : Fn Button Settings (lignes Hold comprises), levier ADJ, Mode Memory, Setup, réglages des Image Controls et des films GR Mod (grain compris).
+    - L'état des rouleaux (compteurs) : exporté, jamais réappliqué par défaut (un import rembobine les rouleaux concernés, comme le formatage).
+
+    Format : en-tête (signature, version du format, modèle GR III / IIIx, version de GR Mod Film, empreinte de la recette des films, date), table des blocs présents, somme de contrôle par bloc et globale. Un dossier dédié sur la carte, plusieurs exports horodatés possibles.
+
+    Dans le boîtier :
+    - « Export Settings » : écrit une image complète sur la carte.
+    - « Import Settings » : choix du fichier, puis des blocs à appliquer (Tout, une ou plusieurs BOX, P / Av / Tv / M, réglages généraux).
+    - Sauvegarde immédiate des réglages après import (la veille ne sauvegarde pas).
+
+    Dans l'application :
+    - Ouvrir une image des réglages depuis la carte ou le disque, afficher son contenu bloc par bloc, cocher les blocs à appliquer.
+    - Construire le firmware avec ces blocs intégrés. Au premier démarrage après le flash (détecté par l'empreinte du build), le firmware applique les blocs choisis une seule fois, puis sauvegarde.
+    - Cas d'usage : réinstaller ou mettre à jour GR Mod Film sans tout reconfigurer, passer ses réglages d'un boîtier à un autre, partager une configuration.
+
+    Sécurité :
+    - Refus d'un bloc dont la somme de contrôle est fausse ; refus d'un fichier d'un autre modèle, sauf blocs déclarés compatibles entre GR III et GR IIIx (à établir).
+    - Avertissement si la version ou la recette des films diffère ; un film absent de la recette ramène le look à Standard.
+    - Chaque bloc appliqué passe par le garde-fou de GR Mod (valeurs inconnues ramenées aux valeurs d'usine), dans le boîtier comme au premier démarrage après flash.
+
+    À vérifier pendant l'exploration : fonction native de sauvegarde des réglages réutilisable ; taille, emplacement et découpage des réglages en mémoire (offsets par BOX et par mode) ; écriture de fichier depuis le menu (même brique que les dossiers de rouleau) ; mécanisme de reprise des enregistrements HTData au premier démarrage, déjà utilisé par GR Mod.
+
+16. Flash à nombre guide pour tout flash (demande d'un utilisateur Reddit, 2026-11-10) : « You tell the camera the guide number of the flash and the camera adjusts its settings based on focus distance. It's how the GR IV does a pseudo-TTL with the new GF-2. »
+
+    Point de départ : GR Mod a déjà « Direct Flash » pour le GR IV (README, section Direct Flash ; `core/src/fw/aspect/directflash*.ts` ; `tools/directflash`), qui reproduit le comportement du GF-2 Flash Mode natif du GR III : ouverture = NG × √(ISO/100) / distance, flash à puissance fixe, exposition calculée depuis la distance de mise au point. Les versions récentes de Maxwooow l'ont enrichi (priorités d'exposition, vitesse maximale, correction sur le flash, réglages gardés entre les modes : branches df-memory et release-0.8.x).
+
+    Objectif sur GR III / IIIx : étendre le GF-2 Flash Mode natif (`0x02000070`) à n'importe quel flash manuel, en laissant l'utilisateur choisir le nombre guide.
+    - Dans le boîtier : une liste de nombres guides (par exemple 6 à 60, ou une table de flashs courants), réglable dans le menu Flash, avec la puissance du flash (1/1, 1/2, 1/4…) qui ajuste le NG effectif.
+    - Fonctionnement en P, Av, Tv, M, avec ISO Auto pris en compte. Étudier aussi le Snap Distance Priority : la distance y est connue d'avance, c'est le cas d'usage idéal en street au flash (le Direct Flash du GR IV l'exclut, à comprendre pourquoi).
+    - À établir pendant l'exploration : où le GR III range le NG du GF-2 et comment il calcule l'exposition ; si le module du GR IV peut être porté tel quel ou si le mode natif du GR III suffit avec un NG modifiable ; compatibilité avec un flash qui communique (désactivé dans ce cas, comme sur GR IV).
+    - Tests : vérification en émulateur contre une version Python de la règle (comme `tools/directflash/check.py`), puis essais réels avec au moins deux flashs de NG différents.
+
+### Reprises des forks de GR Mod
+Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre est permis, en citant chaque auteur dans le README (section Thanks) et dans les messages de commit.
+
+17. Firmwares GR III 2.20 et GR IIIx 1.70 (priorité, pour les bêta-testeurs dont le boîtier est déjà à jour). Source : Maxwooow, GR Mod 0.9.0 (branches release-0.9.0 et suivantes, « Port GR III / IIIx support to GR III 2.20 / GR IIIx 1.70 », testé sur boîtiers). Fusionner la base amont, puis reporter toutes les adresses de GR Mod Film (mode pellicule, Hold, SR par vitesse, masquages, etc.) sur 2.20 / 1.70. Garder 2.10 / 1.60 en parallèle. Chaque fonction revalidée en émulateur puis sur boîtier.
+
+18. Levier ADJ jusqu'à 8 réglages sur GR III / IIIx. Source : Maxwooow, GR Mod 0.8.9 (« ADJ lever: 6 to 8 slots », adjslots, GR IV 1.11 et 1.20). Porter sur GR III : réglages 6 à 8 directement dans ADJ Mode Setting, valeurs protégées par le garde-fou. Vérifier la compatibilité avec le verrou du rouleau (cases ADJ lues Off pendant un rouleau).
+
+19. Vrai LUT appliqué au JPEG par le processeur, pour les films GR Mod. Source : orbitsail, branche cpu-lut (« CPU LUT correction for added slots at the JPEG step », expérimental, GR IV). Objectif : rendre fidèlement les LUT très sélectifs en teinte (Aerochrome, infrarouge) que le modèle matrice + courbes approche mal. Critère d'adoption : temps de traitement par vue mesuré sur le boîtier ; option par film, désactivée par défaut, si le coût est sensible.
+
+20. Meilleur ajustement des LUT dans l'application (aucun changement dans le boîtier). Sources : sjclijie (feat/hue-sectors, feat/fitting-ciede2000-refinement : secteurs de teinte, échantillonnage neutres et coins, affinage CIEDE2000) et orbitsail (hue-sectors-continuous, white-anchor, neutral-base : teinte additive, préservation du blanc, base neutre apprise sur de vraies paires RAW/JPEG). Comparer l'erreur d'ajustement (ΔE) avant et après sur les 20 films, garder ce qui améliore sans dégrader les neutres.
+
+21. Balance des blancs automatique apprise. Source : orbitsail (awbml : estimation apprise de l'éclairage, filtre temporel, règle de changement de scène, une lampe dans le cadre ne colore plus toute l'image ; GR IV). Après la v1, si le portage GR IV vers GR III est réaliste.
+
+22. Correction des ombres apprise. Source : orbitsail (shadowml : modèle à arbres entraîné sur FiveK remplaçant la correction automatique des ombres ; GR IV, expérimental). Après la v1, mêmes conditions de portage. Vérifier la licence de la base FiveK pour le modèle distribué.
+
+23. Réduction du bruit de chrominance, avec une seconde passe à partir de 3200 ISO. Source : orbitsail (chroma-nr ; GR IV). Après la v1, mêmes conditions de portage.
+
+    Pour 21 à 23 : étudier d'abord si les structures du GR IV existent sur GR III (comme pour le round 10 de GR Mod), avant toute estimation.
 
 ### Fait ou abandonné
 - **Prochain chantier (décidé le 2026-11-09) : rouleau chargé, réglages verrouillés.** En U1 à U3, Film Roll Mode sur On et rouleau entamé (compteur différent de 0, pas rembobiné), ces lignes de Still Image Settings disparaissent du menu (elles reviennent après le rembobinage, et en P, Av, Tv, M) :
