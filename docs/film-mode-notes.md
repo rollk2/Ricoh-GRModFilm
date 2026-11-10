@@ -3639,3 +3639,7 @@ Certitude : **statique** (lecture du code), sauf mention.
   avait déjà `srSpeed`).
 - **Résultat 0.9.4-RC1 (2026-11-10) : validée par l'utilisateur** (« Tout fonctionne »), sauf un
   bogue de lecture restant, à décrire et traiter plus tard. Publication de la 0.9.4 demandée.
+
+## Après la 0.9.4 (2026-11-10)
+
+- 0.9.4 publiée (PR #7, fusionnée). Suite décidée : bogues trouvés à l'usage ou mode lecture.
