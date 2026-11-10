@@ -3765,3 +3765,64 @@ table (risque de blocage, à essayer en dernier). À décider par l'utilisateur.
 - Inconnue que seul le boîtier tranchera : l'affichage redessine-t-il l'icône quand seule la vitesse
   change ? Si les notes montrent 69 (SR forcée) sans que l'icône change, il faudra provoquer le
   rafraîchissement.
+
+## Études de faisabilité (travail de nuit, 2026-11-10)
+
+Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
+
+### Crop 40 mm (point 6)
+
+- Le crop natif est un **flottant**, l'agrandissement par rapport au 28 mm : réglage en `+0x4c4` de
+  l'enregistrement, écrit par `0x53252684(objet, s0)` (valeur vivante par `0x5354c918`) ; la liste
+  prend ses valeurs dans la table `0x53b591d4` : 1,25 (35 mm), 1,7857 (50 mm), 1,0 (Off). 40 mm
+  serait 1,4286.
+- Mais le reste du boîtier **classe** cette valeur : par seuils (`0x536a30c0`, `0x5355da18` : au moins
+  1,7857 → 2, au moins 1,25 → 1, sinon 0 ; 1,4286 tomberait dans la classe du 35 mm, donc les tailles
+  d'image et l'affichage du 35 mm) ou par **égalité exacte** (`0x535f4810` : un pointeur de table
+  pour 1,0 / 1,25 / 1,7857, **0 sinon**, donc un risque de plantage). 1,7857 est chargé à 13 endroits
+  (`0x530189b0`, `0x5301a67c`, `0x53283744`, `0x532837c4`, `0x532aa520`, `0x532aa574`, `0x532aa6d8`,
+  `0x532aa72c`, `0x535544ac`, `0x5355da18`, `0x5355dbd8`, `0x535f4828` … `0x535f48d8`,
+  `0x536a30c0`), 1,25 en immédiat (`vmov`) à d'autres. Une quatrième valeur native demanderait une
+  classe 3 partout, avec ses tables (tailles, affichage, Exif, AF) : **long et risqué**.
+- **Voie recommandée** : la mécanique des formats de GR Mod (identités 4 à 10, `image-pipeline.ts`,
+  `liveview.ts`, `geometry.ts`), déjà validée sur le boîtier (XPan 65:24). Un format « 40 mm » serait
+  un cadre 3:2 réduit à 70 % (28/40) au centre : environ 11,8 Mpx, visée avec le cadre affiché
+  (pas d'agrandissement de la visée comme le crop natif), Exif à 28 mm. Il faut ajouter à la
+  géométrie un facteur d'échelle (aujourd'hui un format prend la plus grande zone possible). Effort
+  moyen, 2 ou 3 builds de test.
+
+### Dust removal à la demande (point 10)
+
+- `DustRemovalModel` (`0x5320b6dc(0x5320ad88())`, assertions « Model/DustRemovalModel.cpp ») :
+  entrée **`0x532ae708(modèle, type)`** → `0x532ae59c` :
+  - type 1 : **nettoyage manuel**, celui du menu (`0x531e9bd0`, `0x531a9608`, contrôleur
+    `DustRemovalMenuController`) ;
+  - type 2 : au démarrage (`0x53225a80`), si le réglage `+0x9b6` (`SetupStartUpDustRemoval`) le
+    permet ;
+  - type 3 : à l'extinction (`0x53225aa0`), selon `+0x9b8` (`SetupShutDownDustRemoval`).
+  Chaque type poste le message `0x4c418809` (`0x532286dc`) avec son numéro ; la routine elle-même
+  (ultrason) reste celle du boîtier, **sans rien toucher à sa fréquence ni à son amplitude**.
+- **Faisable** : une fonction de touche (ou de ligne Hold) « Dust Removal » qui appelle
+  `0x532ae708(modèle, 1)`, exactement comme le menu. À vérifier sur le boîtier : ce que le menu fait
+  autour (écran d'attente `0x531a94f0`), et que l'appel depuis la visée est accepté. Plusieurs
+  passes : enchaîner à la fin de la précédente (événement de fin à trouver).
+- **« À la rentrée de l'objectif » existe déjà** : c'est le réglage natif de Dust Removal « à
+  l'extinction » (type 3). Rien à développer, seulement à l'activer dans le menu.
+- Carte des poussières (point 11) : demande d'analyser une image sur le boîtier (comme le
+  développement de la V2) ; à étudier avec le décodeur JPEG.
+
+### Taille du grain (point 7)
+
+- Le grain natif (« Granulation », `0x5367ad3c`) ne reçoit qu'**un niveau** (`+6` des paramètres
+  d'effet, lu en `0x535031b0` : 0 sans, puis 3 / 2 / 1). Le niveau ne règle que l'**intensité** : 0x100,
+  0x80 ou 0x40, appliquée à des courbes de 256 valeurs construites depuis trois tables
+  (`0x538f19d4`, `0x538f1bd4`, `0x538f1dd4`). La texture est faite par le moteur d'image du boîtier
+  (objets `0x5376bba0`, `0x53678b7c(…, 0x40, 0x40, …)` : une tuile de 64 × 64 ?). **Aucun paramètre de
+  taille** natif.
+- Deux voies :
+  1. **Essai sur le natif** (hypothèse) : changer la taille de tuile 0x40 (`0x5367b018`) ou étirer
+     la texture. Un build de test par valeur, à comparer à l'œil ; risque de blocage si le
+     tampon ne suit pas (essayer d'abord plus petit, 0x20).
+  2. **Le grain logiciel** de GR Mod Film (`grainSoftware`, `jpeg_grain.c`, avec une ligne Size),
+     déjà construit en T-GRAIN5 / T-GRAIN6 et écarté pour sa lenteur : la taille y existe ; à
+     reconsidérer seulement si la lenteur est acceptable pour une « grosse » taille.
