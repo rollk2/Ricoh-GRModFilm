@@ -150,9 +150,10 @@ Chaque étape suit le même cycle : test en émulateur, flash, essai sur le boî
 Décisions du 2026-11-10.
 
 ### Finitions de la v1
-1. Bogue de lecture restant (signalé avec la 0.9.4-RC1) : à décrire par l'utilisateur puis à corriger.
+1. ~~Bogue de lecture restant~~ : **abandonné le 2026-11-10** (non reproduit avec T-PLAY4d, scénarios A à N et variantes V1 à V7 justes).
 2. ~~Icône SR de l'écran de prise de vue~~ : **validée sur le boîtier (T-SR3, 2026-11-10)** : la main suit la stabilisation selon la vitesse. Choix de l'icône `0x532a9ae0`, appelé en `0x53170e30`. Intégrée aux builds de l'application (option `srIcon` de la recette), pour la prochaine version.
-3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
+- Formatage de la carte : **tous les rouleaux rembobinés** dès la fin du formatage (décision du 2026-11-10 ; avant, le compteur continuait). Build T-FMT1 en test.
+3. ~~Uniformiser3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
 
 ### Mode pellicule
 4. Reprendre une surimpression après extinction et rallumage (réinjection de l'image, probablement via le développement RAW intégré).

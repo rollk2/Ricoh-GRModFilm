@@ -3859,3 +3859,24 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   vu avec la 0.9.4-RC1 n'est pas reproduit.
 - Signalé en passant (2026-11-10) : le compteur des pellicules ne repart pas à zéro après un
   formatage de la carte. À traiter avec son propre protocole.
+- Décision de l'utilisateur (2026-11-10) : bogue de lecture **abandonné** (non reproduit).
+
+## Formatage : tous les rouleaux rembobinés (2026-11-10, T-FMT1)
+
+- Constat : après un formatage, le compteur ne repartait pas à zéro. Le firmware ne surveillait pas
+  le formatage : un dossier de rouleau disparu n'était vu qu'à l'avance suivante (T19-CARD3), et le
+  formatage recrée le dossier 100 (un rouleau rangé dans 100 continuait). Décision : **tous les
+  rouleaux rembobinés dès la fin du formatage**.
+- Formatage (statique) : `MediaFormat` (`src/MediaFormat.cpp`), un seul appel, `0x534e62a0`
+  (`bl 0x534f0658`, tâche des supports), qui rend son indicateur d'erreur (`[this + 0x11]`, 0 fait) ;
+  l'appelant poste ensuite `0x25480206` avec le résultat.
+- **T-FMT1** (`formatRewind`, `film-format.ts`) : formatage réussi → octet RAM `0x558043b6` à 1 (rien
+  d'autre dans cette tâche). Au crochet du compteur (`0x532aa1f4`, tâche de l'interface, comme
+  l'action Rewind) : octet effacé, puis chaque rouleau entamé (bit 2 de `0x9b1`, vue non nulle) des
+  six BOX remis à la vue 0 et enregistré (`0x53826c54`, n + 2), ainsi que l'enregistrement en cours
+  (1) si son mode est un mode U ; puis le compteur comme avant. Tous les registres et les drapeaux
+  gardés. Moteur : mis avec le mode pellicule, enregistré à part dans la recette (`formatRewind`) :
+  la 0.9.4-RC1 reste reconnue. Vérifié : `format_probe.py` (formatage réussi ou raté, 90
+  combinaisons de BOX, de mode et d'enregistrement en cours), toutes les autres sondes, tests (370).
+  Build de test construit par le moteur (configuration de la prochaine version, avec la main SR),
+  auto-contrôle et inspection vérifiés.
