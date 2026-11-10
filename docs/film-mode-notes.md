@@ -3880,3 +3880,9 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   combinaisons de BOX, de mode et d'enregistrement en cours), toutes les autres sondes, tests (370).
   Build de test construit par le moteur (configuration de la prochaine version, avec la main SR),
   auto-contrôle et inspection vérifiés.
+- **Résultat T-FMT1 (2026-11-10) : échec.** Après le formatage en U1 : compteur de U1 inchangé (3/xx),
+  U2 inchangé (2/xx) ; en U1, une vue + Film Advance : nouveau rouleau (l'ancien mécanisme du dossier
+  disparu, T19-CARD3) ; rallumage : compteurs gardés ; formatage annulé : U2 inchangé.
+- **T-FMT2** (`formatRewind: 'diag'`) : T-FMT1 plus l'anneau des touches imprimé : 50 + le résultat du
+  formatage (0 réussi), 60 + le nombre de rouleaux rembobinés au crochet du compteur. Vérifié :
+  `format_probe.py` (notes), toutes les autres sondes, tests.

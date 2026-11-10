@@ -20,6 +20,7 @@
 import { branchWord } from '../aspect/arm';
 import { FirmwareError } from '../types';
 import type { Gr3xSite } from './round10';
+import { gr3xRingNote } from './play-probe';
 import { GR3X_APP_DATA, GR3X_APP_DATA_WRITE, GR3X_ROLL_COUNTER, GR3X_ROLL_FLAGS, GR3X_ROLL_FRAME, GR3X_ROLL_STARTED } from './film-roll';
 
 const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
@@ -42,7 +43,7 @@ function wordOf(hexBytes: string) { const b = hexBytes.match(/../g)!.map(x => pa
 function hexWord(w: number) { return [w & 255, w >>> 8 & 255, w >>> 16 & 255, w >>> 24 & 255].map(b => b.toString(16).padStart(2, '0')).join(''); }
 
 /** `counter`: the film roll's screen counter (film-roll.ts entries.filmRollCounter). */
-export function installGr3xFormatRewind(p: Gr3xFormatProgram, counter: number) {
+export function installGr3xFormatRewind(p: Gr3xFormatProgram, counter: number, diag = false) {
   const bl = (from: number, to: number) => branchWord(from, to, 14, true);
   if (p.u32(GR3X_FORMAT_CALL) !== bl(GR3X_FORMAT_CALL, GR3X_FORMAT)) fail('the format\'s call');
   if (p.u32(GR3X_FORMAT) !== 0xe1a0c00d) fail('the format');
@@ -51,15 +52,18 @@ export function installGr3xFormatRewind(p: Gr3xFormatProgram, counter: number) {
   if (wordOf(site.replacement) !== branchWord(GR3X_ROLL_COUNTER, counter)) fail('the screen counter\'s hook');
   const F = `movw ip,#${lo(GR3X_FORMAT_FLAG)};movt ip,#${hi(GR3X_FORMAT_FLAG)};`;
   const ram = (r: string, label: string) => `cmp ${r},#0x40000000;blo ${label};cmp ${r},#0xc0000000;bhs ${label};tst ${r},#3;bne ${label};`;
-  const formatted = p.code(`push {r4,lr};bl #${GR3X_FORMAT};cmp r0,#0;bne out;${F}mov r4,#1;strb r4,[ip];out:pop {r4,pc};`);
+  // `diag` (T-FMT2): the key ring notes 50 + the format's result (9 at most), and 60 + the rolls rewound (9 at most).
+  const fnote = diag ? `push {r0,r1};cmp r0,#9;movhi r0,#9;add r1,r0,#50;${gr3xRingNote}pop {r0,r1};` : '';
+  const formatted = p.code(`push {r4,lr};bl #${GR3X_FORMAT};${fnote}cmp r0,#0;bne out;${F}mov r4,#1;strb r4,[ip];out:pop {r4,pc};`);
   // r4 the mode in use (0 none), r5 the BOX, r6 its record; r7 the record in use.
-  const end = (rec: string, index: string) => `mov r0,#0;strb r0,[${rec},#${GR3X_ROLL_FRAME}];bl #${GR3X_APP_DATA};ldr r0,[r0,#8];${index}movw r2,#${RECORD};mov r3,${rec};bl #${GR3X_APP_DATA_WRITE};`;
+  const end = (rec: string, index: string) => `add r9,r9,#1;mov r0,#0;strb r0,[${rec},#${GR3X_ROLL_FRAME}];bl #${GR3X_APP_DATA};ldr r0,[r0,#8];${index}movw r2,#${RECORD};mov r3,${rec};bl #${GR3X_APP_DATA_WRITE};`;
   const going = (rec: string, label: string) => `ldrb r0,[${rec},#${GR3X_ROLL_FLAGS}];tst r0,#${GR3X_ROLL_STARTED};beq ${label};ldrb r0,[${rec},#${GR3X_ROLL_FRAME}];cmp r0,#0;beq ${label};`;
   const rewind = p.code(`push {r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,ip,lr};mrs r0,cpsr;push {r0};${F}ldrb r0,[ip];cmp r0,#0;beq done;mov r0,#0;strb r0,[ip];
-    movw r8,#${lo(MODEL)};movt r8,#${hi(MODEL)};mov r4,#0;ldr r0,[r8];${ram('r0', 'boxes')}ldrb r4,[r0];
+    mov r9,#0;movw r8,#${lo(MODEL)};movt r8,#${hi(MODEL)};mov r4,#0;ldr r0,[r8];${ram('r0', 'boxes')}ldrb r4,[r0];
     boxes:mov r5,#1;each:add r0,r8,#8;ldr r6,[r0,r5,lsl #2];${ram('r6', 'next')}${going('r6', 'next')}${end('r6', 'add r1,r5,#2;')}
     next:add r5,r5,#1;cmp r5,#6;bls each;
-    sub r0,r4,#1;cmp r0,#5;bhi done;ldr r7,[r8,#4];${ram('r7', 'done')}${going('r7', 'done')}${end('r7', 'mov r1,#1;')}
+    sub r0,r4,#1;cmp r0,#5;bhi noted;ldr r7,[r8,#4];${ram('r7', 'noted')}${going('r7', 'noted')}${end('r7', 'mov r1,#1;')}
+    noted:${diag ? `cmp r9,#9;movhi r9,#9;add r1,r9,#60;${gr3xRingNote}` : ''}
     done:pop {r0};msr cpsr_f,r0;pop {r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,ip,lr};b #${counter};`);
   p.patch(GR3X_FORMAT_CALL, bl(GR3X_FORMAT_CALL, GR3X_FORMAT), bl(GR3X_FORMAT_CALL, formatted), 'format rewind: a done format noted');
   site.replacement = hexWord(branchWord(GR3X_ROLL_COUNTER, rewind));

@@ -22,7 +22,7 @@ FLAG=0x558043b6;MODEL=0x55063f30;LR=0x5a5a5a5a;CALL=0x534e62a0;FORMAT=0x534f0658
 MODEB=0x6304f000;INUSE=0x63050000;BOX=[0x63051000+0x1000*i for i in range(6)]
 def r_(u,n):return u.reg_read(getattr(reg,'UC_ARM_REG_R%d'%n))
 def verify(data,manifest):
-    assert manifest.get('formatRewind')==True
+    assert manifest.get('formatRewind') in (True,'diag');diag=manifest.get('formatRewind')=='diag';RING=0x558043a8
     e=manifest['entries'];counter=e['filmRollCounter']
     p=RollProbe(data,manifest);c=p.uc;cases={}
     count=lambda k:cases.__setitem__(k,cases.get(k,0)+1)
@@ -43,6 +43,7 @@ def verify(data,manifest):
         got=[r_(c,i) for i in range(12)]
         assert c.reg_read(reg.UC_ARM_REG_PC)==CALL+4 and c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[0]==v and got[4:12]==regs[4:12]
         assert c.mem_read(FLAG,1)[0]==(1 if v==0 else before),(v,before);count('format done' if v==0 else 'format failed')
+        if diag:rg=list(c.mem_read(RING,8));assert rg[(rg[7]-1)%7]==50+min(v,9),rg;count('format noted')
     c.hook_del(h)
     # The counter's hook.
     def setup(mode,states,inuse):
@@ -70,6 +71,7 @@ def verify(data,manifest):
             for inuse in ((2,4),(0,4),(2,0)):
                 for flag in (0,1):
                     setup(mode,states,inuse);c.mem_write(FLAG,bytes([flag]))
+                    if diag:c.mem_write(RING,bytes(8))
                     writes=run()
                     exp=[]
                     for i,(fl,fr) in enumerate(states):
@@ -81,6 +83,10 @@ def verify(data,manifest):
                     if goingU:exp.append((1,0xb26,INUSE))
                     assert [(w[1],w[2],w[3]) for w in writes]==exp,(mode,states,inuse,flag,writes,exp)
                     assert c.mem_read(FLAG,1)[0]==0;count('rewound' if exp else ('flag clear' if not flag else 'nothing going'))
+                    if diag:
+                        rg=list(c.mem_read(RING,8))
+                        if flag:assert rg[(rg[7]-1)%7]==60+min(len(exp),9),(rg,exp);count('rewind noted')
+                        else:c.mem_write(RING,bytes(8))
     return dict(cases=cases,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 if __name__=='__main__':
