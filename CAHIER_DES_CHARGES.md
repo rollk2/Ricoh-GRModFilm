@@ -175,6 +175,18 @@ Décisions du 2026-11-10.
 12. Améliorer l'autofocus en basse lumière.
 13. Améliorer l'autonomie de la batterie.
 
+### Nouvelles fonctions
+Décisions du 2026-11-10.
+
+14. Obturation électronique à 1/8000e de seconde. Objectif : grande ouverture en plein soleil sans filtre ND. L'obturateur mécanique du GR III plafonne à 1/4000e. À étudier d'abord : chercher dans le firmware un mode de lecture rapide du capteur déjà existant (aperçu, vidéo) plutôt que d'écrire un pilote ; mesurer le rolling shutter et les bandes sous éclairage artificiel ; décider entre bascule automatique au-delà de 1/4000e ou mode séparé ; rester cohérent avec la vitesse plancher du SR (0.9.4). Pas de flash en électronique. Chantier ambitieux, réservé à une session Fable.
+15. Export et import des réglages sur la carte SD.
+    - Deux lignes dans Setup (ou dans l'onglet Film Mode) : « Export Settings » et « Import Settings ».
+    - Contenu exporté : les réglages sauvegardés par le boîtier (BOX U1 à U3, réglages de P / Av / Tv / M, Fn Button Settings avec les lignes Hold, ADJ, Mode Memory, paramètres des films GR Mod et leur grain, seuil SR par BOX, enregistrements HTData de GR Mod). À décider : inclure ou non l'état des rouleaux (compteurs), par défaut non (un import rembobine tout, comme le formatage).
+    - Format : un fichier binaire unique dans un dossier dédié de la carte, avec en-tête (signature, version du format, modèle GR III / IIIx, version de GR Mod Film, empreinte de la recette des films) et somme de contrôle. Plusieurs exports possibles (horodatés), l'import propose la liste.
+    - Sécurité à l'import : refus si somme de contrôle fausse ou modèle différent ; avertissement si la version ou les films de la recette diffèrent ; passage systématique par le garde-fou de GR Mod (valeurs inconnues ramenées aux valeurs d'usine) ; sauvegarde immédiate des réglages après import (la veille ne sauvegarde pas, voir « Sauvegarde des réglages »).
+    - Bonus côté application : lire un fichier exporté pour l'afficher, le partager ou le réappliquer après une mise à jour de GR Mod Film.
+    - À vérifier pendant l'exploration : le GR III n'a-t-il pas déjà une fonction native de sauvegarde des réglages réutilisable ; la taille et l'emplacement exacts des réglages en mémoire ; l'écriture de fichier depuis le menu (même brique que les dossiers de rouleau).
+
 ### Fait ou abandonné
 - **Prochain chantier (décidé le 2026-11-09) : rouleau chargé, réglages verrouillés.** En U1 à U3, Film Roll Mode sur On et rouleau entamé (compteur différent de 0, pas rembobiné), ces lignes de Still Image Settings disparaissent du menu (elles reviennent après le rembobinage, et en P, Av, Tv, M) :
   - Image Control (`0x02000012`), Aspect Ratio (`0x02000073`), Crop (`0x02000074`), Drive Mode (`0x0200000e`) ;
