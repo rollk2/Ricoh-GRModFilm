@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { assembleWords } from '../src/fw/aspect/arm';
 import { buildGr3xAdjResearch } from '../src/fw/gr3x/adj';
 import { planGr3xMenu } from '../src/fw/gr3x/geometry';
-import { GR3X_SR_GET_CALLS, GR3X_SR_GETTER, GR3X_SR_ICON_CALLS, GR3X_SR_LIST, GR3X_SR_LIVE_LOAD, GR3X_SR_SPEEDS, gr3xSrBoundary, gr3xSrSpeedText } from '../src/fw/gr3x/sr-speed';
+import { GR3X_SR_GET_CALLS, GR3X_SR_GETTER, GR3X_SR_ICON_CALL, GR3X_SR_LIST, GR3X_SR_LIVE_LOAD, GR3X_SR_SPEEDS, gr3xSrBoundary, gr3xSrSpeedText } from '../src/fw/gr3x/sr-speed';
 
 const f32 = (key: number) => new Float32Array(new Int32Array([(key >> 0) < 0 ? (key >> 0) ^ 0x7fffffff : key >> 0]).buffer)[0];
 
@@ -60,7 +60,7 @@ describe.skipIf(!input)('GR III SR by shutter speed', () => {
     const listAdded = list.sites.filter(s => !plain.sites.some(t => t.address === s.address)).map(s => s.address).sort();
     expect(listAdded).toEqual([...GR3X_SR_GET_CALLS, GR3X_SR_GETTER + 8, GR3X_SR_LIVE_LOAD, ...Object.values(GR3X_SR_LIST)].sort());
     const icon = await buildGr3xAdjResearch(raw, menu, { ...film, srSpeed: { icon: true } });
-    expect(icon.sites.length - list.sites.length).toBe(GR3X_SR_ICON_CALLS.length);
+    expect(icon.sites.map(x => x.address).filter(a => !list.sites.some(t => t.address === a))).toEqual([GR3X_SR_ICON_CALL]);
     expect((list as unknown as { catalogs: { textColumns: number } }).catalogs.textColumns - (plain as unknown as { catalogs: { textColumns: number } }).catalogs.textColumns).toBe(52);
   }, 240000);
 });

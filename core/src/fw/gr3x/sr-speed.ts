@@ -28,8 +28,8 @@
  * the On icon and its text (Off: the camera's icon and text 2), set through the native writer
  * (0x532731d4, Off first then the value, so that the live value changes and the DSP state is sent
  * again), current when the byte is the value. The SR button turns a speed Off, then back to
- * 1/4000. The speed's boundaries are a table of float bits (`append`). The shooting screen's SR
- * icon (GR3X_SR_ICON_CALLS) follows the speed too.
+ * 1/4000. The speed's boundaries are a table of float bits (`append`). `icon` (T-SR3): the
+ * shooting screen's SR icon follows the speed too.
  */
 import { branchWord } from '../aspect/arm';
 import { FirmwareError } from '../types';
@@ -80,11 +80,12 @@ export const GR3X_SR_GETTER = 0x53245378, GR3X_SR_LIVE_LOAD = 0x53271dd8, GR3X_S
 export const GR3X_SR_LIST = { count: 0x531b3af4, draw: 0x531b5258, set: 0x531b6d84, current: 0x531b84dc } as const;
 const APP = 0x5320ad88, SETTINGS = 0x5320b31c, DRAW = 0x5339e8b0, ICON_OFF = 0x1ae, ICON_ON = 0x1b0, TEXT_OFF = 2;
 const RECORD_POINTER = 0x55063f34, SR_BYTE = 0x4f6, LIVE_VALUES = 0x53525d5c;
-/** The SR icon: its choice (0x533676ac: one of two images for 1) and the settings monitor's
- * comparison that redraws it on a change (0x532a4f18, cached at + 0x8f0). */
-export const GR3X_SR_ICON_CALLS = [0x532a4f18, 0x533676ac] as const;
+/** The shooting screen's SR icon: its chooser and its one call (T-SR3). */
+export const GR3X_SR_ICON_CHOOSER = 0x532a9ae0, GR3X_SR_ICON_CALL = 0x53170e30;
+/** RAM (icon diagnostic only): round 10's zero-filled byte after GR3X_SR_LAST. */
+export const GR3X_SR_ICON_LAST = 0x558043b7;
 
-export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | undefined, diag = false, srText = 0, icon = false) {
+export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | undefined, diag = false, srText = 0, icon: boolean | 'diag' = false) {
   const bl = (from: number, to: number) => branchWord(from, to, 14, true);
   for (const at of GR3X_SR_GET_CALLS) {
     if (p.u32(at) !== bl(at, GR3X_SR_GET)) fail(`SR getter call at ${at.toString(16)}`);
@@ -137,17 +138,25 @@ export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | unde
   p.patch(L.draw, 0xe1a0c00d, branchWord(L.draw, draw), 'SR speed: Shake Reduction\'s values drawn (Off, the speeds)');
   p.patch(L.set, 0xe1a0c00d, branchWord(L.set, set), 'SR speed: Shake Reduction\'s value set');
   p.patch(L.current, 0xe1a0c00d, branchWord(L.current, current), 'SR speed: Shake Reduction\'s current value');
-  // The SR icon of the shooting screen (its choice and the settings monitor that redraws it): the
-  // setting, then Off when the live speed is faster than the threshold. `icon` only: T-FN1 to
-  // T-FN5 on the camera, the icon did not follow the speed (left for a later release).
+  // The SR icon of the shooting screen (T-SR3): its chooser 0x532a9ae0(model, r1, r2, r3, [sp]),
+  // called once, at 0x53170e30, with bytes of the display's record ([view + 0x4e8]: r1 + 0x940,
+  // r2 + 0x8c8, r3 + 0x928, [sp] + 0x8f8): r1 not 0, the icon of [sp] (0x53293a20); else r2 and r3
+  // pick 0x1ae (r2 0, r3 0), 0x1af (0, 1), 0x1b0 (1, 0: the SR On icon), 0x1b1 (1, 1). r1 = 0 and r2
+  // not 0 (SR shown On): r2 given as 0 when the live speed is faster than the threshold. T-FN1 to
+  // T-FN5 took 0x533676ac (it prints « On » / « Off » on the debug console) and the settings monitor
+  // 0x532a4f18: no effect, as expected now. `diag`: the key ring notes each change of
+  // 60 + (r2 not 0) + 2 (r3 not 0) + 4 (r1 not 0) + 8 (r2 made 0); RAM byte GR3X_SR_ICON_LAST.
   if (!icon) return { srSpeedGet: get, srSpeedDraw: draw, srSpeedSet: set, srSpeedCurrent: current, srSpeedText: srText };
-  for (const at of GR3X_SR_ICON_CALLS) {
-    if (p.u32(at) !== bl(at, GR3X_SR_GETTER)) fail(`SR icon call at ${at.toString(16)}`);
-    if (p.sites.some(s => s.address === at)) fail(`${at.toString(16)} already patched`);
-  }
-  const shown = p.code(`push {r4,r5,r6,lr};bl #${GR3X_SR_GETTER};mov r5,r0;cmp r5,#0;beq out;
-    bl #${LIVE_VALUES};ldr r0,[r0];bl #${GR3X_LIVE_TV};${boundary}vmov r0,s0;cmp r0,#0;mvnlt r0,r0;eorlt r0,r0,#0x80000000;cmp r0,r1;movge r5,#0;
-    out:mov r0,r5;pop {r4,r5,r6,pc};`);
-  for (const at of GR3X_SR_ICON_CALLS) p.patch(at, bl(at, GR3X_SR_GETTER), bl(at, shown), 'SR speed: the SR icon follows the shutter speed');
+  const at = GR3X_SR_ICON_CALL;
+  if (p.u32(at) !== bl(at, GR3X_SR_ICON_CHOOSER)) fail('SR icon call');
+  if (p.sites.some(s => s.address === at)) fail('SR icon call already patched');
+  const keep = boundary.replace(/\bout;/g, 'keep;');
+  const iconNote = icon === 'diag' ? `mov r1,#60;cmp r2,#0;addne r1,r1,#1;cmp r3,#0;addne r1,r1,#2;cmp r0,#0;addne r1,r1,#4;cmp r4,#0;addne r1,r1,#8;
+    movw ip,#${lo(GR3X_SR_ICON_LAST)};movt ip,#${hi(GR3X_SR_ICON_LAST)};ldrb r0,[ip];add r2,r1,#1;cmp r0,r2;beq same;strb r2,[ip];${gr3xRingNote}same:` : '';
+  // The fifth argument stays at [sp]: everything pushed is popped before the jump to the chooser.
+  const shown = p.code(`push {r0,r1,r2,r3,r4,lr};mov r4,#0;cmp r1,#0;bne keep;cmp r2,#0;beq keep;
+    bl #${LIVE_VALUES};ldr r0,[r0];bl #${GR3X_LIVE_TV};${keep}vmov r0,s0;cmp r0,#0;mvnlt r0,r0;eorlt r0,r0,#0x80000000;cmp r0,r1;movge r4,#1;
+    keep:${icon === 'diag' ? `ldr r0,[sp,#4];ldr r2,[sp,#8];ldr r3,[sp,#12];${iconNote}` : ''}cmp r4,#0;pop {r0,r1,r2,r3,r4,lr};movne r2,#0;b #${GR3X_SR_ICON_CHOOSER};`);
+  p.patch(at, bl(at, GR3X_SR_ICON_CHOOSER), bl(at, shown), 'SR speed: the shooting screen\'s SR icon follows the shutter speed');
   return { srSpeedGet: get, srSpeedDraw: draw, srSpeedSet: set, srSpeedCurrent: current, srSpeedShown: shown, srSpeedText: srText };
 }

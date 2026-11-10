@@ -154,7 +154,7 @@ export interface Gr3xAdjFeatures {
   /** With the film mode: playback opens on the last picture taken (T-PLAY2, play-last.ts). */
   playLast?: boolean | 'diag';
   /** SR by shutter speed (sr-speed.ts): T-SR1 a fixed threshold (`seconds`), else (T-SR2) Shake Reduction's list Off, 1/4000 .. 30"; `diag` notes its changes in the key ring. */
-  srSpeed?: { seconds?: number; diag?: boolean; icon?: boolean };
+  srSpeed?: { seconds?: number; diag?: boolean; icon?: boolean | 'diag' };
   /** T-GRAIN1 (test, film mode): the camera's own grain on the films, a fixed value per film (grain-native.ts). */
   grainTest?: readonly number[];
   /** Test builds: the films' Grain through the JPEG module (jpeg_grain.c, with a Size row) instead of the camera's own granulation. */
@@ -535,7 +535,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   if (features.playLast && ((features.playLast === 'diag' && (features.playProbe || features.dialProbe || features.grainTag !== 'keys')) || !(features.filmRoll === 'film' || features.filmRoll === 'name2'))) fail('IIIx play last: with the film mode; its diagnostic with the keys tag, without the other key probes');
   const playLastEntries = features.playLast ? installGr3xPlayLast({ code, patch, u32: word, sites }, features.playLast === 'diag') : {};
   if (features.srSpeed?.diag && (features.playProbe || features.dialProbe || features.playLast === 'diag' || features.grainTag !== 'keys')) fail('IIIx SR speed: its diagnostic with the keys tag, without the other key probes');
-  const srSpeedEntries = features.srSpeed ? installGr3xSrSpeed({ code, append, patch, u32: word, sites }, features.srSpeed.seconds, !!features.srSpeed.diag, srText, !!features.srSpeed.icon) : {};
+  const srSpeedEntries = features.srSpeed ? installGr3xSrSpeed({ code, append, patch, u32: word, sites }, features.srSpeed.seconds, !!features.srSpeed.diag, srText, features.srSpeed.icon ?? false) : {};
   const playEntries = features.playProbe ? installGr3xPlayProbe({ code, patch, u32: word, sites }, features.playProbe === 'ref') : {};
   const rollLockAdj = rollLock || hiddenPlan?.adj.length ? installGr3xRollLockAdj({ code, sites, patch }, rollLock, hiddenPlan?.adj ?? []) : {};
   // T-HIDE1: the hidden ADJ functions out of ADJ Mode Setting's lists (after the soft focus's edit), their values at each load.

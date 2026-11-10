@@ -3737,3 +3737,31 @@ Listes des touches : Fn / ISO / Drive / Hold, table de 36 numéros `0x53b4eb7c` 
 **Shake Reduction** (sélection de vitesses) ; Macro Mode et White Balance seulement si l'on accepte
 de prendre une fiche masquée (8 ou 0x13) quand elle est libre, ou de tenter l'agrandissement de la
 table (risque de blocage, à essayer en dernier). À décider par l'utilisateur.
+
+## Icône SR de l'écran de prise de vue (travail de nuit, 2026-11-10)
+
+- **Pourquoi T-FN1 à T-FN5 n'ont rien changé** (statique, certitude forte) : `0x533676ac` choisit
+  entre les chaînes « On\n » (`0x540560bc`) et « Off\n » (`0x54055968`) et les passe à
+  `0x536b8150` : c'est une **commande de la console de débogage**, pas l'icône. `0x532a4f18` est une
+  surveillance de réglages (copies datées en `+0x8c0` … `+0x900`) qui ne dessine rien.
+- **Le vrai choix de l'icône** (statique, certitude moyenne) : `0x532a9ae0(modèle, r1, r2, r3, [sp])`,
+  appelé une seule fois, en `0x53170e30`, par l'affichage des informations de prise de vue, avec des
+  octets de l'enregistrement d'affichage `[vue + 0x4e8]` (le même qui donne la vitesse affichée,
+  `+0x4ec`) : r1 `+0x940`, r2 `+0x8c8`, r3 `+0x928`, [sp] `+0x8f8`. Si r1 n'est pas nul : l'icône de
+  [sp] par `0x53293a20` ; sinon r2 et r3 choisissent `0x1ae` (0, 0), `0x1af` (0, 1), **`0x1b0` (1, 0)**,
+  `0x1b1` (1, 1). `0x1b0` / `0x1ae` sont les icônes On / Off de la ligne Shake Reduction du menu
+  (`0x53293990`). Le sens exact de r1 (`+0x940`, probablement la vidéo) et de r3 reste à confirmer.
+  Autre choix des mêmes icônes, `0x532b656c`, pour la lecture (données de la note constructeur de
+  la photo, balises 0x0e, 0x0f, 0x55, 0x80) : sans rapport avec la prise de vue.
+- **T-SR3** (`srSpeed: { icon: 'diag' }`, `sr-speed.ts`) : l'appel `0x53170e30` passe par une
+  enveloppe : si r1 = 0 et r2 non nul (SR affichée On) et que la vitesse vivante est plus rapide que
+  le seuil de Shake Reduction, r2 est donné nul (icône Off) ; le cinquième argument reste en [sp]
+  (tout ce qui est empilé est dépilé avant le saut). Relevé : l'anneau des touches note chaque
+  changement de 60 + (r2 non nul) + 2 (r3 non nul) + 4 (r1 non nul) + 8 (r2 forcé à 0), octet RAM
+  `0x558043b7` (libre). Build : la configuration de la 0.9.4 (réglages masqués de l'utilisateur,
+  verrou, lecture, molette coupée avec Fn + molette avant), plus l'icône et l'impression de
+  l'anneau. Vérifié : `sr_speed_probe.py` (360 appels : l'icône forcée seulement dans les cas
+  attendus, arguments, pile et registres gardés, notes), toutes les autres sondes, tests.
+- Inconnue que seul le boîtier tranchera : l'affichage redessine-t-il l'icône quand seule la vitesse
+  change ? Si les notes montrent 69 (SR forcée) sans que l'icône change, il faudra provoquer le
+  rafraîchissement.
