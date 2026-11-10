@@ -3637,3 +3637,5 @@ Certitude : **statique** (lecture du code), sauf mention.
   dans tout build GR III / IIIx complet, comme la case AF Point de Mode Memory (1/4000, le On
   d'usine : rien ne change tant qu'une autre vitesse n'est pas choisie). La RC1 est inchangée (elle
   avait déjà `srSpeed`).
+- **Résultat 0.9.4-RC1 (2026-11-10) : validée par l'utilisateur** (« Tout fonctionne »), sauf un
+  bogue de lecture restant, à décrire et traiter plus tard. Publication de la 0.9.4 demandée.
