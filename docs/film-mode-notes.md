@@ -3836,3 +3836,17 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   l'identique : la 0.9.4-RC1 est toujours reconnue (inspection vérifiée), un nouveau build l'est
   aussi. Vérifié : test de la recette, `sr_speed_probe.py` et les autres sondes sur un build
   équivalent, tests.
+
+## Bogue de lecture restant (2026-11-10)
+
+- Questionnaire (0.9.4) : scénarios A à M justes (P seul, U seul, U → P (C), P → U, vue sans avance,
+  rallumage, rallumage + photo, parcours, suppression, RAW+JPEG, U1 → U2 avec ou sans avance, U1 → U2
+  sans photo). **Bogue : scénario N** : en U1, une vue avec Film Advance, molette sur P, une photo,
+  lecture : **la vue de U1 s'affiche** (l'avant-dernière). Le scénario C, semblable, était juste :
+  la différence reste à trouver.
+- **T-PLAY4d** (`playLast: 'files'`) : la configuration de la prochaine version (avec la main SR),
+  plus les relevés de la lecture : chaque photo retenue est notée 41 (premier appel de la création,
+  `0x535a88d8`) ou 45 (second, `0x535a890c`), puis son dossier et son numéro modulo 100 (imprimés
+  00 à 99) ; 44 une création sans dossier ni numéro valables ; ouverture 42 (photo retenue) ou 43 ;
+  contrôle 80 / 81 ; MoveToLastFile 77. Vérifié : `play_last_probe.py` (notes par appel, dossier et
+  numéro), toutes les autres sondes, tests.

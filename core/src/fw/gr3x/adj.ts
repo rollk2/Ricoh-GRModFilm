@@ -152,7 +152,7 @@ export interface Gr3xAdjFeatures {
   /** Test builds (T-PLAY0): playback's opening noted in the key ring (with `grainTag: 'keys'`, no dial probe). */
   playProbe?: boolean | 'ref';
   /** With the film mode: playback opens on the last picture taken (T-PLAY2, play-last.ts). */
-  playLast?: boolean | 'diag';
+  playLast?: boolean | 'diag' | 'files';
   /** SR by shutter speed (sr-speed.ts): T-SR1 a fixed threshold (`seconds`), else (T-SR2) Shake Reduction's list Off, 1/4000 .. 30"; `diag` notes its changes in the key ring. */
   srSpeed?: { seconds?: number; diag?: boolean; icon?: boolean | 'diag' };
   /** T-GRAIN1 (test, film mode): the camera's own grain on the films, a fixed value per film (grain-native.ts). */
@@ -532,8 +532,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     ...(snapStep ? { snap: { function: GR3X_DOF_FUNCTION, text: dofText, icon: GR3X_DOF_ICON, press: snapStep } } : {}) } : undefined, rollLock, hiddenPlan?.fns ?? []) : {};
   // T-LOCK2: the ADJ lever's locked functions as Off while a roll is loaded; T-HIDE1: hidden ones always.
   if (features.playProbe && (features.grainTag !== 'keys' || features.dialProbe)) fail('IIIx play probe: with the keys tag, without the dial probe');
-  if (features.playLast && ((features.playLast === 'diag' && (features.playProbe || features.dialProbe || features.grainTag !== 'keys')) || !(features.filmRoll === 'film' || features.filmRoll === 'name2'))) fail('IIIx play last: with the film mode; its diagnostic with the keys tag, without the other key probes');
-  const playLastEntries = features.playLast ? installGr3xPlayLast({ code, patch, u32: word, sites }, features.playLast === 'diag') : {};
+  if (features.playLast && (((features.playLast === 'diag' || features.playLast === 'files') && (features.playProbe || features.dialProbe || features.grainTag !== 'keys')) || !(features.filmRoll === 'film' || features.filmRoll === 'name2'))) fail('IIIx play last: with the film mode; its diagnostic with the keys tag, without the other key probes');
+  const playLastEntries = features.playLast ? installGr3xPlayLast({ code, patch, u32: word, sites }, features.playLast === 'files' ? 'files' : features.playLast === 'diag') : {};
   if (features.srSpeed?.diag && (features.playProbe || features.dialProbe || features.playLast === 'diag' || features.grainTag !== 'keys')) fail('IIIx SR speed: its diagnostic with the keys tag, without the other key probes');
   const srSpeedEntries = features.srSpeed ? installGr3xSrSpeed({ code, append, patch, u32: word, sites }, features.srSpeed.seconds, !!features.srSpeed.diag, srText, features.srSpeed.icon ?? false) : {};
   const playEntries = features.playProbe ? installGr3xPlayProbe({ code, patch, u32: word, sites }, features.playProbe === 'ref') : {};
