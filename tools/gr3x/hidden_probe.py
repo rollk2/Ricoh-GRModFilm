@@ -9,7 +9,8 @@
     one runs Off;
   - ADJ: the five slot getters read a hidden function as Off; ADJ Mode Setting's five lists hold no
     hidden function and their counts (0x531b3bac + 8 i) give the shorter length;
-  - the settings load: after the camera's load (stubbed), each hidden setting's value in the record
+  - the settings load: after the camera's load (stubbed), each hidden setting's value (and, T-HIDE3,
+    its Mode Memory box set to memorized) in the record
     in use and the eight stored records (pointers not in RAM skipped), the other bytes untouched, the
     load's result returned, r4..r11 kept.
 """
@@ -24,6 +25,7 @@ HIDEABLE={'faceEye':(0x0200005e,0x12c,(8,),()),'afAssist':(0x0200005f,0x12e,(),(
           'mfMag':(0x02000065,0x140,(),()),'flash':(0x020000dd,0x164,(20,),(8,)),'gf2':(0x02000070,0xb22,(41,),(0x13,)),
           'flashComp':(0,0x168,(21,),(9,))}   # flashComp: no line; a float from 0x53b592e0 (index); its ADJ 9 is the soft focus in round 10
 COMP_TABLE=0x53b592e0
+MEMORY_BOX={'flash':0xaf8,'flashComp':0xafa,'gf2':0xb24}   # T-HIDE3: Mode Memory's box, set « memorized » with the value
 ADJ_LISTS=(0x53b4eba0,0x53b5a430,0x53b5a404,0x53b58fb0,0x53b5a4b4);ADJ_COUNTS=(0x531b3bac,0x531b3bb4,0x531b3bbc,0x531b3bc4,0x531b3bcc)
 MODEL=0x55063f30;MODEB=0x6304a100;REC=0x63040000;IDW=0x6304a200;VISIBLE=0x5319a720
 def r(c,n):return c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%n))
@@ -100,6 +102,7 @@ def verify(data,manifest):
             if k=='flashComp':
                 for j,bb in enumerate(data[COMP_TABLE-0x53000000+4*v:COMP_TABLE-0x53000000+4*v+4]):offs[HIDEABLE[k][1]+j]=bb
             else:offs[HIDEABLE[k][1]]=v
+            if k in MEMORY_BOX:offs[MEMORY_BOX[k]]=1
         for base,fill in recs:
             b=bytes(c.mem_read(base,0xb28))
             for o in range(0xb28):assert b[o]==offs.get(o,fill),(hex(base),hex(o),b[o])

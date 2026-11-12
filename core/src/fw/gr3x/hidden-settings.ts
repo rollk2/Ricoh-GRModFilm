@@ -13,6 +13,10 @@
  *  - At each settings load (round 10's scaffold), the value is written in the record in use and the
  *    eight stored records (U1..U3 and the others), so the camera starts with it and a recalled BOX
  *    brings it.
+ *  - Their Mode Memory box (Flash Mode, Flash Exposure Comp., GF-2 Flash Mode) leaves Mode Memory's list
+ *    (T-HIDE3; its visibility method, as Still/Movie's with the movie taken out), and the box is set to
+ *    « memorized » in every record with the value: Mode Memory then keeps the value at power-on and
+ *    never brings the factory's back, whatever the box held before.
  * Settings (list records of 0x53b3c6c0: the set handler maps the menu's item to the stored value):
  */
 import { FirmwareError } from '../types';
@@ -28,6 +32,10 @@ export interface Gr3xHideable {
   /** The values in the menu's order (the program's choices), as stored. */ values: readonly number[];
   /** Button functions (0x53292ed0's numbers) and ADJ lever functions (0x53292810's). */ fn: readonly number[]; adj: readonly number[];
   /** A 4-byte setting: the value is an index into this table of words (its menu's values). */ table?: number;
+  /** Its Mode Memory box (T-HIDE3): the item of the screen's list (0x53b4d550) and the box's byte in the
+   * records (AfterReleaseModeMemory…, from each item's setter; the power-on merge 0x5324075c copies the
+   * factory's value when it is 0). Items read in the emulator: 5 Flash Mode, 6 Flash Exposure Comp., 10 GF-2 Flash Mode. */
+  memory?: { item: number; box: number };
 }
 export const GR3X_HIDEABLE = {
   /** ON, Auto Area, OFF (3 values, icons 0x129, 0x127, 0x128 of 0x532932e0; writer 0x53273064). */
@@ -39,15 +47,15 @@ export const GR3X_HIDEABLE = {
   /** On, Off (writer 0x532426c0). */
   mfMag: { line: 0x02000065, byte: 0x140, values: [1, 0], fn: [], adj: [] },
   /** Flash On, Flash On + Red-eye, Slow-speed Sync, Slow Sync + Red-eye (writer 0x5324beac). */
-  flash: { line: 0x020000dd, byte: 0x164, values: [0, 1, 2, 3], fn: [20], adj: [8] },
+  flash: { line: 0x020000dd, byte: 0x164, values: [0, 1, 2, 3], fn: [20], adj: [8], memory: { item: 5, box: 0xaf8 } },
   /** On, Off: 0 is On (icon 2, GF-2), 1 Off (icon 3, GF-2 crossed) by 0x53294120; its writer turns Snap
    * Distance Priority off (0xa3c = 1) when it is set On, as 0xa3c's writer turns it Off (writer 0x532734ec). */
-  gf2: { line: 0x02000070, byte: 0xb22, values: [0, 1], fn: [41], adj: [0x13] },
+  gf2: { line: 0x02000070, byte: 0xb22, values: [0, 1], fn: [41], adj: [0x13], memory: { item: 10, box: 0xb24 } },
   /** Flash Exposure Comp. (no line of its own; list record 13): a float at + 0x168 (writer 0x5324bf68)
    * from the table 0x53b592e0 (+1.0, +0.7, +0.3, 0.0, -0.3 ... -2.0: indexes 0..9; 0.0 first here,
    * the default). Its ADJ function 9 is GR Mod's soft focus in round 10 (adj-softfocus.ts): only
    * taken out without it. */
-  flashComp: { line: 0, byte: 0x168, values: [3, 0, 1, 2, 4, 5, 6, 7, 8, 9], fn: [21], adj: [9], table: 0x53b592e0 },
+  flashComp: { line: 0, byte: 0x168, values: [3, 0, 1, 2, 4, 5, 6, 7, 8, 9], fn: [21], adj: [9], table: 0x53b592e0, memory: { item: 6, box: 0xafa } },
 } as const satisfies Record<string, Gr3xHideable>;
 export type Gr3xHideableKey = keyof typeof GR3X_HIDEABLE;
 export type Gr3xHiddenSettings = Partial<Record<Gr3xHideableKey, number>>;
@@ -61,9 +69,11 @@ export function gr3xHiddenPlan(hidden: Gr3xHiddenSettings, adjSoftFocus = false)
     if (!s.values.includes(v)) fail(`${k}: value ${v} is not one of ${s.values.join(', ')}`);
   }
   const ss = entries.map(([k, v]) => [(GR3X_HIDEABLE as Record<string, Gr3xHideable>)[k], v] as const);
+  const memory = ss.map(([s]) => (s as Gr3xHideable).memory).filter((m): m is { item: number; box: number } => !!m);
   return { lines: ss.map(([s]) => s.line).filter(l => l), fns: ss.flatMap(([s]) => s.fn),
     adj: ss.flatMap(([s]) => s.adj).filter(f => !(adjSoftFocus && f === 9)),
-    bytes: ss.map(([s, v]) => [s.byte, v, (s as Gr3xHideable).table ?? 0] as const) };
+    memoryItems: memory.map(m => m.item),
+    bytes: [...ss.map(([s, v]) => [s.byte, v, (s as Gr3xHideable).table ?? 0] as const), ...memory.map(m => [m.box, 1, 0] as const)] };
 }
 
 export interface Gr3xHiddenProgram {

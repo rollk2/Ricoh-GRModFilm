@@ -1260,8 +1260,14 @@ def verify(data,manifest,seed=3101):
         rd32=lambda a:struct.unpack('<I',bytes(cpu.mem_read(a,4)))[0]
         N=26 if MU else 25
         orig=bytes(data[ITEMS-0x53000000:ITEMS-0x53000000+24*0x28]);tab=bytes(cpu.mem_read(T,N*0x28))
+        # Hidden items: Still/Movie (the movie taken out) and, T-HIDE3, the hidden settings' boxes.
+        MEMH={'flash':5,'flashComp':6,'gf2':10};hid=[MEMH[k] for k in (manifest.get('hiddenSettings') or {}) if k in MEMH]
+        stillMovie='memoryHidden' in e and struct.unpack_from('<I',tab,9*0x28+0x20)[0]==e['memoryHidden']
+        assert ('memoryHidden' in e)==(stillMovie or bool(hid)),'hidden items entry'
         if 'memoryHidden' in e:
-            o_=bytearray(orig);struct.pack_into('<II',o_,8*0x28+0x20,e['memoryHidden'],0);orig=bytes(o_)
+            o_=bytearray(orig)
+            for k_ in ([8] if stillMovie else [])+hid:struct.pack_into('<II',o_,k_*0x28+0x20,e['memoryHidden'],0)
+            orig=bytes(o_)
         assert tab[:3*0x28]==orig[:3*0x28] and tab[4*0x28:25*0x28]==orig[3*0x28:],'items copied'
         ours=struct.unpack('<10I',tab[3*0x28:4*0x28])
         assert ours[0]==24 and ours[2]==e['afPointDraw'] and ours[4]==e['afPointToggle'] and ours[6]==e['afPointWrite'] and ours[1]>=0x200 and ours[9]==0 and ours[8]==0,ours
@@ -1282,10 +1288,16 @@ def verify(data,manifest,seed=3101):
             assert (utext(0),utext(1),utext(2),utext(19))==('Uにも適用','Apply to U modes','Appliquer en U','在U中应用'),[utext(r_) for r_ in range(21)]
             count('apply to U item')
         if 'memoryHidden' in e:
+            p.run(e['memoryHidden'],STOP,{0:0x1234});assert cpu.reg_read(reg.UC_ARM_REG_R0)==0
+        if stillMovie:
             sm=struct.unpack('<10I',tab[9*0x28:10*0x28])
             assert sm[0]==8 and sm[1]==0x5f and sm[8]==e['memoryHidden'] and sm[9]==0,sm
-            p.run(e['memoryHidden'],STOP,{0:0x1234});assert cpu.reg_read(reg.UC_ARM_REG_R0)==0
             count('still/movie hidden')
+        for k_ in hid:
+            row=k_+1 if k_>=3 else k_
+            it=struct.unpack('<10I',tab[row*0x28:(row+1)*0x28])
+            assert it[0]==k_ and it[1]=={5:0x79,6:0x7f,10:0x49}[k_] and it[8]==e['memoryHidden'] and it[9]==0,(k_,it)   # Flash Mode, Flash Exposure Comp., GF-2 Flash Mode
+            count('hidden setting box hidden')
         count('AF point items')
         p.memory_stubs=True;LISTO=0x63059000
         try:cpu.mem_map(LISTO,0x2000)

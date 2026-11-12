@@ -3976,3 +3976,38 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
 - Vérifié : tests `gr3x-ratio-order.test.ts` (plan, recette, build du moteur inspecté) et
   `gr3x-ui.test.mjs` (déplacements, ordre envoyé au build) ; émulation du cycle Fn sur un build
   réordonné (XPan, 3:2, 4:3, 1:1). À tester sur le boîtier.
+
+## Réglages masqués et Mode Memory (T-HIDE3, 2026-11-12)
+
+- Constat (cahier, correctif du 2026-11-11) : GF-2 Flash Mode masqué restait proposé dans Mode Memory.
+- Cases de Mode Memory (table `0x53b4d550`, 24 éléments), textes anglais lus en émulation (certitude
+  haute) : 0 ISO Setting, 1 EV Compensation, 2 Focus, 3 Focus Peaking, 4 AE Metering, 5 Flash Mode,
+  6 Flash Exposure Comp., 7 White Balance, 8 Still/Movie, 9 Snap Distance Priority, **10 GF-2 Flash
+  Mode**, 11 Macro Mode, 12 Drive, 13 Self-timer, 14 AA Filter Simulator, 15 HDF, 16 Aspect Ratio,
+  17 Crop, 18 Image Control, 19 ADJ Mode Setting, 20 Shooting Info. Display, 21 Playback Info.
+  Display, 22 Image for Playback, 23 Outdoor View Setting. Attention : l'ordre des noms internes
+  `AfterReleaseModeMemory…` n'est pas celui des cases (GF2FlashMode est le dernier nom, mais la case 10).
+- Octet de chaque case (setter de l'élément, écrit dans les 8 enregistrements) : 0 `0xaee`, 1 `0xaf0`,
+  2 `0xaf2`, 3 `0xaf4`, 4 `0xaf6`, 5 `0xaf8`, 6 `0xafa`, 7 `0xafc`, 8 `0xafe`, 9 `0xb00`, 10 `0xb24`,
+  11 `0xb02`, 12 `0xb04`, 13 `0xb06`, 14 `0xb08`, 15 `0xb1e`, 16 `0xb0a`, 17 `0xb0c`, 18 `0xb0e`,
+  19 `0xb10`, 20 `0xb12`, 21 `0xb14`, 22 `0xb16`, 23 `0xb18`.
+- Fusion à l'allumage (`0x5324075c`, modes libres ; `r0` l'objet dont `+4` est l'enregistrement des
+  cases, `r1` l'enregistrement chargé, `0x532406fc` l'enregistrement d'usine) : case à 0 → la valeur
+  d'usine remplace la valeur (Flash Mode `+0x164` par `0xaf8`, Flash Exp. Comp. `+0x168` par `0xafa`,
+  GF-2 `+0xb22` par `0xb24`). Émulé : case à 0, la valeur choisie dans l'application était remplacée
+  par celle d'usine (bogue latent en P, Av, Tv, M) ; case à 1, elle reste.
+- Masquables sans case dans Mode Memory : Face/Eye Detection, AF Assist Light, AF.C Setting, MF Auto
+  Magnification.
+- Correctif (`hidden-settings.ts`, champ `memory` de Flash Mode, Flash Exposure Comp. et GF-2) : la case
+  est retirée de la liste (méthode de visibilité qui renvoie 0, comme Still/Movie avec No movie, V1-RC4)
+  et écrite à 1 (« mémorisée ») avec la valeur, au chargement des réglages, dans l'enregistrement en
+  cours et les huit stockés. Avec `afPoint` seulement (tout build complet l'a).
+- Audit des autres voies : menu (lignes masquées), touches, Hold, Wireless et Hold Wireless (même
+  filtre `0x531b9410`, une touche qui la portait fait Off), levier ADJ (listes raccourcies, case lue Off),
+  Mode Memory (ce correctif). Pas d'écran de panneau de contrôle sur GR III (aucun contrôleur trouvé).
+  Restent visibles, non modifiables : les icônes de l'écran de prise de vue et les informations de
+  lecture qui montrent la valeur imposée (non étudiées).
+- Vérifié : `film_roll_check.py` (3 cases cachées, textes 0x79, 0x7f, 0x49, Still/Movie toujours
+  caché), `hidden_probe.py` (cases écrites à 1), émulation de la fusion native, `guard_probe`,
+  `hold_probe`, `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`, tests.
+  Build T-HIDE3 par le moteur (réglages masqués habituels), auto-contrôle et inspection vérifiés.

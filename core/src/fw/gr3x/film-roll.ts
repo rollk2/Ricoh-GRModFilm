@@ -1436,7 +1436,7 @@ const blWord = (at: number, to: number) => (0xeb000000 | (((to - at - 8) >> 2) &
  * power-on in U1 to U3, to the record in use (the BOXes saved are never changed).
  */
 export function installGr3xAfPointMemory(p: Gr3xRollProgram & { read(at: number, n: number): Uint8Array; append(b: Uint8Array): number }, text: number, uText?: number,
-  o: { film?: boolean; filmRecall?: number; hideStillMovie?: boolean } = {}) {
+  o: { film?: boolean; filmRecall?: number; hideStillMovie?: boolean; hideItems?: readonly number[] } = {}) {
   const withU = uText !== undefined;
   for (const at of [MEMORY_COPY_LOW, MEMORY_COPY_HIGH, MEMORY_COPY_END, MEMORY_START_END, MEMORY_AFTER_FOCUS, ...(withU ? [MERGE_CHOICE] : [])])
     if (p.sites.some(s => s.address === at)) throw new FirmwareError('unexpected-instruction', 'IIIx Mode Memory boxes: already patched');
@@ -1478,13 +1478,17 @@ export function installGr3xAfPointMemory(p: Gr3xRollProgram & { read(at: number,
   const iv = new DataView(items.buffer, items.byteOffset, items.byteLength);
   for (let k = 0; k < GR3X_MEMORY_ITEM_COUNT; k++) if (iv.getUint32(k * 0x28, true) !== k) throw new FirmwareError('unexpected-layout', 'IIIx Mode Memory items');
   if (iv.getUint32(GR3X_MEMORY_FOCUS_ITEM * 0x28 + 4, true) !== 0x2a) throw new FirmwareError('unexpected-layout', 'IIIx Mode Memory Focus item');
-  // V1-RC4: with the movie taken out, Mode Memory's Still/Movie item hidden (its visibility method).
-  if (o.hideStillMovie) {
-    if (iv.getUint32(GR3X_MEMORY_STILL_MOVIE_ITEM * 0x28 + 4, true) !== 0x5f || iv.getUint32(GR3X_MEMORY_STILL_MOVIE_ITEM * 0x28 + 0x20, true) !== 0)
-      throw new FirmwareError('unexpected-layout', 'IIIx Mode Memory Still/Movie item');
+  // V1-RC4: with the movie taken out, Mode Memory's Still/Movie item hidden (its visibility method);
+  // T-HIDE3: the boxes of the settings hidden by the program too.
+  const hidden = [...(o.hideStillMovie ? [GR3X_MEMORY_STILL_MOVIE_ITEM] : []), ...(o.hideItems ?? [])];
+  if (o.hideStillMovie && iv.getUint32(GR3X_MEMORY_STILL_MOVIE_ITEM * 0x28 + 4, true) !== 0x5f) throw new FirmwareError('unexpected-layout', 'IIIx Mode Memory Still/Movie item');
+  if (hidden.length) {
     entries.memoryHidden = p.code('mov r0,#0;bx lr;');
-    iv.setUint32(GR3X_MEMORY_STILL_MOVIE_ITEM * 0x28 + 0x20, entries.memoryHidden, true);
-    iv.setUint32(GR3X_MEMORY_STILL_MOVIE_ITEM * 0x28 + 0x24, 0, true);
+    for (const k of hidden) {
+      if (k < 0 || k >= GR3X_MEMORY_ITEM_COUNT || iv.getUint32(k * 0x28 + 0x20, true) !== 0) throw new FirmwareError('unexpected-layout', `IIIx Mode Memory item ${k}`);
+      iv.setUint32(k * 0x28 + 0x20, entries.memoryHidden, true);
+      iv.setUint32(k * 0x28 + 0x24, 0, true);
+    }
   }
   const item = (n: number, t: number, name: string) => {
     const b = new Uint8Array(0x28), v = new DataView(b.buffer);

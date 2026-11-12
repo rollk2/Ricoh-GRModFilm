@@ -284,6 +284,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const rollLock = features.rollLock === true;
   const hiddenPlan = features.hiddenSettings && Object.keys(features.hiddenSettings).length ? gr3xHiddenPlan(features.hiddenSettings, !!(softFocus && round10)) : undefined;
   if (hiddenPlan && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx hidden settings: only with the film mode');
+  // T-HIDE3: a hidden setting's Mode Memory box leaves the list built with the AF Point box (every full build has it).
+  if (hiddenPlan?.memoryItems.length && !features.afPoint) fail('IIIx hidden settings: Mode Memory boxes need afPoint');
   if (rollLock && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx roll lock: only with the film mode');
   if (holdButtons && !macroButton) fail('IIIx hold buttons: with the Macro button');
   if (snapButton && !macroButton) fail('IIIx Snap DOF: with the Macro button');
@@ -518,7 +520,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   // T24-AF1: the AF point reset with Mode Memory's Focus.
   const afResetEntries = { ...(features.afReset ? installGr3xAfReset({ code, sites, patch }) : {}),
     ...(features.afPoint ? installGr3xAfPointMemory({ code, sites, patch, read, append }, afText, memoryU ? uText : undefined,
-      { film: !!roll && filmMenu, ...(roll ? { filmRecall: roll.entries.filmRollRecall } : {}), hideStillMovie: movieLines }) : {}) };
+      { film: !!roll && filmMenu, ...(roll ? { filmRecall: roll.entries.filmRollRecall } : {}), hideStillMovie: movieLines, hideItems: hiddenPlan?.memoryItems ?? [] }) : {}) };
   // T23: the movie taken out (test forms vid1.. or noMovie), with or without the film mode.
   const movieEntries = {
     ...(movieTabHidden ? installGr3xHideMovieTab({ code, sites, patch }) : {}),
