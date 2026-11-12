@@ -273,6 +273,13 @@ svg { width: 18px; height: 18px; flex: none; }
 .ratio-size { width: 86px; flex: none; display: flex; justify-content: flex-end; align-items: center; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; }
 .ratio-size.bad { color: var(--red); }
 .ratio-x { opacity: 0; flex: none; }
+/* GR III / IIIx: the arrows at the left of each line (the Aspect Ratio menu's order), the camera's own lines fixed */
+.ratio-move { flex: none; display: flex; flex-direction: column; margin-left: -6px; }
+.ratio-move .btn.icon-only { width: 24px; height: 20px; }
+.ratio-move .btn.icon-only:disabled { opacity: .25; }
+.ratio-icon-label { display: flex; width: calc(100% - 10px); height: calc(100% - 8px); align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #f2f2f2; border: 1.5px solid #f2f2f2; box-sizing: border-box; background: #000; }
+.ratio-row.factory .input:disabled { opacity: 1; color: var(--muted); }
+.ratio-x-space { flex: none; width: 28px; }
 .ratio-row:hover .ratio-x, .ratio-row.on .ratio-x, .ratio-x:focus-visible { opacity: 1; }
 .ratio-add { flex: none; display: grid; gap: 6px; margin-top: 4px; padding: 0 2px; }
 .ratio-add .btn.ghost.small { font-variant-numeric: tabular-nums; }

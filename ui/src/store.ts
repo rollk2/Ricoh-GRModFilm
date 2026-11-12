@@ -1048,14 +1048,20 @@ export function ratioSpecs(s: State = state): RatioSpec[] {
 }
 /** GR III / IIIx: the menu's entries in order (the camera's 3:2 and 1:1, then the rows that will be built). */
 const RATIO_FACTORY_KEYS = ['3:2', '1:1'];
+export const isFactoryRatioKey = (k: string): boolean => RATIO_FACTORY_KEYS.includes(k);
+/** GR III / IIIx: every line of the ratio list in menu order (the camera's 3:2 and 1:1, and every row, finished or not). */
+export function ratioListNow(s: State = state): string[] {
+  return normalizeOrder(s.ratioOrder, [...RATIO_FACTORY_KEYS, ...s.ratios.map((r) => r.id)]);
+}
 export function ratioMenuNow(s: State = state): { key: string; label: string }[] {
   const rows = s.ratios.filter((r) => r.ratio.trim() && r.preview && !ratioProblem(r));
-  const order = normalizeOrder(s.ratioOrder, [...RATIO_FACTORY_KEYS, ...rows.map((r) => r.id)]);
-  return order.map((k) => ({ key: k, label: RATIO_FACTORY_KEYS.includes(k) ? k : ratioName(rows.find((r) => r.id === k)!) }));
+  const built = new Set(rows.map((r) => r.id));
+  return ratioListNow(s).filter((k) => isFactoryRatioKey(k) || built.has(k))
+    .map((k) => ({ key: k, label: isFactoryRatioKey(k) ? k : ratioName(rows.find((r) => r.id === k)!) }));
 }
 export function moveRatio(key: string, delta: number): void {
   set((s) => {
-    const order = ratioMenuNow(s).map((x) => x.key);
+    const order = ratioListNow(s);
     const from = order.indexOf(key), to = from + delta;
     if (from < 0 || to < 0 || to >= order.length) return { ratioOrder: order };
     order.splice(from, 1); order.splice(to, 0, key);

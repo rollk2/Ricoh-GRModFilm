@@ -3968,8 +3968,11 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   sinon une permutation exacte des identifiants du menu (erreur `bad-ratio-order` autrement).
 - Recette (`ratio-recipe.ts`) : `ratioOrder` n'est écrit que s'il diffère de l'ordre habituel ; relu
   et vérifié à l'inspection. Moteur : `BuildOptions.ratioOrder`.
-- Application : bloc « Menu order » sous les ratios (GR III / IIIx), flèches haut et bas ; l'ordre est
-  gardé dans le projet ; un ratio retiré quitte l'ordre, un ratio ajouté va en fin.
+- Application (GR III / IIIx) : un seul bloc de création, nommage et placement (demande du
+  2026-11-12) : la liste des ratios suit l'ordre du menu, avec 3:2 et 1:1 en lignes fixes (ni
+  modifiables ni supprimables), et des flèches haut et bas à gauche de chaque ligne. La ligne
+  « Factory » et le bloc « Menu order » séparé sont retirés (le GR IV garde sa ligne Factory).
+  L'ordre est gardé dans le projet ; un ratio retiré quitte l'ordre, un ratio ajouté va en fin.
 - Vérifié : tests `gr3x-ratio-order.test.ts` (plan, recette, build du moteur inspecté) et
   `gr3x-ui.test.mjs` (déplacements, ordre envoyé au build) ; émulation du cycle Fn sur un build
   réordonné (XPan, 3:2, 4:3, 1:1). À tester sur le boîtier.

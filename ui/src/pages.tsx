@@ -11,7 +11,7 @@ import { onUiScale, uiScale } from './fit';
 import { applySlot } from './preview';
 import {
   addRatio, addWallFiles, askForOfficial, getState, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
-  maxRatios, moveRatio, ratioMenuNow, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
+  maxRatios, moveRatio, ratioListNow, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
   setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setHiddenSetting, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
@@ -932,7 +932,33 @@ const FACTORY_RATIOS = ['3:2', '4:3', '1:1', '16:9'];
 const COMMON_RATIOS = ['65:24', '2.39:1', '2:1', '5:4', '7:6'];
 const size = (s: [number, number]): string => `${s[0]}×${s[1]}`;
 
-function RatioRow({ r, active, tour }: { r: RatioItem; active: boolean; tour?: string }) {
+/** GR III / IIIx: the up and down arrows at the left of a line, which move it in the Aspect Ratio menu. */
+function RatioMove({ k, label, first, last }: { k: string; label: string; first: boolean; last: boolean }) {
+  return (
+    <span className="ratio-move">
+      <button className="btn ghost icon-only" title={t('lookOrderUp')} aria-label={`${t('lookOrderUp')} · ${label}`} disabled={first} onClick={() => moveRatio(k, -1)}>{Ico.up}</button>
+      <button className="btn ghost icon-only" title={t('lookOrderDown')} aria-label={`${t('lookOrderDown')} · ${label}`} disabled={last} onClick={() => moveRatio(k, 1)}>{Ico.down}</button>
+    </span>
+  );
+}
+type MoveAt = { first: boolean; last: boolean };
+
+/** GR III / IIIx: the camera's own 3:2 or 1:1, a fixed line that only moves. */
+const FACTORY_SIZES: Record<string, [number, number]> = { '3:2': [6000, 4000], '1:1': [4000, 4000] };
+function FactoryRatioRow({ k, at, tour }: { k: string; at: MoveAt; tour?: string }) {
+  return (
+    <div className="ratio-row factory" data-tour={tour}>
+      <RatioMove k={k} label={k} first={at.first} last={at.last} />
+      <RatioIcon width={48} label={k} />
+      <input className="input ratio-in" value={k} disabled aria-label={t('navRatio')} />
+      <input className="input ratio-name" value={k} disabled aria-label={t('name')} title={t('ratioFactory')} />
+      <span className="ratio-size">{FACTORY_SIZES[k] ? size(FACTORY_SIZES[k]) : ''}</span>
+      <span className="ratio-x-space" />
+    </div>
+  );
+}
+
+function RatioRow({ r, active, tour, at }: { r: RatioItem; active: boolean; tour?: string; at?: MoveAt }) {
   const gr3x = useStore(s => s.info?.family === 'gr3x');
   const p = r.preview;
   // A ratio narrower than 1:1 is only marked (the input in red, the reason as its tooltip).
@@ -941,6 +967,7 @@ function RatioRow({ r, active, tour }: { r: RatioItem; active: boolean; tour?: s
   const busy = !!r.ratio.trim() && !p;
   return (
     <div className={`ratio-row ${active ? 'on' : ''}`} data-tour={tour} onPointerDownCapture={() => setActiveRatio(r.id)} onFocusCapture={() => setActiveRatio(r.id)}>
+      {at && <RatioMove k={r.id} label={r.name.trim() || r.ratio.trim() || '?'} first={at.first} last={at.last} />}
       <RatioIcon pixels={p?.icon} width={48} />
       <input
         className={`input ratio-in ${p?.problem ? 'bad' : ''}`} title={portrait ? ratioProblem(r) ?? undefined : undefined} value={r.ratio} maxLength={16} spellCheck={false} placeholder={t('ratioPlaceholder')} aria-label={t('navRatio')}
@@ -954,33 +981,6 @@ function RatioRow({ r, active, tour }: { r: RatioItem; active: boolean; tour?: s
         {busy ? <span className="spinner small" /> : problem ? <span className="ellipsis">{problem}</span> : p?.sizes ? size(p.sizes[0]) : ''}
       </span>
       <button className="btn ghost icon-only ratio-x" title={t('remove')} aria-label={t('remove')} onClick={() => removeRatio(r.id)}>{Ico.x}</button>
-    </div>
-  );
-}
-
-/** GR III / IIIx: the Aspect Ratio menu's order (the camera's 3:2 and 1:1 with the added ratios). */
-function RatioOrder() {
-  // Stable selections (the store's own arrays), the menu worked out from them.
-  const ratios = useStore((s) => s.ratios);
-  const order = useStore((s) => s.ratioOrder);
-  const menu = useMemo(() => ratioMenuNow({ ...getState(), ratios, ratioOrder: order }), [ratios, order]);
-  if (menu.length < 3) return null;
-  return (
-    <div className="ratio-order">
-      <span className="muted small">{t('ratioOrderTitle')}</span>
-      <ol className="look-list" aria-label={t('ratioOrderTitle')}>
-        {menu.map(({ key, label }, i) => (
-          <li key={key} className="look-slot">
-            <div className="look-row">
-              <span className="look-name">{label}</span>
-              <span className="look-btns">
-                <button className="btn ghost icon-only" title={t('lookOrderUp')} aria-label={`${t('lookOrderUp')} · ${label}`} disabled={i === 0} onClick={() => moveRatio(key, -1)}>{Ico.up}</button>
-                <button className="btn ghost icon-only" title={t('lookOrderDown')} aria-label={`${t('lookOrderDown')} · ${label}`} disabled={i === menu.length - 1} onClick={() => moveRatio(key, 1)}>{Ico.down}</button>
-              </span>
-            </div>
-          </li>
-        ))}
-      </ol>
     </div>
   );
 }
@@ -1040,6 +1040,9 @@ export function RatioPage() {
   const max = useStore((s) => maxRatios(s));
   const full = ratios.length >= max;
   const used = new Set(ratios.map((r) => r.ratio.trim()));
+  const gr3x = info?.family === 'gr3x';
+  const order = useStore((s) => s.ratioOrder);
+  const list = useMemo(() => ratioListNow({ ...getState(), ratios, ratioOrder: order }), [ratios, order]);
   return (
     <DropZone className="page" accept={isFirmware} onFiles={(f) => { void loadFirmwareFile(f[0]); }}>
       <header className="page-head">
@@ -1051,13 +1054,22 @@ export function RatioPage() {
       {info && (
         <div className="ratio" data-tour-page="ratio">
           <div className="ratio-list">
-            <div className="ratio-factory" data-tour="ratio-factory">
-              <span className="muted small">{t('ratioFactory')}</span>
-              {(info.factoryRatios || FACTORY_RATIOS).map((f) => <span key={f} className="chip muted">{f}</span>)}
-            </div>
-            {info.family === 'gr3x' && <p className="muted small">{t('gr3xRatioAdj')}</p>}
-            {ratios.map((r, i) => <RatioRow key={r.id} r={r} active={r.id === active?.id} tour={i === 0 ? 'ratio-row' : undefined} />)}
-            {info.family === 'gr3x' && <RatioOrder />}
+            {gr3x ? <p className="muted small">{t('gr3xRatioAdj')}</p> : (
+              <div className="ratio-factory" data-tour="ratio-factory">
+                <span className="muted small">{t('ratioFactory')}</span>
+                {(info.factoryRatios || FACTORY_RATIOS).map((f) => <span key={f} className="chip muted">{f}</span>)}
+              </div>
+            )}
+            {gr3x
+              // one list in the Aspect Ratio menu's order: the camera's 3:2 and 1:1 with the added ratios
+              ? list.map((k, i) => {
+                const at = { first: i === 0, last: i === list.length - 1 };
+                const r = ratios.find((x) => x.id === k);
+                return r
+                  ? <RatioRow key={k} r={r} at={at} active={r.id === active?.id} tour={r.id === ratios[0]?.id ? 'ratio-row' : undefined} />
+                  : <FactoryRatioRow key={k} k={k} at={at} tour={k === '3:2' ? 'ratio-factory' : undefined} />;
+              })
+              : ratios.map((r, i) => <RatioRow key={r.id} r={r} active={r.id === active?.id} tour={i === 0 ? 'ratio-row' : undefined} />)}
             {!full && (
               <div className="ratio-add">
                 <button className="btn dashed fill" data-tour="ratio-add" onClick={() => addRatio()}>{Ico.plus}<span>{t('ratioAdd')}</span></button>

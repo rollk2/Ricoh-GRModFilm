@@ -110,11 +110,11 @@ export function IconCanvas({ pixels, scale = 2 }: { pixels: Uint8Array; scale?: 
 }
 
 /** A ratio's menu icon (60x40 RGBA), or an empty tile of the same size. */
-export function RatioIcon({ pixels, width = RATIO_ICON_W }: { pixels?: Uint8Array; width?: number }) {
+export function RatioIcon({ pixels, width = RATIO_ICON_W, label }: { pixels?: Uint8Array; width?: number; label?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => { if (ref.current && pixels) rgbaToCanvas(ref.current, pixels, RATIO_ICON_W, RATIO_ICON_H); }, [pixels]);
   const height = Math.round((width * RATIO_ICON_H) / RATIO_ICON_W);
-  return <span className="icon-frame ratio-icon" style={{ width, height }}>{pixels && <canvas ref={ref} style={{ width, height }} />}</span>;
+  return <span className="icon-frame ratio-icon" style={{ width, height }}>{label && <span className="ratio-icon-label">{label}</span>}{pixels && <canvas ref={ref} style={{ width, height }} />}</span>;
 }
 
 export function RgbCanvas({ rgb, w, h, className }: { rgb: Uint8Array; w: number; h: number; className?: string }) {
