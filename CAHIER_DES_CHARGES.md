@@ -155,7 +155,7 @@ Décisions des 2026-11-10 et 2026-11-11.
 3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
 - Formatage de la carte : **tous les rouleaux rembobinés** dès la fin du formatage (décision du 2026-11-10 ; avant, le compteur continuait). **Validé sur le boîtier (T-FMT3)**, mis dans les builds avec le mode pellicule, pour la prochaine version.
 - **Rewind Film sur un bouton** (demande du 2026-11-10) : fonction 46 de Fn Button Settings ; la question « Rewind the film? », OK rembobine, MENU ou l'attente annule. **Validé sur le boîtier (T-RWB1 à T-RWB3)**, publié en 0.9.6.
-- Réorganiser les ratios (Aspect Ratio) comme les recettes d'Image Control (demande du 2026-11-10) : à faire.
+- Réorganiser les ratios (Aspect Ratio) comme les recettes d'Image Control (demande du 2026-11-10) : ordre seulement (3:2 et 1:1 compris, rien de masqué) ; fait dans le moteur et l'application, vérifié par les tests et l'émulation, à tester sur le boîtier (0.9.7).
 - **GF-2 Flash Mode dans Mode Memory** (correctif, décision du 2026-11-11) : masqué depuis l'application, GF-2 Flash Mode reste proposé dans la liste de Mode Memory. Quand il est masqué, il doit aussi disparaître de cette liste. Vérifier au passage tous les réglages masquables : un réglage masqué ne doit apparaître nulle part, Mode Memory compris.
 
 ### Mode pellicule

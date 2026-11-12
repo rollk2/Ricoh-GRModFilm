@@ -3954,3 +3954,22 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   GR Mod Film groupées en fin de liste (Film Advance, Rewind Film, White Balance, Macro Mode).
 - 0.9.6-RC1 construite par le moteur : auto-contrôle et inspection vérifiés ; la 0.9.5-RC1 reste
   reconnue. Sondes sur un build équivalent (10, dont `rewind_button_probe.py`), tests (371).
+
+## Ordre des ratios (Aspect Ratio), 0.9.7 en cours (2026-11-12)
+
+- Demande du 2026-11-10 : réorganiser les ratios comme les recettes d'Image Control. Choix de
+  l'utilisateur : « Ordre seulement » (3:2 et 1:1 se déplacent aussi, rien n'est masqué).
+- Mécanisme : le menu Aspect Ratio et le cycle de la touche Fn suivent déjà une table d'ordre des
+  identifiants (`geometry.ratios.map(r => r.id)`, écrite aux `orderSites`) : 3:2 = 0, 1:1 = 3, ratios
+  ajoutés 4 à 10. Rien dans le firmware ne dépend de la position d'un ratio (certitude haute : la
+  table était déjà réécrite pour les ratios ajoutés, et la sonde `adj_probe.py` vérifie la table).
+- `planGr3xMenu(requests, order?)` (`geometry.ts`) : sans ordre, ou avec l'ordre habituel
+  `[0, 3, 4, ...]`, le plan est celui d'avant (les anciens builds se reconstruisent à l'identique) ;
+  sinon une permutation exacte des identifiants du menu (erreur `bad-ratio-order` autrement).
+- Recette (`ratio-recipe.ts`) : `ratioOrder` n'est écrit que s'il diffère de l'ordre habituel ; relu
+  et vérifié à l'inspection. Moteur : `BuildOptions.ratioOrder`.
+- Application : bloc « Menu order » sous les ratios (GR III / IIIx), flèches haut et bas ; l'ordre est
+  gardé dans le projet ; un ratio retiré quitte l'ordre, un ratio ajouté va en fin.
+- Vérifié : tests `gr3x-ratio-order.test.ts` (plan, recette, build du moteur inspecté) et
+  `gr3x-ui.test.mjs` (déplacements, ordre envoyé au build) ; émulation du cycle Fn sur un build
+  réordonné (XPan, 3:2, 4:3, 1:1). À tester sur le boîtier.

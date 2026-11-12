@@ -71,6 +71,22 @@ describe('GR IIIx UI family isolation', () => {
     expect(mocks.engine.build).toHaveBeenCalledWith([], ['4:3', '16:9', '65:24', '17:6', '3:4', '7:6', '5:4'].map(ratio => ({ ratio, name: ratio })), [], { adjSoftFocus: false, dateStamp: false, monoUnlock: false });
     expect(mocks.host.write).toHaveBeenCalledWith('/chosen/fwdc243b.bin', new Uint8Array([9, 2]));
   });
+  it('moves the ratios in the menu and sends that order to the build, nothing when it is the usual one', async () => {
+    await store.adoptFirmware('fwdc243b.bin', '1.60', new Uint8Array([1]));
+    for (const r of ['4:3', '65:24']) store.addRatio(r);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(store.ratioMenuNow().map(x => x.label)).toEqual(['3:2', '1:1', '4:3', '65:24']);
+    expect(store.ratioOrderIds()).toBeUndefined();
+    const xpan = store.ratioMenuNow()[3].key;
+    store.moveRatio(xpan, -3); store.moveRatio('1:1', 1); store.moveRatio('1:1', 1);
+    expect(store.ratioMenuNow().map(x => x.label)).toEqual(['65:24', '3:2', '4:3', '1:1']);
+    expect(store.ratioOrderIds()).toEqual([5, 0, 4, 3]);
+    await store.outputFirmware({ kind: 'folder' });
+    expect(mocks.engine.build.mock.calls.at(-1)[3].ratioOrder).toEqual([5, 0, 4, 3]);
+    store.removeRatio(xpan);
+    expect(store.ratioMenuNow().map(x => x.label)).toEqual(['3:2', '4:3', '1:1']);
+    expect(store.ratioOrderIds()).toEqual([0, 4, 3]);
+  });
   it('exports IIIx negative-clarity soft focus while preserving the ADJ function list', async () => {
     await store.adoptFirmware('fwdc243b.bin', '1.60', new Uint8Array([1]));
     store.addRatio('4:3');

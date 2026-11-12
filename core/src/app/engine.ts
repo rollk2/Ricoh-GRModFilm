@@ -298,6 +298,8 @@ export interface BuildOptions {
   hiddenSettings?: Gr3xHiddenSettings;
   /** GR III / IIIx (round 10): the rear dial's rotation ignored everywhere (its four keys and OK kept); with the Hold lines, Fn held + the front dial for the rear dial. */
   rearDialOff?: boolean;
+  /** GR III / IIIx: the Aspect Ratio menu's order, as identities (3:2 0, 1:1 3, the added ratios 4.. in their order), each once. */
+  ratioOrder?: number[];
   /** GR III / IIIx (round 10): Shake Reduction's list Off, 1/4000 .. 30": SR On at that speed and slower, Off faster; the shooting screen's SR icon follows (from 0.9.5). */
   srSpeed?: boolean;
   /** GR III / IIIx (with `filmMode`): the grain on the JPEG, set per film on its parameter screen (Grain, Size). */
@@ -567,7 +569,7 @@ export class Engine {
           looks = readGr3xLookRecipe(appended);
           const build = readGr3xBuildRecipe(appended);
           if (build) {
-            menu = planGr3xMenu(build.ratios); adjSoftFocus = build.adjSoftFocus; dateImprint = build.dateImprint; dateMenu = build.dateMenu; pictureMenu = build.pictureMenu; round7 = build.round7;
+            menu = planGr3xMenu(build.ratios, build.ratioOrder); adjSoftFocus = build.adjSoftFocus; dateImprint = build.dateImprint; dateMenu = build.dateMenu; pictureMenu = build.pictureMenu; round7 = build.round7;
             round8 = build.round8; round9 = build.round9; round10 = build.round10; lookLayout = build.lookLayout;
             film = { ...(build.filmMode ? { filmMode: build.filmMode } : {}), ...(build.noMovie ? { noMovie: true } : {}), ...(build.dateHidden ? { dateHidden: true } : {}), ...(build.afReset ? { afReset: true } : {}), ...(build.afPoint ? { afPoint: true } : {}), ...(build.memoryU ? { memoryU: true } : {}), ...(build.wbButton ? { wbButton: true } : {}), ...(build.macroButton ? { macroButton: true } : {}), ...(build.snapDof ? { snapDof: true } : {}), ...(build.holdButtons ? { holdButtons: true } : {}), ...(build.rollLock ? { rollLock: true } : {}), ...(build.playLast ? { playLast: true } : {}), ...(build.formatRewind ? { formatRewind: true } : {}), ...(build.rewindButton ? { rewindButton: true } : {}), ...(build.hiddenSettings ? { hiddenSettings: build.hiddenSettings } : {}), ...(build.rearDialOff ? { rearDialOff: true } : {}), ...(build.fnDial ? { fnDial: true } : {}), ...(build.srSpeed ? { srSpeed: true } : {}), ...(build.srIcon ? { srIcon: true } : {}), ...(build.grain ? { grain: true } : {}) };
             // Power-off pictures: the names from the recipe, the JPEGs from the file's own RES section.
@@ -910,14 +912,14 @@ export class Engine {
   /** Build a firmware file. The result has passed the built-in self-check (otherwise this throws). */
   async buildFirmware(requests: SlotRequest[], ratios: readonly RatioSpec[] = [], softFocus: readonly SoftFocusRequest[] = [], options: BuildOptions = {}): Promise<FirmwareBuild> {
     if (this.info.family === 'gr3x') {
-      if (Object.entries(options).some(([k, v]) => k !== 'monoUnlock' && k !== 'adjSoftFocus' && k !== 'dateStamp' && k !== 'shutdownPictures' && k !== 'filmCount' && k !== 'guard' && k !== 'lookLayout' && k !== 'gr3Round' && k !== 'filmMode' && k !== 'noMovie' && k !== 'afReset' && k !== 'afPoint' && k !== 'memoryU' && k !== 'wbButton' && k !== 'macroButton' && k !== 'snapDof' && k !== 'holdButtons' && k !== 'rollLock' && k !== 'playLast' && k !== 'hiddenSettings' && k !== 'rearDialOff' && k !== 'srSpeed' && k !== 'grain' && v !== undefined && v !== false && !(Array.isArray(v) && !v.length)))
+      if (Object.entries(options).some(([k, v]) => k !== 'monoUnlock' && k !== 'adjSoftFocus' && k !== 'dateStamp' && k !== 'shutdownPictures' && k !== 'filmCount' && k !== 'guard' && k !== 'lookLayout' && k !== 'gr3Round' && k !== 'filmMode' && k !== 'noMovie' && k !== 'afReset' && k !== 'afPoint' && k !== 'memoryU' && k !== 'wbButton' && k !== 'macroButton' && k !== 'snapDof' && k !== 'holdButtons' && k !== 'rollLock' && k !== 'playLast' && k !== 'hiddenSettings' && k !== 'rearDialOff' && k !== 'srSpeed' && k !== 'ratioOrder' && k !== 'grain' && v !== undefined && v !== false && !(Array.isArray(v) && !v.length)))
         throw new FirmwareError('gr3x-unsupported', 'added Image Control slots and the test settings of the date imprint are not ported to GR III / IIIx');
       if (options.shutdownPictures?.length && !this.info.capabilities.menuPictures)
         throw new FirmwareError('gr3x-unsupported', 'this GR III / IIIx file has no End Screen pictures');
       if (options.dateStamp && !this.info.features.dateStamp)
         throw new FirmwareError('gr3x-unsupported', 'this GR III / IIIx file has no date imprint');
       // 1..7 added ratios; the T4 seven keep the tested T4 menu (see planGr3xMenu).
-      const menu = planGr3xMenu(ratios.map(r => ({ ratio: r.ratio, name: r.name })));
+      const menu = planGr3xMenu(ratios.map(r => ({ ratio: r.ratio, name: r.name })), options.ratioOrder);
       // 0: no films (as when nothing is chosen).
       const filmCount = options.filmCount || undefined;
       if (options.filmCount === 0 && requests.length) throw new FirmwareError('bad-edit', 'film changes without films');

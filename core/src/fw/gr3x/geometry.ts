@@ -69,7 +69,9 @@ export const GR3X_T4_CUSTOM: readonly Gr3xRatioRequest[] = GR3X_T4_MENU.filter(r
  * 3:2, 1:1, then the added ratios in the order given, with identities 4, 5, ... in that order.
  * Throws on a bad, duplicate or conflicting ratio, a bad name, or more than seven ratios.
  */
-export function planGr3xMenu(requests: readonly Gr3xRatioRequest[]): Gr3xMenuRatio[] {
+/** `order` (0.9.7): the menu's order as identities (3:2 0, 1:1 3, the added ratios 4..), every one
+ * exactly once; omitted, 3:2, 1:1 and the added ratios in their order. */
+export function planGr3xMenu(requests: readonly Gr3xRatioRequest[], order?: readonly number[]): Gr3xMenuRatio[] {
   if (!Array.isArray(requests) || requests.length < 1 || requests.length > GR3X_MAX_CUSTOM_RATIOS)
     fail('too-many-ratios', `GR III / IIIx take 1 to ${GR3X_MAX_CUSTOM_RATIOS} added ratios`);
   const customs = requests.map((r, i) => {
@@ -88,15 +90,21 @@ export function planGr3xMenu(requests: readonly Gr3xRatioRequest[]): Gr3xMenuRat
   });
   const t4 = customs.length === GR3X_T4_CUSTOM.length &&
     customs.every((c, i) => c.ratio === GR3X_T4_CUSTOM[i].ratio && c.name === GR3X_T4_CUSTOM[i].name);
-  if (t4) return GR3X_T4_MENU.map(r => ({ ...r }));
-  return [entry('3:2', '3:2', 0), entry('1:1', '1:1', 3),
+  const plain = [entry('3:2', '3:2', 0), entry('1:1', '1:1', 3),
     ...customs.map((c, i) => entry(c.ratio, c.name, GR3X_FIRST_CUSTOM_ID + i))];
+  if (order === undefined || order.every((id, i) => id === plain[i]?.id) && order.length === plain.length) {
+    if (t4) return GR3X_T4_MENU.map(r => ({ ...r }));
+    return plain;
+  }
+  if (order.length !== plain.length || new Set(order).size !== order.length || order.some(id => !plain.some(r => r.id === id)))
+    fail('bad-ratio-order', 'the ratio order must give every ratio of the menu once');
+  return order.map(id => plain.find(r => r.id === id)!);
 }
 
-/** Check a menu read back from a recipe: native entries once each, identities 4.. consecutive. */
+/** Check a menu read back from a recipe: native entries once each, identities 4.. consecutive, in any order. */
 export function checkGr3xMenu(menu: readonly Gr3xMenuRatio[]): Gr3xMenuRatio[] {
   const customs = menu.filter(r => r.id >= GR3X_FIRST_CUSTOM_ID).sort((a, b) => a.id - b.id);
-  const rebuilt = planGr3xMenu(customs.map(r => ({ ratio: r.ratio, name: r.name })));
+  const rebuilt = planGr3xMenu(customs.map(r => ({ ratio: r.ratio, name: r.name })), menu.map(r => r.id));
   const same = rebuilt.length === menu.length && rebuilt.every((r, i) =>
     r.ratio === menu[i].ratio && r.name === menu[i].name && r.id === menu[i].id);
   if (!same) fail('bad-edit', 'IIIx ratio menu does not follow the build rules');

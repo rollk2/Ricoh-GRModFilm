@@ -64,6 +64,8 @@ export interface State {
   slots: Record<SlotId, SlotState>;
   wall: WallItem[];
   ratios: RatioItem[]; activeRatio?: string; ratioBackdrop: RatioBackdrop;
+  /** GR III / IIIx: the Aspect Ratio menu's order: '3:2', '1:1' and the rows' ids (0.9.7). */
+  ratioOrder: string[];
   soft: boolean; dateStamp: boolean; monoUnlock: boolean;
   /** GR III / IIIx: the film mode, and the movie taken out. */
   filmMode: boolean; noMovie: boolean;
@@ -106,7 +108,7 @@ const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '',
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
   ready: false, page: 'ic', fwBusy: false, model: 'HDF', lang: 'zh-CN',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -218,6 +220,7 @@ function familyData(s: State): FamilyDoc {
     lookOrder: s.lookOrder, lookHidden: s.lookHidden, lookOrder3: s.lookOrder3, lookHidden3: s.lookHidden3,
     wall: s.wall.map((w) => ({ id: w.id, name: w.name, kind: 'image', width: w.width, height: w.height, crop: w.crop, ...(w.menuName !== undefined ? { menuName: w.menuName } : {}), ...(w.menuId ? { menuId: w.menuId } : {}) })),
     ratios: s.ratios.map((r) => ({ id: r.id, ratio: r.ratio, name: r.name })),
+    ratioOrder: s.ratioOrder,
     soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, filmCount: s.filmCount,
     filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, hiddenSettings: s.hiddenSettings,
   };
@@ -243,7 +246,7 @@ function parseFamily(doc: FamilyDoc | null): Partial<State> {
     .filter((r: RatioItem) => r && typeof r.id === 'string' && typeof r.ratio === 'string')
     .map((r: RatioItem) => ({ id: r.id, ratio: r.ratio.slice(0, 24), name: String(r.name || '').slice(0, 80) }));
   return {
-    slots, extras, activeSlot: 'CY', wall: [], ratios, activeRatio: ratios[0]?.id,
+    slots, extras, activeSlot: 'CY', wall: [], ratios, activeRatio: ratios[0]?.id, ratioOrder: Array.isArray(doc?.ratioOrder) ? (doc!.ratioOrder as unknown[]).filter((k): k is string => typeof k === 'string') : [],
     lookOrder: normalizeLookOrder(Array.isArray(doc?.lookOrder) ? doc!.lookOrder : [], extras),
     lookHidden: normalizeLookHidden(Array.isArray(doc?.lookHidden) ? doc!.lookHidden : [], extras),
     lookOrder3: gr3SavedKeys(doc?.lookOrder3), lookHidden3: gr3SavedKeys(doc?.lookHidden3),
@@ -1043,6 +1046,29 @@ export const ratioName = (r: RatioItem): string => r.name.trim() || r.preview?.l
 export function ratioSpecs(s: State = state): RatioSpec[] {
   return s.ratios.filter((r) => r.ratio.trim() && r.preview && !ratioProblem(r)).map((r) => ({ name: ratioName(r), ratio: r.ratio.trim() }));
 }
+/** GR III / IIIx: the menu's entries in order (the camera's 3:2 and 1:1, then the rows that will be built). */
+const RATIO_FACTORY_KEYS = ['3:2', '1:1'];
+export function ratioMenuNow(s: State = state): { key: string; label: string }[] {
+  const rows = s.ratios.filter((r) => r.ratio.trim() && r.preview && !ratioProblem(r));
+  const order = normalizeOrder(s.ratioOrder, [...RATIO_FACTORY_KEYS, ...rows.map((r) => r.id)]);
+  return order.map((k) => ({ key: k, label: RATIO_FACTORY_KEYS.includes(k) ? k : ratioName(rows.find((r) => r.id === k)!) }));
+}
+export function moveRatio(key: string, delta: number): void {
+  set((s) => {
+    const order = ratioMenuNow(s).map((x) => x.key);
+    const from = order.indexOf(key), to = from + delta;
+    if (from < 0 || to < 0 || to >= order.length) return { ratioOrder: order };
+    order.splice(from, 1); order.splice(to, 0, key);
+    return { ratioOrder: order };
+  });
+  scheduleSave();
+}
+/** The order as the engine takes it (3:2 0, 1:1 3, the built rows 4.. in their order), or undefined for the usual one. */
+export function ratioOrderIds(s: State = state): number[] | undefined {
+  const rows = s.ratios.filter((r) => r.ratio.trim() && r.preview && !ratioProblem(r)).map((r) => r.id);
+  const ids = ratioMenuNow(s).map(({ key }) => (key === '3:2' ? 0 : key === '1:1' ? 3 : 4 + rows.indexOf(key)));
+  return ids.every((id, i) => id === [0, 3, ...rows.map((_, k) => 4 + k)][i]) ? undefined : ids;
+}
 /** True while a filled row is wrong or still being looked at: nothing is written then. */
 export function hasRatioErrors(s: State = state): boolean {
   return s.ratios.some((r) => r.ratio.trim() && (!r.preview || !!ratioProblem(r)));
@@ -1303,6 +1329,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
           // hidden from the menu while a roll is loaded, and the grain (Grain Off by default on every film's parameter screen).
           ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, holdButtons: true, rollLock: true, playLast: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
           ...(rearDialOff ? { rearDialOff } : {}), ...(hiddenCount ? { hiddenSettings } : {}),
+          ...(state.info.family === 'gr3x' && !stock && ratioOrderIds() ? { ratioOrder: ratioOrderIds() } : {}),
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked),
           // and Shake Reduction's list of speeds (1/4000, the factory On: no change until another speed is chosen).
           ...(filmModeChoosable() ? { afPoint: true, memoryU: true, srSpeed: true } : {}) });

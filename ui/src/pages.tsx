@@ -10,8 +10,8 @@ import type { Crop } from './pixels';
 import { onUiScale, uiScale } from './fit';
 import { applySlot } from './preview';
 import {
-  addRatio, addWallFiles, askForOfficial, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
-  maxRatios, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
+  addRatio, addWallFiles, askForOfficial, getState, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
+  maxRatios, moveRatio, ratioMenuNow, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
   setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setHiddenSetting, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
@@ -958,6 +958,33 @@ function RatioRow({ r, active, tour }: { r: RatioItem; active: boolean; tour?: s
   );
 }
 
+/** GR III / IIIx: the Aspect Ratio menu's order (the camera's 3:2 and 1:1 with the added ratios). */
+function RatioOrder() {
+  // Stable selections (the store's own arrays), the menu worked out from them.
+  const ratios = useStore((s) => s.ratios);
+  const order = useStore((s) => s.ratioOrder);
+  const menu = useMemo(() => ratioMenuNow({ ...getState(), ratios, ratioOrder: order }), [ratios, order]);
+  if (menu.length < 3) return null;
+  return (
+    <div className="ratio-order">
+      <span className="muted small">{t('ratioOrderTitle')}</span>
+      <ol className="look-list" aria-label={t('ratioOrderTitle')}>
+        {menu.map(({ key, label }, i) => (
+          <li key={key} className="look-slot">
+            <div className="look-row">
+              <span className="look-name">{label}</span>
+              <span className="look-btns">
+                <button className="btn ghost icon-only" title={t('lookOrderUp')} aria-label={`${t('lookOrderUp')} · ${label}`} disabled={i === 0} onClick={() => moveRatio(key, -1)}>{Ico.up}</button>
+                <button className="btn ghost icon-only" title={t('lookOrderDown')} aria-label={`${t('lookOrderDown')} · ${label}`} disabled={i === menu.length - 1} onClick={() => moveRatio(key, 1)}>{Ico.down}</button>
+              </span>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 /** The 3:2 picture area with the part an added ratio keeps; the rest is what the camera masks. */
 function RatioPane({ r }: { r?: RatioItem }) {
   const rev = useStore((s) => s.photoRev);
@@ -1030,6 +1057,7 @@ export function RatioPage() {
             </div>
             {info.family === 'gr3x' && <p className="muted small">{t('gr3xRatioAdj')}</p>}
             {ratios.map((r, i) => <RatioRow key={r.id} r={r} active={r.id === active?.id} tour={i === 0 ? 'ratio-row' : undefined} />)}
+            {info.family === 'gr3x' && <RatioOrder />}
             {!full && (
               <div className="ratio-add">
                 <button className="btn dashed fill" data-tour="ratio-add" onClick={() => addRatio()}>{Ico.plus}<span>{t('ratioAdd')}</span></button>
