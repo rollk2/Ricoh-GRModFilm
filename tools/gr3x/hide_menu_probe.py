@@ -165,6 +165,9 @@ def verify(data,manifest):
     # --- T-HSET2: what a ticked box takes out (bit k + 1 of 0x905 of the record in use).
     if 'hsMemoryVisible5' in e:
         thset2(p,c,e,data,count)
+    # --- T-HSET3: ADJ Mode Setting's lists without the ticked boxes' functions.
+    if 'hsAdjFind' in e:
+        thset3(p,c,e,data,count)
     return dict(cases=cases,title=hsTitle,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
 
 # T-HSET2: each box's setting: its line, button functions, ADJ functions, Mode Memory item and box.
@@ -246,6 +249,33 @@ def thset2(p,c,e,data,count):
                 if mem and st:want[mem[1]]=1
                 assert all(b[o]==want.get(o,0) for o in range(0xb28)),(key,st,hex(a_),[hex(o) for o in range(0xb28) if b[o]!=want.get(o,0)])
             count('box write')
+
+ADJ_LISTS=(0x53b4eba0,0x53b5a430,0x53b5a404,0x53b58fb0,0x53b5a4b4);ADJ_COUNTS=(0x531b3bac,0x531b3bb4,0x531b3bbc,0x531b3bc4,0x531b3bcc)
+READS=((0x10,0x28,4,4),(0x18,0x20,1,4),(0x20,0x14,4,1))   # record field, offset of the read, dest register, index register
+def thset3(p,c,e,data,count):
+    soft='softFocusSlot0' in e
+    pairs=[(f,1<<(k+1)) for k,b in enumerate(BOXES_HS) for f in b[3] if not (soft and f==9)]
+    def bl(at,to):return (0xeb000000|(((to-at-8)>>2)&0xffffff))&0xffffffff
+    for bits in [0]+[1<<(k+1) for k in range(7)]+[0xfe,0x60,0xa0]:
+        c.mem_write(REC,bytes(0xb28));c.mem_write(REC+SETTING,bytes([bits]));c.mem_write(MODEL,struct.pack('<II',MODEB,REC))
+        hidden={f for f,b in pairs if bits&b}
+        for i,(lst,cnt) in enumerate(zip(ADJ_LISTS,ADJ_COUNTS)):
+            full=list(c.mem_read(lst,19));want=[f for f in full if f not in hidden]
+            p.run(cnt,STOP,{4:0x44,5:0x55,6:0x66});assert r(c,0)==len(want) and (r(c,4),r(c,5),r(c,6))==(0x44,0x55,0x66),(i,hex(bits),r(c,0),want)
+            rec=0x53b3c6c0+(65+i)*0x40
+            for k,(field,off,dest,index) in enumerate(READS):
+                fn=u32(c,rec+field);at=fn+off;stub=e['hsAdjRead%d_%d'%(i,k)]
+                assert u32(c,at)==bl(at,stub),(i,k)
+                for n in range(len(want)+2):
+                    regs={0:0x1010,1:0x1111,2:0x1212,3:lst,4:0x1414,5:0x1515,6:0x1616,12:0x1c1c}
+                    regs[index]=n
+                    p.run(stub,STOP,regs)
+                    for reg_,v in regs.items():
+                        if reg_==dest:continue
+                        elif reg_==12:assert c.reg_read(reg.UC_ARM_REG_R12)==v,(i,k,'ip')
+                        else:assert r(c,reg_)==v,(i,k,n,reg_)
+                    assert r(c,dest)==(want[n] if n<len(want) else 0),(i,k,n,hex(bits),r(c,dest),want)
+            count('ADJ list')
 
 if __name__=='__main__':
     a=argparse.ArgumentParser(description=__doc__)

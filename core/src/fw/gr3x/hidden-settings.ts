@@ -19,6 +19,7 @@
  *    never brings the factory's back, whatever the box held before.
  * Settings (list records of 0x53b3c6c0: the set handler maps the menu's item to the stored value):
  */
+import { branchWord } from '../aspect/arm';
 import { FirmwareError } from '../types';
 import type { Gr3xSite } from './round10';
 import { gr3xSettingsHook, gr3xSettingsPrior } from './round10';
@@ -136,6 +137,54 @@ export function installGr3xHiddenAdjLists(p: Gr3xHiddenProgram, adj: readonly nu
     if (p.u32(count) !== 0xe3a00013) fail('ADJ list count');
     p.patch(count, 0xe3a00013, (0xe3a00000 | kept.length) >>> 0, `hidden settings: ADJ list of ${kept.length}`);
   });
+}
+
+/** The ADJ lists' records (SelectMenuController list records 65..69 of 0x53b3c6c0: + 0x10 draw, + 0x18 set,
+ * + 0x20 is-current) and, in each of those three, the one read of the list (`ldrb`, r3 the list's address). */
+const LIST_RECORDS = 0x53b3c6c0, ADJ_RECORD = 65;
+const ADJ_READS = [
+  { field: 0x10, at: 0x28, word: 0xe7d34004, dest: 'r4', index: 'r4' }, // draw: ldrb r4,[r3,r4]
+  { field: 0x18, at: 0x20, word: 0xe7d31004, dest: 'r1', index: 'r4' }, // set: ldrb r1,[r3,r4]
+  { field: 0x20, at: 0x14, word: 0xe7d34001, dest: 'r4', index: 'r1' }, // is current: ldrb r4,[r3,r1]
+] as const;
+const movwImm = (w: number) => ((w >>> 4) & 0xf000) | (w & 0xfff);
+
+/**
+ * T-HSET3: ADJ Mode Setting's five lists without the functions whose Hide Settings box is ticked, worked out
+ * at each read (no copy, no RAM): each list's length (0x531b3bac + 8 i: 19) becomes the number of its
+ * functions not hidden, and each of its three reads (a row's text and icon, the choice, the current one)
+ * the n-th function not hidden. `pairs`: [ADJ function, bit of 0x905].
+ */
+export function installGr3xHideAdjLists(p: Gr3xHiddenProgram, pairs: readonly (readonly [number, number])[]) {
+  if (!pairs.length) return {};
+  const entries: Record<string, number> = {};
+  const skip = (v: string, back: string, tag: string) => pairs.map(([f, bit], i) => `cmp ${v},#${f};bne ${tag}${i};tst r6,#${bit};bne ${back};${tag}${i}:`).join('');
+  // r0 = n, r1 = the list: r0 = its n-th function not hidden (0 past the end).
+  entries.hsAdjFind = p.code(`push {r4,r5,r6,lr};mov r4,r0;mov r5,r1;${gr3xHideBitsLoad('r6', 'af')}mov r2,#0;
+    next:cmp r2,#${ADJ_LIST_LENGTH};bhs none;ldrb r0,[r5,r2];add r2,r2,#1;${skip('r0', 'next', 'as')}
+    cmp r4,#0;beq found;sub r4,r4,#1;b next;
+    none:mov r0,#0;found:pop {r4,r5,r6,pc};`);
+  GR3X_ADJ_LISTS.forEach((list, i) => {
+    const count = GR3X_ADJ_LIST_COUNTS[i];
+    if (p.u32(count) !== 0xe3a00013 || p.u32(count + 4) !== 0xe12fff1e) fail('ADJ list count');
+    entries[`hsAdjCount${i}`] = p.code(`push {r4,r5,r6,lr};movw r5,#${lo(list)};movt r5,#${hi(list)};${gr3xHideBitsLoad('r6', 'ac')}mov r2,#0;mov r0,#0;
+      next:cmp r2,#${ADJ_LIST_LENGTH};bhs done;ldrb r3,[r5,r2];add r2,r2,#1;${skip('r3', 'next', 'cs')}add r0,r0,#1;b next;
+      done:pop {r4,r5,r6,pc};`);
+    p.patch(count, 0xe3a00013, branchWord(count, entries[`hsAdjCount${i}`]), 'Hide Settings: ADJ list length without the hidden functions');
+    const record = LIST_RECORDS + (ADJ_RECORD + i) * 0x40;
+    ADJ_READS.forEach((r, k) => {
+      const fn = p.u32(record + r.field), at = fn + r.at;
+      if (p.u32(at) !== r.word) fail(`ADJ list ${i} read ${k}`);
+      // The list's address in r3 just before (movw / movt r3 in the six instructions before the read).
+      const before = Array.from({ length: 6 }, (_, j) => p.u32(at - 4 * (j + 1)));
+      const low = before.find(w => ((w & 0xfff0f000) >>> 0) === 0xe3003000), high = before.find(w => ((w & 0xfff0f000) >>> 0) === 0xe3403000);
+      if (low === undefined || high === undefined || ((movwImm(high) << 16) | movwImm(low)) >>> 0 !== list) fail(`ADJ list ${i} read ${k}: its address (${before.map(w => w.toString(16)).join(' ')})`);
+      const keep = r.dest === 'r1' ? 'r0,r2,r3,ip,lr' : 'r0,r1,r2,r3,ip,lr';
+      entries[`hsAdjRead${i}_${k}`] = p.code(`push {${keep}};mov r0,${r.index};mov r1,r3;bl #${entries.hsAdjFind};mov ${r.dest},r0;pop {${keep}};bx lr;`);
+      p.patch(at, r.word, (0xeb000000 | (((entries[`hsAdjRead${i}_${k}`] - at - 8) >> 2) & 0xffffff)) >>> 0, 'Hide Settings: ADJ list read without the hidden functions');
+    });
+  });
+  return entries;
 }
 
 /** At each settings load (the scaffold's hook): the values into the record in use and the eight stored ones. */

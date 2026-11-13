@@ -4118,3 +4118,19 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
 - **Résultat T-HSET2 (2026-11-13), validé sur le boîtier** : protocole complet juste (lignes du menu,
   touche Fn sans effet, case ADJ lue Off, listes de Fn Button Setting, case de Mode Memory, valeur de
   Flash Mode gardée après rallumage en P, tout revient en décochant).
+
+### Build T-HSET3 : les listes d'ADJ Mode Setting suivent Hide Settings (2026-11-13)
+
+- Recherche : chaque liste (enregistrements de liste 65 à 69 de `0x53b3c6c0`) est lue à trois endroits,
+  tous `ldrb rD,[r3,rI]` avec `r3` l'adresse de la liste : le dessin d'une ligne (`+0x10` du
+  record, lecture à `+0x28`, `ldrb r4,[r3,r4]`), le choix (`+0x18`, à `+0x20`, `ldrb r1,[r3,r4]`) et la
+  fonction courante (`+0x20`, à `+0x14`, `ldrb r4,[r3,r1]`) ; la longueur est `mov r0,#0x13; bx lr`
+  (`0x531b3bac + 8 i`). Rien d'autre ne lit les listes.
+- Voie A (aucune RAM, aucune copie) : la longueur devient le nombre de fonctions non cachées de la
+  liste, chaque lecture le n-ième élément non caché (`hsAdjFind`), selon les bits de `0x905`. Effet
+  immédiat. Fonctions concernées : Flash Mode (8), GF-2 (0x13), Flash Exposure Comp. (9, sauf avec le
+  flou ADJ du round 10).
+- Vérifié : `hide_menu_probe.py` (les 5 longueurs et les 15 lectures pour 11 combinaisons de cases,
+  registres gardés, chaque lecture appelle bien son calcul), `film_roll_check`, `guard_probe`,
+  `hold_probe`, `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`,
+  `adj_softfocus_probe`, tests ; T-HIDE3 se reconstruit à l'identique.
