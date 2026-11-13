@@ -4186,3 +4186,27 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
   et rallumer », à confirmer en T-SET2.
 - **Application** (T-SET3) : appliquer une seule fois au premier allumage demande une marque persistante ;
   l'enregistrement n'a plus d'octet libre : à chercher (autre emplacement des données d'application).
+
+### Build T-SET1 : « Save Settings to Card » (2026-11-13)
+
+- Option `settingsFile` (`settings-file.ts`, branchée dans `adj.ts`, `datestamp.ts`, `film-roll.ts`) ;
+  build de recherche seulement pour l'instant.
+- Ligne `0x020001d1` dans Setup, juste après Hide Settings. Elle ouvre le dialogue de Create New Folder,
+  comme Rewind Film, avec l'octet de mode à 2 (posé par la fabrique) ; le contrôle de carte et de place est
+  gardé (le rembobinage le saute) ; question, texte de fin et action selon le mode (0 boîtier, 1 rembobinage,
+  2 enregistrement, 3 échec de l'enregistrement : « Settings not saved. »). Sans l'option, le code du
+  dialogue est celui de la 0.9.6 (anciens builds identiques).
+- L'enregistrement : système de fichiers `[0x53594d74() + 0x14]`, carte « C: » vérifiée, `C:\GRFILM.SET`
+  ouvert en mode 0, en-tête de 0x20 octets (`GRFS`, format 1, taille 0xb28, 9 enregistrements, modèle
+  1 GR III / 2 GR IIIx, version de GR Mod Film), puis l'enregistrement en cours et les huit stockés, chacun
+  suivi de la somme 32 bits de ses octets ; fermeture ; tout échec met l'octet de mode à 3 (et ferme le
+  fichier ouvert). Fichier attendu : 25 772 octets.
+- Textes en 21 langues (ligne, question, fin, échec), chaque caractère déjà présent dans les textes du
+  boîtier de la langue (vérifié en émulation ; ja, ko, zh et es sans le point d'interrogation qui manque).
+- Lecteur `readGr3xSettingsFile` (en-tête, modèle, longueur, somme de chaque enregistrement).
+- Vérifié : `settings_file_probe.py` (Setup, touches, fabrique, contrôles, textes et action par mode,
+  enregistrement avec un système de fichiers simulé : appels, octets relus par le lecteur, registres ;
+  échecs : pas de carte, ouverture ou écriture refusée, enregistrement hors RAM), le fichier produit relu par
+  le lecteur TypeScript, `hide_menu_probe` (adaptée), les autres sondes, tests (415) ; T-HIDE3 et la
+  0.9.7-RC1 se reconstruisent à l'identique.
+- À voir sur le boîtier : le mode 0 de l'ouverture (création, écrasement), l'appel depuis le dialogue.

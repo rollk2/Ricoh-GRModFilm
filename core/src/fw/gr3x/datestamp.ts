@@ -443,7 +443,9 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
   film?: { text: number; set: number; isCurrent: number; visible: number;
     /** T17-RWD1: the Rewind Film line (after Film Roll Mode) opening Create New Folder's dialog
      * (`dialog`) with the byte `mode` set to 1 (0 for Create New Folder itself). */
-    rewind?: { id: number; text: number; visible: number; dialog: number; mode: number; menu: readonly [number, number] };
+    rewind?: { id: number; text: number; visible: number; dialog: number; mode: number; menu: readonly [number, number];
+      /** T-SET1: « Save Settings to Card » in Setup (after `after`), opening the same dialog with the byte `mode` set to 2. */
+      save?: { id: number; text: number; after: number } };
     /** T21-TAB1: the lines go to a tab of their own in place of Movie Settings (the menu table's
      * entry `entry`, the movie descriptor `movie` as the model): its visibility, title (and its page's)
      * and icons (white, yellow, grey); Customize Settings stays the camera's. */
@@ -765,9 +767,16 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
   }
   // T-HSET1: the Hide Settings line (no value, its name, as Setup's Create New Folder line).
   const HM = o.hideMenu;
-  const setupInserts = HM ? [{ after: HM.after, id: HM.id, line: p.code(`push {r4,lr};mov r4,r1;mov r0,r4;mov r1,#0;bl #${LINE_VALUE_ICON};mov r0,r4;movw r1,#${HM.text};mov r2,r1;
+  const setupInserts: { after: number; id: number; line: number }[] = HM ? [{ after: HM.after, id: HM.id, line: p.code(`push {r4,lr};mov r4,r1;mov r0,r4;mov r1,#0;bl #${LINE_VALUE_ICON};mov r0,r4;movw r1,#${HM.text};mov r2,r1;
       pop {r4,lr};b #${TOP_SET_TITLE};`) }] : [];
   if (HM) entries.hideMenuLine = setupInserts[0].line;
+  // T-SET1: the Save Settings to Card line (no value, its name), as Hide Settings' line.
+  const SV = o.film?.rewind?.save;
+  if (SV) {
+    entries.settingsSaveLine = p.code(`push {r4,lr};mov r4,r1;mov r0,r4;mov r1,#0;bl #${LINE_VALUE_ICON};mov r0,r4;movw r1,#${SV.text};mov r2,r1;
+      pop {r4,lr};b #${TOP_SET_TITLE};`);
+    setupInserts.push({ after: SV.after, id: SV.id, line: entries.settingsSaveLine });
+  }
   if (o.picture) Object.assign(entries, installGr3xPictureSetupLine(p, entries.pictureLine, setupInserts));
   if (o.endScreen) {
     // Setup's End Screen line opens the submenu, drawn as Setup's other submenu lines.
@@ -777,12 +786,13 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
     // The picture list's mode is in the gap before the heap: the start-up fill clears it.
     if (!o.zeroFillDone) p.patch(GR3X_ZERO_FILL_END, GR3X_GAP, GR3X_HEAP_BASE, 'start-up zero fill reaches the heap base (clears the added RAM words)');
   }
-  if (HM && !o.picture && !o.endScreen) Object.assign(entries, installGr3xSetupLines(p, setupInserts));
+  if (setupInserts.length && !o.picture && !o.endScreen) Object.assign(entries, installGr3xSetupLines(p, setupInserts));
 
   // --- Controller ids: Horizon Correction's list controller and key map.
   const rewind = o.film?.rewind;
   const mapped = [...lists.map(l => [l.id, l.controller ?? HORIZON_ID] as const), ...submenus.map(m => [m.id, D_RANGE_ID] as const),
     ...(rewind ? [[rewind.id, rewind.dialog] as const] : []),
+    ...(rewind?.save ? [[rewind.save.id, rewind.dialog] as const] : []),
     ...(o.endScreen ? [[GR3X_PICTURE_LIST_ID, END_SCREEN_ID] as const] : []),
     // T-HSET1: our line's keys as Mode Memory's line (the factory's prefix hands out the screen itself).
     ...(HM ? [[HM.id, HM.opens] as const] : [])];
@@ -793,7 +803,7 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
   // Film; 0 when the menu is asked for (T17-RWD3: not the dialog's own id, which the camera asks again
   // at each key event while the dialog is up; Create New Folder is always opened from the menu).
   // r3 is free at the factory's start.
-  const rewindMode = rewind ? `movw ip,#${lo(rewind.id)};movt ip,#${hi(rewind.id)};cmp r1,ip;moveq r3,#1;beq rwset;
+  const rewindMode = rewind ? `${rewind.save ? `movw ip,#${lo(rewind.save.id)};movt ip,#${hi(rewind.save.id)};cmp r1,ip;moveq r3,#2;beq rwset;` : ''}movw ip,#${lo(rewind.id)};movt ip,#${hi(rewind.id)};cmp r1,ip;moveq r3,#1;beq rwset;
     movw ip,#${lo(rewind.menu[0])};movt ip,#${hi(rewind.menu[0])};sub ip,r1,ip;cmp ip,#${rewind.menu[1] - rewind.menu[0]};bhi rwdone;mov r3,#0;
     rwset:movw ip,#${lo(rewind.mode)};movt ip,#${hi(rewind.mode)};strb r3,[ip];rwdone:` : '';
   const factory = o.endScreen ? p.code(hsPrefix + rewindMode + [...mapped.map(([id, to]) => [id, to, id === GR3X_PICTURE_LIST_ID ? 1 : -1] as const), [END_SCREEN_ID, END_SCREEN_ID, 0] as const]
