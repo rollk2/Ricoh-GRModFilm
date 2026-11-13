@@ -4017,3 +4017,39 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   en émulation seulement).
 - **Résultat ordre des ratios (application de test 0.9.7, publiée en 0.9.8, 2026-11-13)** : ordre du menu, cycle Fn, cadrages,
   ratio gardé au rallumage, verrou du rouleau et ordre gardé dans l'application : tout bon.
+
+## Hide Settings dans le boîtier : étape 0, recherche (2026-11-13)
+
+Décision du 2026-11-13 : une ligne « Hide Settings » dans Setup ouvre une liste de 7 cases (les
+réglages masquables) ; la liste de l'application est supprimée ; décocher laisse la case de Mode
+Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-HSET3 (listes ADJ).
+
+- **Onglet Setup** : descripteur `0x53b36a54` (entrée du tableau des onglets `0x5407d408`, copié en
+  RAM à `0x55001ec8`), **30 lignes sur 38** possibles, 11 pages (premières lignes 0, 7, 11, 13, 15,
+  17, 20, 23, 25, 27, 29 : la dernière page n'a qu'une ligne, `0x02000124`). Même méthode que
+  Customize Settings pour Film Roll Mode (descripteur recopié avec une ligne de plus).
+- **Ligne qui ouvre un écran** : la ligne Memory (`0x0200009b`) se dessine par `0x53196bcc` :
+  `0x5339de20(ligne, 0)` puis `0x5339dc70(ligne, 0x208 titre, 0x209 aide)`. Notre ligne : la même avec
+  nos textes. Les touches : `ActionModel::OnEvent` lit l'identifiant courant une seule fois
+  (`0x53221a4c`) ; un identifiant inconnu y est traduit (déjà fait pour Date Imprint) : le nôtre
+  devient `0x0200009b`.
+- **Fabrique** (`0x5316f3b8`) : pour `0x0200009b`, `0x53170670` crée **une seule fois** un
+  `ModeMemoryController` (`operator new` `0x536af2a8` de 0x18c octets, constructeur `0x53207424`) et le
+  garde en `+0x184` de la fabrique. Le constructeur pose le titre (`0x533a2ba0(+0x15c, 0x208)`), met les
+  24 états à 1, **remplit la liste une fois** (`0x53207348`, table `0x53b4d550`) et prépare les lignes
+  (`0x532067dc`). Notre écran : une seconde instance, construite par la fabrique pour notre
+  identifiant ; après le constructeur, sa liste remplacée par nos 7 cases, son titre par le nôtre.
+  Nos 7 états peuvent vivre dans ses octets d'état (`+0x174..`), inutilisés par nos cases.
+- **Stockage** : l'enregistrement n'a plus d'octet libre (`sr-speed.ts`). L'octet `0x905` (case AF
+  Point de Mode Memory) n'utilise que le bit 0 ; ses deux seuls accès (`afPointRead`, `afPointReset`)
+  comparent l'octet entier à 1. Bits 1 à 7 : nos 7 réglages, si ces deux accès masquent le bit 0 et
+  si l'écriture de la case AF Point garde les autres bits.
+- **RAM** : la zone remplie de zéros du round 10 est pleine (elle finit à `0x558043c0`). Il faut un
+  mot pour garder notre instance : à trouver (candidat : l'emplacement de la fabrique d'un écran de
+  test d'usine, jamais ouvert en usage normal).
+- **ADJ Mode Setting** : chaque liste (`GR3X_ADJ_LISTS`) est lue à 2 endroits par `movw/movt`
+  (`0x531b71cc`/`0x531b895c`, `0x531b71fc`/`0x531b8990`, `0x531b722c`/`0x531b89c4`,
+  `0x531b725c`/`0x531b89f8`, `0x531b728c`/`0x531b8a2c`) ; leur longueur vient de 5 fonctions d'une
+  instruction (`0x531b3bac + 8 i`, `mov r0,#0x13`). Filtrage en direct : ces 15 endroits.
+  À établir en T-HSET3 : copie filtrée en RAM (allouée une fois) ou réécriture sur place si la zone
+  est inscriptible.
