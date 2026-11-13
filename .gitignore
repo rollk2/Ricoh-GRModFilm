@@ -16,3 +16,4 @@ examples/gr3x/T6/sources/
 
 # Update signing keys never go into the repository
 *.key
+ui/site

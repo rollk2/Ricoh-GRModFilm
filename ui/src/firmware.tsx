@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FIRMWARE_VERSION, GR3_210, GR3X_160 } from '@grmod/core';
 import type { CameraModel } from '@grmod/core';
 import { FileButton, Ico, Segmented, useDismiss } from './components';
-import { host, HostError } from './host';
+import { host, HostError, onWeb } from './host';
 import type { FirmwareRelease } from './host';
 import { t } from './i18n';
 import type { Key } from './i18n';
@@ -37,7 +37,7 @@ export function FirmwareRow() {
           <button type="button" role="menuitem" className="pop-item" onClick={() => { close(); setOnlineOpen(true); }}><span className="pop-ico">{Ico.download}</span><span>{t('fwOnline')}</span></button>
         </div>
       )}
-      <input ref={file} type="file" accept=".bin" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void loadFirmwareFile(f); }} />
+      <input ref={file} type="file" accept=".bin,.zip" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void loadFirmwareFile(f); }} />
     </div>
   );
 }
@@ -47,7 +47,7 @@ export function FirmwareHero() {
   const busy = useStore((s) => s.fwBusy);
   return (
     <>
-      <FileButton className="hero-drop" accept=".bin" onFiles={(f) => { void loadFirmwareFile(f[0]); }}>
+      <FileButton className="hero-drop" accept=".bin,.zip" onFiles={(f) => { void loadFirmwareFile(f[0]); }}>
         {busy ? <><span className="spinner" /><b>{t('opening')}</b></> : <><span className="hero-ico">{Ico.chip}</span><b>{t('dropFirmware')}</b><small>{t('dropFirmwareSub')}</small></>}
       </FileButton>
       <div className="hero-alt"><button type="button" className="btn ghost" onClick={() => setOnlineOpen(true)}>{Ico.download}<span>{t('fwOnlineLink')}</span></button></div>
@@ -60,7 +60,40 @@ type Look = { state: 'loading' | 'none' | 'error' } | { state: 'ready'; rel: Fir
 /** The current official firmware of the chosen model on Ricoh's site; a press downloads and opens it. */
 export function FirmwareOnline() {
   const open = useStore((s) => s.onlineOpen);
-  return open ? <OnlineDialog /> : null;
+  return open ? (onWeb ? <WebFirmwareDialog /> : <OnlineDialog />) : null;
+}
+
+/** The web site cannot fetch Ricoh's file (the browser forbids it): Ricoh's page opens, and the .zip downloaded there is opened here. */
+function WebFirmwareDialog() {
+  const model = useStore((s) => s.model);
+  const reason = useStore((s) => s.onlineReason);
+  const busy = useStore((s) => s.fwBusy);
+  const file = useRef<HTMLInputElement>(null);
+  const close = (): void => setOnlineOpen(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent): void => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
+  return (
+    <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+      <div className="dialog online" role="dialog" aria-modal="true" aria-label={t('webFwTitle')}>
+        <h3>{t('webFwTitle')}</h3>
+        {reason && <p className="dialog-warn">{t(reason === 'bridge-loaded' ? 'bridgeNeedOfficial' : 'bridgeNeedBase')}</p>}
+        <div className="online-models">
+          <Segmented<CameraModel> value={model} onChange={setModel} options={MODELS.map((m) => ({ value: m, label: modelLabel(m) }))} />
+        </div>
+        <p>{t('webFwText')}</p>
+        <div className="dialog-actions">
+          <button type="button" className="btn" onClick={close}>{t('cancel')}</button>
+          <span className="grow" />
+          <button type="button" className="btn" onClick={() => { void host.firmwarePage(model); }}>{Ico.download}<span>{t('webFwOpen')}</span></button>
+          <button type="button" className="btn primary" disabled={busy} onClick={() => file.current?.click()}>{busy ? <span className="spinner small" /> : Ico.folder}<span>{t('webFwPick')}</span></button>
+        </div>
+        <input ref={file} type="file" accept=".bin,.zip" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void loadFirmwareFile(f); }} />
+      </div>
+    </div>
+  );
 }
 
 function OnlineDialog() {

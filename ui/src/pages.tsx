@@ -4,6 +4,7 @@ import type { SlotId } from '@grmod/core';
 import type { ReactNode } from 'react';
 import { DropZone, FileButton, Ico, IconCanvas, Menu, Prop, RatioIcon, RgbCanvas, Segmented, Select, Switch } from './components';
 import { FirmwareHero } from './firmware';
+import { onWeb } from './host';
 import { t } from './i18n';
 import type { Key } from './i18n';
 import type { Crop } from './pixels';
@@ -922,10 +923,10 @@ export function ImageControlPage() {
             {info.bridge
               ? <span className="chip warn">{Ico.bridge}<span className="ellipsis">{fwName || info.filename} · {t('fwBridgeValue')}</span></span>
               : <span className="chip ok">{Ico.check}<span className="ellipsis">{fwName || info.filename} · {info.version}</span></span>}
-            <Menu items={[
+            {!onWeb && <Menu items={[
               { label: t('writeStock'), run: () => { void outputFirmware({ kind: 'card' }, true); } },
               { label: t('exportStock'), run: () => { void outputFirmware({ kind: 'folder' }, true); } },
-            ]}>{Ico.more}</Menu>
+            ]}>{Ico.more}</Menu>}
           </div>
         )}
       </header>

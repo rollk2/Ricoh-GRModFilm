@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock('../../ui/src/engine', () => ({ engine: mocks.engine, EngineError: class extends Error {} }));
-vi.mock('../../ui/src/host', () => ({ host: mocks.host, HostError: class extends Error {}, sha256Hex: async () => 'test-hash' }));
+vi.mock('../../ui/src/host', () => ({ host: mocks.host, HostError: class extends Error {}, sha256Hex: async () => 'test-hash', onWeb: false }));
 vi.mock('../../ui/src/pixels', () => ({ ensureIconFont: vi.fn() }));
 vi.mock('../../ui/src/preview', () => ({ decodePreview: vi.fn() }));
 
@@ -152,6 +152,7 @@ describe('GR IIIx UI family isolation', () => {
     expect(store.getState().slots.F9.preset).toBeUndefined();
   });
   it('keeps each camera family’s own work apart when switching or opening a different model', async () => {
+    store.setModel('HDF'); // GR IV work first (the program starts on the GR III)
     store.getState().slots.CY = { ...store.getState().slots.CY, names: { en: 'GR IV film' }, preset: { result: {} } };
     store.setModel('GR3X_HDF');
     expect(store.getState().slots.CY.preset).toBeUndefined();

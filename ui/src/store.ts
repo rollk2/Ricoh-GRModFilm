@@ -2,7 +2,9 @@ import { useSyncExternalStore } from 'react';
 import { FACTORY_LOOK_IDS, card, GR3X_FILM_IDS, GR3X_HIDEABLE, readGr3xSettingsFile, GR3X_MAX_CUSTOM_RATIOS, GR3X_T4_CUSTOM, LANGS, MAX_CUSTOM_RATIOS, MAX_EXTRA_SLOTS, SHUTDOWN_MAX_PICTURES, SHUTDOWN_NAME_MAX, validateExtraSlotName, validateGr3xRatioName, validateRatioName, validateShutdownName } from '@grmod/core';
 import type { CameraModel, ClarityChange, ExtraSlotSpec, FirmwareInfo, FirmwareSummary, LangCode, LookLayout, PresetResult, RatioPreview, RatioSpec, ShutdownPictureSpec, SlotId, SlotRequest, SoftFocusRequest, SoftFocusStrength } from '@grmod/core';
 import { engine, EngineError } from './engine';
-import { host, HostError, sha256Hex } from './host';
+import { host, HostError, onWeb, sha256Hex } from './host';
+import { DOWNLOADS } from './webhost';
+import { firmwareFromZip, isZip } from './zip';
 import type { ParkedEntry, Volume } from './host';
 import { t } from './i18n';
 import type { Key } from './i18n';
@@ -109,7 +111,7 @@ const availableSlots = (s: State = state): SlotId[] => s.info ? shownSlots(s).ma
 const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '', style: 'film' } });
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
-  ready: false, page: 'ic', fwBusy: false, model: 'HDF', lang: 'zh-CN',
+  ready: false, page: 'ic', fwBusy: false, model: 'GR3', lang: 'zh-CN',
   slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
@@ -352,7 +354,8 @@ async function saveProject(): Promise<void> {
 }
 export async function init(): Promise<void> {
   if (!host.available) { set({ ready: true }); return; }
-  void engine.heartbeat(host.info!.token);
+  // The web site has no shell to keep alive (webhost.ts).
+  if (host.info!.kind !== 'web') void engine.heartbeat(host.info!.token);
   void ensureIconFont();
   void loadPreviewPhoto();
   void loadBuilds();
@@ -360,7 +363,7 @@ export async function init(): Promise<void> {
     const raw = await host.storeGet('project.json');
     const doc = raw ? JSON.parse(new TextDecoder().decode(raw)) : null;
     if (doc && doc.v === 1) {
-      const model: CameraModel = ['GR3', 'GR3_HDF', 'GR3X', 'GR3X_HDF', 'HDF', 'STANDARD', 'MONO'].includes(doc.model) ? doc.model : 'HDF';
+      const model: CameraModel = ['GR3', 'GR3_HDF', 'GR3X', 'GR3X_HDF', 'HDF', 'STANDARD', 'MONO'].includes(doc.model) ? doc.model : 'GR3';
       const gr3Raw = await host.storeGet(GR3_PROJECT).catch(() => null);
       const gr3Doc = gr3Raw ? JSON.parse(new TextDecoder().decode(gr3Raw)) : null;
       if (gr3Doc && gr3Doc.v === 1) { familyDocs.gr4 = doc; familyDocs.gr3 = gr3Doc; }
@@ -494,7 +497,14 @@ async function openFirmware(raw: Uint8Array, name: string, persist: boolean): Pr
 }
 export async function loadFirmwareFile(file: File): Promise<void> {
   if (file.size < 1_000_000 || file.size > 200_000_000) { toast(t('badFirmware'), 'error'); return; }
-  await openFirmware(new Uint8Array(await file.arrayBuffer()), file.name, true);
+  let data: Uint8Array = new Uint8Array(await file.arrayBuffer()), name = file.name;
+  // The .zip of Ricoh's site (the web site has no shell to unzip it): its firmware .bin is opened.
+  if (isZip(data)) {
+    const bin = await firmwareFromZip(data).catch(() => null);
+    if (!bin) { toast(t('badFirmware'), 'error'); return; }
+    ({ data, name } = bin);
+  }
+  if (await openFirmware(data, name, true) && onWeb) setOnlineOpen(false);
 }
 /** The dialog that fetches the official firmware from Ricoh's site. */
 export function setOnlineOpen(onlineOpen: boolean, reason?: State['onlineReason']): void {
@@ -1250,7 +1260,7 @@ async function runPlan(root: string, steps: card.PlanStep[]): Promise<number> {
 }
 type Dest = { kind: 'card' } | { kind: 'folder' };
 async function destination(dest: Dest): Promise<{ root: string; volume?: Volume } | null> {
-  if (dest.kind === 'card') {
+  if (dest.kind === 'card' && !onWeb) {
     const v = state.volumes.find((x) => x.id === state.volumeId);
     if (!v) { toast(t('noCard'), 'error'); return null; }
     return { root: v.root, volume: v };
@@ -1258,7 +1268,10 @@ async function destination(dest: Dest): Promise<{ root: string; volume?: Volume 
   const path = await host.pickDirectory(t('pickFolder'));
   return path ? { root: path } : null;
 }
+/** What the web site says once a file is written: on the card (a folder picked) or downloaded, to copy to the card's root. */
+const webDone = (root: string, file: string): string => t(root.startsWith(DOWNLOADS) ? 'webDownloaded' : 'webWritten', { p: file });
 function doneToast(root: string, volume: Volume | undefined, moved: number, file: string): void {
+  if (onWeb) { toast(webDone(root, file), 'ok'); return; }
   const text = (volume ? t('written', { p: host.join(root, file) }) : t('exported', { p: root })) + (moved ? ` · ${t('parked', { n: moved })}` : '');
   if (volume && canEject()) {
     toast(text, 'ok', { label: t('eject'), run: () => { host.eject(volume.id).then(() => { toast(t('ejected'), 'ok'); void refreshVolumes(); }).catch(fail); } });
@@ -1305,7 +1318,7 @@ export async function writeSettingsFile(dest: Dest): Promise<void> {
     set({ busy: t('writing') });
     await runPlan(target.root, [{ op: 'write', path: [SETTINGS_FILE], data: sf.data }]);
     set({ busy: undefined });
-    toast(target.volume ? t('written', { p: host.join(target.root, SETTINGS_FILE) }) : t('exported', { p: target.root }), 'ok');
+    toast(onWeb ? webDone(target.root, SETTINGS_FILE) : target.volume ? t('written', { p: host.join(target.root, SETTINGS_FILE) }) : t('exported', { p: target.root }), 'ok');
   } catch (e) { set({ busy: undefined }); fail(e); }
 }
 
@@ -1337,7 +1350,8 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const lookLayout = stock ? undefined : lookLayoutSpec();
   if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff) { toast(t('nothingToDo'), 'info'); return; }
   if (stock && !(await askOfficial([t('copyOfficial')]))) return;
-  if (dest.kind === 'card' && !stock) {
+  // On the web site the only way out is a folder (the card) or a download: the summary is shown before it as before a card write.
+  if ((dest.kind === 'card' || onWeb) && !stock) {
     const lines = changes.map((c) => `${state.info?.family === 'gr3x' ? (state.slots[c.id].names[state.lang] || state.info.slots.find(s => s.id === c.id)?.defaultName || c.id) : t(('slot' + c.id) as Key)}  ·  ${c.labels.join(' / ')}`);
     if (ratios.length) lines.push(t('ratioLine', { n: ratios.length, l: ratios.map((r) => r.name).join(' / ') }));
     if (soft) lines.push(sourceInfo.features.softFocus === 'clarity' ? t('softLine', { l: softText(GR3X_SOFT_FOCUS) }) : t('softAdjLine'));

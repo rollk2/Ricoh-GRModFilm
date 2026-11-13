@@ -1,3 +1,4 @@
+import { makeWebHost } from './webhost';
 // The platform behind the page. On Windows and macOS this is the GRMod shell's local HTTP API; another
 // platform (Android) would provide the same interface with its own implementation.
 export interface HostInfo { kind: string; token: string; version: string; os: string }
@@ -56,7 +57,7 @@ async function call(method: string, path: string, body?: BodyInit | null, json =
 const q = (s: string): string => encodeURIComponent(s);
 const post = async <T>(path: string, body: unknown): Promise<T> => (await call('POST', path, JSON.stringify(body))).json() as Promise<T>;
 
-export const host = {
+const shellHost = {
   available: !!info,
   info,
   sep: info && info.os === 'windows' ? '\\' : '/',
@@ -131,6 +132,12 @@ export const host = {
     catch { return null; }
   },
 };
+
+/** The web site's build (vite --mode web, VITE_WEB=1): the browser's own host when no shell serves the page. */
+const WEB = import.meta.env.VITE_WEB === '1' && !info;
+export const host: typeof shellHost = WEB ? makeWebHost(__APP_VERSION__) as unknown as typeof shellHost : shellHost;
+/** True on the web site (no shell): what the page offers changes a little (webhost.ts). */
+export const onWeb = WEB;
 
 export async function sha256Hex(data: Uint8Array): Promise<string> {
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', data as unknown as BufferSource));
