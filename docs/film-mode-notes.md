@@ -4261,3 +4261,16 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
   Settings to / from Card, Hide Settings, rouleau, Rewind Film, SR par vitesse, Fn + molette avant, menu
   Aspect Ratio ; dans l'application, `GRFILM.SET` ouvert, contrôlé et écrit sur la carte avec le firmware,
   puis chargé dans le boîtier. Prête à publier.
+
+### Version 0.9.9 (2026-11-13) : site web et packs
+
+- Site web (GitHub Pages) : l'application tourne dans le navigateur (`ui/src/webhost.ts`, `ui/src/zip.ts`),
+  page « Features » pour les interrupteurs, langue de l'appareil en anglais par défaut, guides désactivables.
+- Packs de recettes (`.grfrecipes`) et de ratios (`.grfratios`), `ui/src/packs.ts` : aucun changement du
+  firmware.
+- Seul changement du firmware : la version écrite dans l'en-tête de `GRFILM.SET` passe à `0.9.9`
+  (`GR3X_SETTINGS_PROGRAM_VERSION`). Le chargement ne contrôle pas la version (décision du 2026-11-13) :
+  un fichier écrit par la 0.9.8 se charge avec la 0.9.9 et inversement.
+- Vérifié : `settings_file_probe.py` sur un build complet 0.9.9 (enregistrement, chargement, 14 cas de
+  refus), fichier produit relu par le lecteur TypeScript (GR III, 0.9.9, 9 enregistrements, 25 772 octets),
+  tests (394).
