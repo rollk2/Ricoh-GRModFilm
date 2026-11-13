@@ -150,8 +150,8 @@ Chaque étape suit le même cycle : test en émulateur, flash, essai sur le boî
 Décisions des 2026-11-10 et 2026-11-11.
 
 ### Finitions de la v1
-**Finitions de la v1 closes le 2026-11-13** (dernier correctif T-HIDE3 validé sur le boîtier).
-**Périmètre de la v1 arrêté le 2026-11-13** : rien d'autre n'y entre. Estimations faites ce jour pour plus tard : entrée 19 (ADJ à 8 réglages) moyenne, 4 à 8 builds de test ; entrée 18 (firmwares 2.20 / 1.70) grosse, 15 à 30 builds, demande les firmwares, le dépôt amont et un boîtier en 2.20 ; entrée 15 (image des réglages) très grosse, 25 à 40 builds, ou 8 à 15 en version réduite (export dans le boîtier, réapplication au flash par l'application).
+**Release 0.9.8 arrêtée le 2026-11-13** (dernier correctif T-HIDE3 validé sur le boîtier). Décision du même jour : ce n'est **pas** la v1 ; on n'est pas pressé, la v1 viendra plus tard.
+**Périmètre de la 0.9.8 arrêté le 2026-11-13** : rien d'autre n'y entre. Estimations faites ce jour pour plus tard : entrée 19 (ADJ à 8 réglages) moyenne, 4 à 8 builds de test ; entrée 18 (firmwares 2.20 / 1.70) grosse, 15 à 30 builds, demande les firmwares, le dépôt amont et un boîtier en 2.20 ; entrée 15 (image des réglages) très grosse, 25 à 40 builds, ou 8 à 15 en version réduite (export dans le boîtier, réapplication au flash par l'application).
 1. ~~Bogue de lecture restant~~ : **abandonné le 2026-11-10** (non reproduit avec T-PLAY4d, scénarios A à N et variantes V1 à V7 justes).
 2. ~~Icône SR de l'écran de prise de vue~~ : **validée sur le boîtier (T-SR3, 2026-11-10)** : la main suit la stabilisation selon la vitesse. Choix de l'icône `0x532a9ae0`, appelé en `0x53170e30`. Intégrée aux builds de l'application (option `srIcon` de la recette), pour la prochaine version.
 3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
@@ -233,7 +233,7 @@ Décisions des 2026-11-10 et 2026-11-11.
     - Un réglage masqué garde la valeur qu'il avait au moment du masquage (régler d'abord, puis masquer) ; réversible sans reflasher, le même pour toutes les BOX.
     - Mise en œuvre : un octet libre (un bit par réglage) écrit dans les 8 enregistrements ; écran de cases copié de Mode Memory (comme AF Point et Apply to U) ; les filtres actuels (lignes du menu, fonctions des touches, Hold, Wireless, cases ADJ lues Off, cases de Mode Memory forcées à « mémorisée ») testent le bit au lieu d'une liste fixe.
     - Point dur : les listes d'ADJ Mode Setting, aujourd'hui raccourcies au build, à recalculer à l'ouverture de l'écran dans une copie en RAM.
-    - Estimation : moyenne, 8 à 14 builds de test, 4 à 6 sessions. Après la v1.
+    - Estimation : moyenne, 8 à 14 builds de test, 4 à 6 sessions. Après la 0.9.8.
 
 ### Reprises des forks de GR Mod
 Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre est permis, en citant chaque auteur dans le README (section Thanks) et dans les messages de commit.

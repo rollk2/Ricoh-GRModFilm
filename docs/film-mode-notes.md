@@ -3955,7 +3955,7 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
 - 0.9.6-RC1 construite par le moteur : auto-contrôle et inspection vérifiés ; la 0.9.5-RC1 reste
   reconnue. Sondes sur un build équivalent (10, dont `rewind_button_probe.py`), tests (371).
 
-## Ordre des ratios (Aspect Ratio), 0.9.7 en cours (2026-11-12)
+## Ordre des ratios (Aspect Ratio), 0.9.8 (2026-11-12)
 
 - Demande du 2026-11-10 : réorganiser les ratios comme les recettes d'Image Control. Choix de
   l'utilisateur : « Ordre seulement » (3:2 et 1:1 se déplacent aussi, rien n'est masqué).
@@ -4015,5 +4015,5 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   Mode Memory, les autres cases présentes ; aucun des sept réglages masqués visible dans le menu, les
   touches ou le levier ADJ. La valeur gardée à l'allumage n'a pas pu être vue sur le boîtier (vérifiée
   en émulation seulement).
-- **Résultat ordre des ratios (application 0.9.7, 2026-11-13)** : ordre du menu, cycle Fn, cadrages,
+- **Résultat ordre des ratios (application de test 0.9.7, publiée en 0.9.8, 2026-11-13)** : ordre du menu, cycle Fn, cadrages,
   ratio gardé au rallumage, verrou du rouleau et ordre gardé dans l'application : tout bon.
