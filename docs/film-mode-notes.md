@@ -4134,3 +4134,6 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
   registres gardés, chaque lecture appelle bien son calcul), `film_roll_check`, `guard_probe`,
   `hold_probe`, `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`,
   `adj_softfocus_probe`, tests ; T-HIDE3 se reconstruit à l'identique.
+- **Résultat T-HSET3 (2026-11-13), validé sur le boîtier** : Flash Mode et GF-2 absents des 5 listes
+  d'ADJ Mode Setting une fois cochés, sans ligne vide ni doublon ; le choix dans la liste raccourcie est
+  bien enregistré ; une case qui portait Flash Mode reste lue Off ; tout revient en décochant.
