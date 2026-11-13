@@ -4115,3 +4115,6 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
   `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`, tests ; T-HIDE3 se
   reconstruit à l'identique.
 - Pas encore : la liste des fonctions proposées dans ADJ Mode Setting (T-HSET3).
+- **Résultat T-HSET2 (2026-11-13), validé sur le boîtier** : protocole complet juste (lignes du menu,
+  touche Fn sans effet, case ADJ lue Off, listes de Fn Button Setting, case de Mode Memory, valeur de
+  Flash Mode gardée après rallumage en P, tout revient en décochant).
