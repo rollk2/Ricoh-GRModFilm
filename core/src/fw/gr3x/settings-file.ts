@@ -25,7 +25,7 @@ export const GR3X_SETTINGS_ID = 0x020001d1, GR3X_SETTINGS_LOAD_ID = 0x020001d2;
 export const GR3X_SETTINGS_PATH = 'C:\\GRFILM.SET';
 export const GR3X_SETTINGS_MAGIC = 'GRFS', GR3X_SETTINGS_FORMAT = 1;
 /** GR Mod Film's version written in the file by the builds of this program (the root package.json's, kept equal by a test). */
-export const GR3X_SETTINGS_PROGRAM_VERSION = '0.9.8';
+export const GR3X_SETTINGS_PROGRAM_VERSION = '0.9.9';
 export const GR3X_SETTINGS_HEADER = 0x20, GR3X_SETTINGS_RECORD = 0xb28, GR3X_SETTINGS_COUNT = 9;
 export const GR3X_SETTINGS_MODELS = { gr3: 1, gr3x: 2 } as const;
 /** The four texts in `LANGS` order (cs da en fi fr de el hu it ja ko nl pl pt ru zh-CN es sv th zh-TW tr): the Setup line,

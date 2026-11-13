@@ -148,7 +148,7 @@ def verify(data,manifest,file_out=None):
     opened=[x for x in log if x[0]=='open'];assert log[0]==('card','C:',0) and opened==[('open','C:\\GRFILM.SET',0,0)],log
     assert log[-1]==('close',0x4848,0) and all(x[1]==0x4848 and x[3]==0 for x in log if x[0]=='write'),log
     model,version,got=read_file(bytes(out))
-    assert got==recs and model==(2 if manifest.get('profile','').startswith('gr3x') else 1) and version=='0.9.8',(model,version)
+    assert got==recs and model==(2 if manifest.get('profile','').startswith('gr3x') else 1) and version=='0.9.9',(model,version)
     if file_out:Path(file_out).write_bytes(bytes(out))
     count('saved')
     # Failures: no card, open refused, each kind of write refused, a record outside RAM.
