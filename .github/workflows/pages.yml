@@ -9,6 +9,7 @@ name: pages
 on:
   push:
     branches: [main]
+    # the community collection's packs are published as they are merged
   workflow_dispatch:
 
 permissions:
@@ -39,6 +40,7 @@ jobs:
         run: |
           npx tsc --noEmit -p .
           npx vite build --mode web --outDir site --emptyOutDir
+          node --experimental-transform-types --no-warnings ../tools/community.mjs build site/community
           touch site/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3

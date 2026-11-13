@@ -126,6 +126,8 @@ const shellHost = {
   async updateNotes(): Promise<UpdateState & { releases: ReleaseNote[] }> { return (await call('GET', '/api/update/notes')).json(); },
   /** Show a release's page in the browser. */
   async releasePage(version: string): Promise<void> { try { await post('/api/update/page', { version }); } catch { /* no browser */ } },
+  /** 1.0: a page of the project (the community collection's upload page) in the browser. */
+  async openPage(url: string): Promise<void> { try { await post('/api/open-page', { url }); } catch { /* no browser */ } },
   /** A file the user may keep next to the program (e.g. `preview.jpg`); null when there is none. */
   async sidecar(name: string): Promise<Uint8Array | null> {
     try { return new Uint8Array(await (await call('GET', '/api/sidecar/' + name)).arrayBuffer()); }

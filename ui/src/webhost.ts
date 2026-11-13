@@ -140,6 +140,7 @@ export function makeWebHost(version: string) {
     async updateState(): Promise<UpdateState> { return { current: version }; },
     async updateNotes(): Promise<UpdateState & { releases: ReleaseNote[] }> { return { current: version, releases: [] }; },
     async releasePage(v: string): Promise<void> { window.open(`${WEB_RELEASES}/tag/v${v}`, '_blank', 'noopener'); },
+    async openPage(url: string): Promise<void> { window.open(url, '_blank', 'noopener'); },
     async sidecar(_name: string): Promise<Uint8Array | null> { return null; },
   };
 }

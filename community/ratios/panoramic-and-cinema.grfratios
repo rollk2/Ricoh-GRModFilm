@@ -1,0 +1,26 @@
+{
+ "format": "grmod-film-ratios",
+ "v": 1,
+ "title": "Panoramic and cinema",
+ "author": "GR Mod Film",
+ "description": "The XPan panorama, the cinema scope and Univisium frames, and the 5:4 of large format.",
+ "license": "CC0-1.0",
+ "ratios": [
+  {
+   "ratio": "65:24",
+   "name": "XPan"
+  },
+  {
+   "ratio": "2.39:1",
+   "name": "Scope"
+  },
+  {
+   "ratio": "2:1",
+   "name": "Univisium"
+  },
+  {
+   "ratio": "5:4",
+   "name": "Large format"
+  }
+ ]
+}
