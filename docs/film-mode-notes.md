@@ -4011,3 +4011,9 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   caché), `hidden_probe.py` (cases écrites à 1), émulation de la fusion native, `guard_probe`,
   `hold_probe`, `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`, tests.
   Build T-HIDE3 par le moteur (réglages masqués habituels), auto-contrôle et inspection vérifiés.
+- **Résultat T-HIDE3 (2026-11-13)** : Flash Mode, Flash Exposure Comp. et GF-2 Flash Mode absents de
+  Mode Memory, les autres cases présentes ; aucun des sept réglages masqués visible dans le menu, les
+  touches ou le levier ADJ. La valeur gardée à l'allumage n'a pas pu être vue sur le boîtier (vérifiée
+  en émulation seulement).
+- **Résultat ordre des ratios (application 0.9.7, 2026-11-13)** : ordre du menu, cycle Fn, cadrages,
+  ratio gardé au rallumage, verrou du rouleau et ordre gardé dans l'application : tout bon.
