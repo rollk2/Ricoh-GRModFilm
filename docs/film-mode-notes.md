@@ -4257,3 +4257,7 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
   capture de l'application avec le vrai fichier du boîtier (lu valide, GR III, 0.9.8).
 - **0.9.8-RC1** construite par le moteur comme l'application : auto-contrôle et inspection vérifiés ;
   « Hide Settings », « Save Settings to Card » et « Load Settings from Card » présents.
+- **Résultat 0.9.8-RC1 et application de test 0.9.8 (2026-11-13), validés sur le boîtier** : Save / Load
+  Settings to / from Card, Hide Settings, rouleau, Rewind Film, SR par vitesse, Fn + molette avant, menu
+  Aspect Ratio ; dans l'application, `GRFILM.SET` ouvert, contrôlé et écrit sur la carte avec le firmware,
+  puis chargé dans le boîtier. Prête à publier.
