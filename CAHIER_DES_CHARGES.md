@@ -229,6 +229,12 @@ Décisions des 2026-11-10 et 2026-11-11.
     - Le formatage reste autorisé (il rembobine tous les rouleaux).
     - À vérifier : la protection native des fichiers (Protect) comme voie de mise en œuvre possible, et son interaction avec Delete All.
 
+27. Réglages masqués choisis dans le boîtier (décision du 2026-11-13) : une ligne « Hide Settings » dans **Setup**, qui ouvre une liste de cases (Face/Eye Detection, AF Assist Light, AF.C Setting, MF Auto Magnification, Flash Mode, GF-2 Flash Mode, Flash Exposure Comp.). La liste « Hidden settings » de l'application est **supprimée** : rien n'est masqué au premier allumage.
+    - Un réglage masqué garde la valeur qu'il avait au moment du masquage (régler d'abord, puis masquer) ; réversible sans reflasher, le même pour toutes les BOX.
+    - Mise en œuvre : un octet libre (un bit par réglage) écrit dans les 8 enregistrements ; écran de cases copié de Mode Memory (comme AF Point et Apply to U) ; les filtres actuels (lignes du menu, fonctions des touches, Hold, Wireless, cases ADJ lues Off, cases de Mode Memory forcées à « mémorisée ») testent le bit au lieu d'une liste fixe.
+    - Point dur : les listes d'ADJ Mode Setting, aujourd'hui raccourcies au build, à recalculer à l'ouverture de l'écran dans une copie en RAM.
+    - Estimation : moyenne, 8 à 14 builds de test, 4 à 6 sessions. Après la v1.
+
 ### Reprises des forks de GR Mod
 Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre est permis, en citant chaque auteur dans le README (section Thanks) et dans les messages de commit.
 
