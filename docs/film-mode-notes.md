@@ -4151,3 +4151,6 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
   auto-contrôle et inspection vérifiés, « Hide Settings » et `hideMenu` présents dans le firmware
   décodé ; sondes sur le build de recherche équivalent (T-HSET3) ; tests (412, plus les 5 échecs dus aux
   fichiers de test absents).
+- **Résultat 0.9.8-RC1 (2026-11-13), validé sur le boîtier** : protocole complet juste (Hide Settings
+  coché puis gardé après rallumage, rouleau, Rewind Film, SR par vitesse, Fn + molette avant, ordre du
+  menu Aspect Ratio). Prête à publier.
