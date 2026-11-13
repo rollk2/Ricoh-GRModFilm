@@ -1133,7 +1133,7 @@ export const GR3X_FILM_REWIND_ID = 0x020001b1, GR3X_FOLDER_DIALOG_ID = 0x0200012
 /** The menu's ids (the factory builds the menu controller, slot + 0x74, for 0x0200004a..0x0200004d). */
 export const GR3X_MENU_IDS = [0x0200004a, 0x0200004d] as const;
 /** T17-RWD1: the dialog is the rewind's (1, set by the factory for the Rewind Film line) or Create
- * New Folder's (0); a byte, zero at start-up. */
+ * New Folder's (0); T-SET1: the settings save's (2, 3 once it failed); a byte, zero at start-up. */
 export const GR3X_REWIND_MODE = KEY_LAST + 14;
 /** FolderCreateController's sites (official 2.10): its start's card and storage checks (bl), its
  * question's text (movw r1,#0x2ab), its Execute's action (bl 0x5358515c), its end text (movw r1,#0x2bb). */
@@ -1146,24 +1146,34 @@ const DIALOG_QUESTION = 0x531e5ee8, DIALOG_ACTION = 0x531e65c8, DIALOG_ACTION_FN
  * ends the roll (`action`, filmRollRewind) instead of asking for a new folder, then our end text
  * (`done`, « New roll loaded. ») for its 3 s. The byte is set by the factory (datestamp.ts).
  */
-export function installGr3xFilmRewind(p: Gr3xRollProgram, question: number, done: number, action: number) {
+export function installGr3xFilmRewind(p: Gr3xRollProgram, question: number, done: number, action: number,
+  /** T-SET1: the dialog also serves « Save Settings to Card » (mode byte 2; 3 after a failed save): its question,
+   * its end texts and its action (settings-file.ts). Without it, the code is the 0.9.6 one. */
+  save?: { question: number; done: number; failed: number; action: number;
+    /** T-SET2: « Load Settings from Card » (mode 4; 5 after a failed load). */
+    load?: { question: number; done: number; failed: number; action: number } }) {
   const entries: Record<string, number> = {};
-  const mode = `movw ip,#${lo(GR3X_REWIND_MODE)};movt ip,#${hi(GR3X_REWIND_MODE)};ldrb ip,[ip];cmp ip,#0;`;
+  const mode = `movw ip,#${lo(GR3X_REWIND_MODE)};movt ip,#${hi(GR3X_REWIND_MODE)};ldrb ip,[ip];cmp ip,#${save ? 1 : 0};`;
   for (const at of [DIALOG_CARD, DIALOG_STORAGE, DIALOG_QUESTION, DIALOG_ACTION, DIALOG_DONE])
     if (p.sites.some(s => s.address === at)) throw new FirmwareError('unexpected-instruction', 'IIIx film rewind: dialog already patched');
-  entries.filmRewindCard = p.code(`${mode}movne r0,#1;bxne lr;b #${DIALOG_CARD_FN};`);
+  // The rewind skips the card and storage checks; the save (mode 2) keeps them: it needs the card.
+  entries.filmRewindCard = p.code(save ? `${mode}moveq r0,#1;bxeq lr;b #${DIALOG_CARD_FN};` : `${mode}movne r0,#1;bxne lr;b #${DIALOG_CARD_FN};`);
   p.patch(DIALOG_CARD, bl(DIALOG_CARD, DIALOG_CARD_FN), bl(DIALOG_CARD, entries.filmRewindCard), 'film rewind: no card check');
-  entries.filmRewindStorage = p.code(`${mode}movne r0,#0;bxne lr;b #${DIALOG_STORAGE_FN};`);
+  entries.filmRewindStorage = p.code(save ? `${mode}moveq r0,#0;bxeq lr;b #${DIALOG_STORAGE_FN};` : `${mode}movne r0,#0;bxne lr;b #${DIALOG_STORAGE_FN};`);
   p.patch(DIALOG_STORAGE, bl(DIALOG_STORAGE, DIALOG_STORAGE_FN), bl(DIALOG_STORAGE, entries.filmRewindStorage), 'film rewind: no storage check');
   // The two texts are set where ip still holds the function's entry sp (the end text's `movw` comes
   // right after `mov ip,sp`, before the push): only r1, which they set anyway, is used.
-  const text = (native: number, ours: number) => `movw r1,#${lo(GR3X_REWIND_MODE)};movt r1,#${hi(GR3X_REWIND_MODE)};ldrb r1,[r1];cmp r1,#0;
+  const L = save?.load;
+  const text = (native: number, ours: number, saving?: number, failed?: number, loading?: number, notLoaded?: number) => save
+    ? `movw r1,#${lo(GR3X_REWIND_MODE)};movt r1,#${hi(GR3X_REWIND_MODE)};ldrb r1,[r1];cmp r1,#1;movweq r1,#${ours};beq tx;
+      cmp r1,#2;movweq r1,#${saving};beq tx;cmp r1,#3;movweq r1,#${failed};beq tx;${L ? `cmp r1,#4;movweq r1,#${loading};beq tx;cmp r1,#5;movweq r1,#${notLoaded};beq tx;` : ''}movw r1,#${native};tx:`
+    : `movw r1,#${lo(GR3X_REWIND_MODE)};movt r1,#${hi(GR3X_REWIND_MODE)};ldrb r1,[r1];cmp r1,#0;
     movweq r1,#${native};movwne r1,#${ours};`;
-  entries.filmRewindQuestion = p.code(`${text(0x2ab, question)}b #${DIALOG_QUESTION + 4};`);
+  entries.filmRewindQuestion = p.code(`${text(0x2ab, question, save?.question, save?.question, L?.question, L?.question)}b #${DIALOG_QUESTION + 4};`);
   p.patch(DIALOG_QUESTION, 0xe30012ab, branchWord(DIALOG_QUESTION, entries.filmRewindQuestion), 'film rewind: the question');
-  entries.filmRewindAction = p.code(`${mode}beq #${DIALOG_ACTION_FN};b #${action};`);
+  entries.filmRewindAction = p.code(save ? `${mode}beq #${action};cmp ip,#2;beq #${save.action};${L ? `cmp ip,#4;beq #${L.action};` : ''}b #${DIALOG_ACTION_FN};` : `${mode}beq #${DIALOG_ACTION_FN};b #${action};`);
   p.patch(DIALOG_ACTION, bl(DIALOG_ACTION, DIALOG_ACTION_FN), bl(DIALOG_ACTION, entries.filmRewindAction), 'film rewind: Execute ends the roll');
-  entries.filmRewindDone = p.code(`${text(0x2bb, done)}b #${DIALOG_DONE + 4};`);
+  entries.filmRewindDone = p.code(`${text(0x2bb, done, save?.done, save?.failed, L?.done, L?.failed)}b #${DIALOG_DONE + 4};`);
   p.patch(DIALOG_DONE, 0xe30012bb, branchWord(DIALOG_DONE, entries.filmRewindDone), 'film rewind: the end text');
   return entries;
 }

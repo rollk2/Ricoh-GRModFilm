@@ -146,6 +146,8 @@ describe.skipIf(!input)('GR III WB button', () => {
     expect(await (await Engine.open(raw)).inspect(built.file)).toMatchObject({ verified: true });
     const recipe = readGr3xBuildRecipe(encodeGr3xRatioRecipe(planGr3xMenu(ratios), { round7: true, round8: true, round9: true, round10: true, afPoint: true, filmMode: { codes: {} }, hideMenu: true }))!;
     expect(recipe.hideMenu).toBe(true);
+    const withFile = readGr3xBuildRecipe(encodeGr3xRatioRecipe(planGr3xMenu(ratios), { round7: true, round8: true, round9: true, round10: true, afPoint: true, filmMode: { codes: {} }, hideMenu: true, settingsFile: { version: '0.9.8' } }))!;
+    expect(withFile.settingsFile).toEqual({ version: '0.9.8' });
     expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(planGr3xMenu(ratios), { round7: true, round8: true, round9: true, round10: true, filmMode: { codes: {} }, hideMenu: true }))!.hideMenu).toBeUndefined();
   }, 900000);
   it('needs the film mode', async () => {

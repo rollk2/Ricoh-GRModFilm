@@ -4157,3 +4157,107 @@ Préparée sous le numéro 0.9.8 (builds 0.9.8-RC1, artefacts 0.9.8-test), publi
 - **Résultat 0.9.8-RC1 (2026-11-13), validé sur le boîtier** : protocole complet juste (Hide Settings
   coché puis gardé après rallumage, rouleau, Rewind Film, SR par vitesse, Fn + molette avant, ordre du
   menu Aspect Ratio). Prête à publier.
+
+## Image des réglages (version 0.9.8, dernière avant la v1.0) : étape 0, recherche (2026-11-13)
+
+Décisions du 2026-11-13 : un seul fichier sur la carte ; au chargement tout est réappliqué (les
+rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier allumage après le flash.
+
+- **La carte est le lecteur `C:`** : les fonctions de diagnostic du boîtier y écrivent (`C:\wlaninfo.txt`
+  `0x530159d8`, `C:\BLE_RF.txt` `0x533e2230`) et lisent (`C:\audioCnf.txt` `0x535671c0`).
+- **Système de fichiers** (certitude haute, deux usages concordants) : un objet à table virtuelle,
+  `[0x53594d74() + 0x14]` ou `[[0x53627bdc() + 4] + 0x38]` :
+  `+0x14 (fs, "C:", 0)` carte disponible ; `+0x1c (fs, chemin, mode, &descripteur, &erreur)` ouvrir
+  (mode 1 lecture, vu en `0x5362d714` ; mode 0 écriture, vu pour `C:\BLE_RF.txt`) ;
+  `+0x24 (fs, descripteur, tampon, taille, &erreur)` lire ; `+0x28 (fs, descripteur, tampon, taille, 0)`
+  écrire ; `+0x20 (fs, descripteur, &erreur)` fermer. Service de plus haut niveau, verrouillé :
+  `0x5362e238 (svc, chemin, 0)` existence, `0x5362d8e4 (svc, chemin, tampon, taille)` lecture d'un
+  fichier entier (3 essais, `0x5362d838` / `0x5362d714`). À établir en T-SET1 : le comportement exact
+  du mode 0 (création, troncature) et la tâche d'où l'appeler.
+- **Réglages** : l'enregistrement en cours (`*0x55063f34`) et les sept stockés (`0x55063f38 + 4 n`), de
+  `0xb26` octets sauvegardés (`GR3X_APP_DATA_WRITE`, film-format.ts) ; Setup, Fn, ADJ, Mode Memory, BOX,
+  octets de GR Mod Film compris. Le fichier : en-tête (signature, version du format, modèle, version de
+  GR Mod Film), les huit enregistrements, une somme de contrôle par enregistrement et globale.
+- **Lignes du menu** : deux lignes dans Setup (« Save Settings to Card », « Load Settings from Card »),
+  sur le modèle de Rewind Film : le dialogue Oui/Non de Create New Folder, détourné par l'octet de mode
+  (`GR3X_REWIND_MODE`), avec nos questions et nos messages de fin.
+- **Import** : valeurs passées au garde-fou, octets des rouleaux remis à zéro (rembobinés), chaque
+  enregistrement sauvegardé ; les valeurs en cours ne sont relues qu'au démarrage : message « éteindre
+  et rallumer », à confirmer en T-SET2.
+- **Application** (T-SET3) : appliquer une seule fois au premier allumage demande une marque persistante ;
+  l'enregistrement n'a plus d'octet libre : à chercher (autre emplacement des données d'application).
+
+### Build T-SET1 : « Save Settings to Card » (2026-11-13)
+
+- Option `settingsFile` (`settings-file.ts`, branchée dans `adj.ts`, `datestamp.ts`, `film-roll.ts`) ;
+  build de recherche seulement pour l'instant.
+- Ligne `0x020001d1` dans Setup, juste après Hide Settings. Elle ouvre le dialogue de Create New Folder,
+  comme Rewind Film, avec l'octet de mode à 2 (posé par la fabrique) ; le contrôle de carte et de place est
+  gardé (le rembobinage le saute) ; question, texte de fin et action selon le mode (0 boîtier, 1 rembobinage,
+  2 enregistrement, 3 échec de l'enregistrement : « Settings not saved. »). Sans l'option, le code du
+  dialogue est celui de la 0.9.6 (anciens builds identiques).
+- L'enregistrement : système de fichiers `[0x53594d74() + 0x14]`, carte « C: » vérifiée, `C:\GRFILM.SET`
+  ouvert en mode 0, en-tête de 0x20 octets (`GRFS`, format 1, taille 0xb28, 9 enregistrements, modèle
+  1 GR III / 2 GR IIIx, version de GR Mod Film), puis l'enregistrement en cours et les huit stockés, chacun
+  suivi de la somme 32 bits de ses octets ; fermeture ; tout échec met l'octet de mode à 3 (et ferme le
+  fichier ouvert). Fichier attendu : 25 772 octets.
+- Textes en 21 langues (ligne, question, fin, échec), chaque caractère déjà présent dans les textes du
+  boîtier de la langue (vérifié en émulation ; ja, ko, zh et es sans le point d'interrogation qui manque).
+- Lecteur `readGr3xSettingsFile` (en-tête, modèle, longueur, somme de chaque enregistrement).
+- Vérifié : `settings_file_probe.py` (Setup, touches, fabrique, contrôles, textes et action par mode,
+  enregistrement avec un système de fichiers simulé : appels, octets relus par le lecteur, registres ;
+  échecs : pas de carte, ouverture ou écriture refusée, enregistrement hors RAM), le fichier produit relu par
+  le lecteur TypeScript, `hide_menu_probe` (adaptée), les autres sondes, tests (415) ; T-HIDE3 et la
+  0.9.7-RC1 se reconstruisent à l'identique.
+- À voir sur le boîtier : le mode 0 de l'ouverture (création, écrasement), l'appel depuis le dialogue.
+- **Résultat T-SET1 (2026-11-13), validé sur le boîtier** : ligne et messages justes ; `GRFILM.SET` de
+  25 772 octets, identique en taille après deux sauvegardes (le mode 0 crée ou écrase) ; sans carte, refus
+  ou « Settings not saved. » ; Rewind Film (ligne et touche) et Create New Folder inchangés. Le fichier du
+  boîtier relu par le lecteur : en-tête juste (GR III, 0.9.8), les neuf sommes justes, contenu cohérent (cases
+  de Hide Settings, rouleaux, noms des films) ; le neuvième enregistrement (stocké 7) est vide.
+
+### Build T-SET2 : « Load Settings from Card » (2026-11-13)
+
+- Ligne `0x020001d2` dans Setup, juste après « Save Settings to Card » ; même dialogue, octet de mode 4
+  (5 après un échec : « Settings not loaded. ») ; fin : « Loaded. Restart the camera. » (21 langues, ja,
+  ko, zh reformulés en « appliquer les réglages de la carte » faute du caractère de « lire »).
+- `installGr3xSettingsLoad` : 1) contrôles avant toute modification : carte, les huit pointeurs
+  d'enregistrement en RAM, `C:\GRFILM.SET` ouvert en lecture (mode 1), en-tête (`GRFS`, format 1, taille,
+  nombre, modèle de ce boîtier ; la version n'est pas contrôlée, décision du 2026-11-13), puis la somme de
+  chaque enregistrement, lus par morceaux de 0x100 octets sur la pile ; fichier fermé. 2) Fichier rouvert,
+  chaque enregistrement lu à sa place (en cours, stockés 0 à 6), le neuvième (stocké 7, l'enregistrement
+  d'usine, vide) lu et jeté. 3) Pour chacun des huit : vue 0 (rouleau rembobiné), puis sauvegarde comme le
+  boîtier (`GR3X_APP_DATA_WRITE`, indice 1 pour l'enregistrement en cours, 2 + n pour le stocké n, 0xb26
+  octets). Les réglages actifs ne sont relus qu'au démarrage, où le garde-fou de GR Mod contrôle tout.
+- Vérifié : `settings_file_probe.py` (ligne, touches, fabrique en mode 4, textes et action des modes 4 et 5 ;
+  chargement complet : enregistrements remplacés, vue 0, huit sauvegardes aux bons indices, le neuvième
+  intact ; refus sans aucune modification ni sauvegarde : pas de carte, ouverture refusée, autre fichier,
+  autre modèle, autre format, enregistrement abîmé au début, au milieu et à la fin, fichier coupé, fichier
+  vide, pointeur hors RAM), `hide_menu_probe` (adaptée), les autres sondes, tests ; anciens builds
+  identiques.
+- À voir sur le boîtier : que l'arrêt ne réécrive pas l'enregistrement en cours avec les valeurs actives
+  d'avant le chargement (les BOX ne sont pas concernées).
+- **Résultat T-SET2 (2026-11-13), validé sur le boîtier (100 %)** : chargement juste (réglages de P,
+  case de Hide Settings, BOX U1 revenus après redémarrage ; rouleaux rembobinés) ; l'arrêt ne réécrit pas
+  l'enregistrement en cours avec les anciennes valeurs ; fichier absent : « Settings not loaded. », rien
+  ne change.
+
+### T-SET3 : le fichier de réglages dans GR Mod Film, et 0.9.8-RC1 (2026-11-13)
+
+- Décision du 2026-11-13 : voie A. L'application ouvre un `GRFILM.SET` (carte « Settings file » de la
+  page Image Control, mode pellicule), le contrôle comme le boîtier (`readGr3xSettingsFile`), montre le
+  modèle et la version, et l'écrit à la racine de la carte avec le firmware (ligne dans la confirmation) ou
+  seul ; un fichier de l'autre modèle est gardé mais jamais écrit. La préparation de la carte ne déplace
+  que les anciens firmwares et scripts : `GRFILM.SET` reste. Le chargement se fait dans le boîtier.
+- Moteur : tout build du mode pellicule (avec la touche Macro, sans Snap DOF) reçoit `settingsFile`, la
+  version écrite dans le fichier étant `GR3X_SETTINGS_PROGRAM_VERSION` (égale à `package.json`, test) ;
+  recette : `settingsFile.version`. Les anciens fichiers restent reconnus (T-HIDE3, 0.9.7-RC1 vérifiés ;
+  la 0.9.6-RC1 du scratchpad ne l'était déjà pas avec le code de la 0.9.7 publiée).
+- Vérifié : test de l'interface (ouverture, refus d'un fichier abîmé, écriture, autre modèle), tests (417),
+  capture de l'application avec le vrai fichier du boîtier (lu valide, GR III, 0.9.8).
+- **0.9.8-RC1** construite par le moteur comme l'application : auto-contrôle et inspection vérifiés ;
+  « Hide Settings », « Save Settings to Card » et « Load Settings from Card » présents.
+- **Résultat 0.9.8-RC1 et application de test 0.9.8 (2026-11-13), validés sur le boîtier** : Save / Load
+  Settings to / from Card, Hide Settings, rouleau, Rewind Film, SR par vitesse, Fn + molette avant, menu
+  Aspect Ratio ; dans l'application, `GRFILM.SET` ouvert, contrôlé et écrit sur la carte avec le firmware,
+  puis chargé dans le boîtier. Prête à publier.

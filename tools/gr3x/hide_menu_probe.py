@@ -41,6 +41,17 @@ def verify(data,manifest):
     copy=u32(c,SETUP_ENTRY);assert copy!=SETUP
     off=lambda base,o:base+o
     official=data[SETUP-B:SETUP-B+0x384];d=bytes(c.mem_read(copy,0x384))
+    # T-SET1: « Save Settings to Card » (0x020001d1) may follow ours; it is taken out first (settings_file_probe.py checks it).
+    n=d[0x8b];ids=[struct.unpack_from('<I',d,0x1bc+4*i)[0] for i in range(n)]
+    for line in (0x020001d2,0x020001d1):   # T-SET2: « Load Settings from Card » too
+        if line not in ids:continue
+        sv=ids.index(line);dd=bytearray(d)
+        for i in range(sv,n-1):
+            for base,w in ((0x8c,8),(0x1bc,4),(0x254,8)):dd[base+w*i:base+w*(i+1)]=d[base+w*(i+1):base+w*(i+2)]
+        dd[0x8b]=n-1
+        for k in range(1,dd[0x68]):
+            if dd[0x80+k]>sv:dd[0x80+k]-=1
+        d=bytes(dd);n-=1;ids=[struct.unpack_from('<I',d,0x1bc+4*i)[0] for i in range(n)]
     n0=official[0x8b];n=d[0x8b];assert n==n0+1,(n0,n)
     ids0=[struct.unpack_from('<I',official,0x1bc+4*i)[0] for i in range(n0)];ids=[struct.unpack_from('<I',d,0x1bc+4*i)[0] for i in range(n)]
     at=ids0.index(AFTER)+1;assert ids==ids0[:at]+[ID]+ids0[at:],[hex(x) for x in ids]

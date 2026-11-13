@@ -71,6 +71,13 @@ addresses, same emulator checks) but has **not been tested on a camera**.
   Mode, GF-2 or Flash Exposure Comp. also ticks its Mode Memory box, so that power-on keeps the value.
   From 0.9.4 to 0.9.6 the settings were hidden from the program, each held at a value chosen there;
   after updating to 0.9.7 nothing is hidden until ticked in the camera.
+- **Settings file** (0.9.8, in the camera: Setup > Save Settings to Card and Load Settings from Card,
+  under Hide Settings): Save writes every setting (the settings in use and every BOX, Hide Settings
+  included) to `GRFILM.SET` at the card's root. Load checks the file first (its camera model and every
+  record's checksum; a wrong or damaged file changes nothing), then puts the settings back, rewinds
+  the rolls and asks to restart the camera. To keep or share settings, copy `GRFILM.SET`; in the
+  program, open it (Image Control page, film mode) to check it and write it to the card, alone or with
+  the firmware, then load it in the camera.
 - **Aspect Ratio menu order** (0.9.7, in the program): 3:2, 1:1 and the added ratios are ordered on
   the Aspect ratio page with the arrows; the camera's menu and the Fn cycle follow that order.
 - **Playback** (0.9.4) opens on the last picture taken, whatever the folder (before, it could show
