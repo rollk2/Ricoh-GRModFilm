@@ -13,7 +13,7 @@ import type { Crop } from './pixels';
 import { decodePreview } from './preview';
 import defaultPhotoUrl from './assets/preview.jpg';
 
-export type Page = 'ic' | 'ratio' | 'wall' | 'copies';
+export type Page = 'ic' | 'ratio' | 'feat' | 'wall' | 'copies';
 /** One added aspect ratio as typed; `preview` is what the camera would make of it (absent while that is worked out). */
 export interface RatioItem { id: string; ratio: string; name: string; preview?: RatioPreview }
 export interface PresetState { fileName: string; kind: 'xmp' | 'cube'; text: string; busy: boolean; result?: PresetResult; error?: string }
@@ -54,7 +54,7 @@ export interface BuildRecord { sha256: string; time: number; slots: { id: SlotId
 /** `warn` is an optional caution shown under the lines (used where something is deleted for good). */
 /** A guided tour: `overview` is the one of the first start, the others belong to a page. */
 export type TourId = 'overview' | Page;
-export const TOUR_IDS: readonly TourId[] = ['overview', 'ic', 'ratio', 'wall', 'copies'];
+export const TOUR_IDS: readonly TourId[] = ['overview', 'ic', 'ratio', 'feat', 'wall', 'copies'];
 /** The tour being shown: `steps` are the indices of its steps that have something to point at; a replay can be skipped. */
 export interface TourState { id: TourId; steps: number[]; index: number; replay: boolean }
 /** `reset`: the firmware written is the official one; the dialog asks in red whether the camera's settings were reset first. */
@@ -111,7 +111,7 @@ const availableSlots = (s: State = state): SlotId[] => s.info ? shownSlots(s).ma
 const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '', style: 'film' } });
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
-  ready: false, page: 'ic', fwBusy: false, model: 'GR3', lang: 'zh-CN',
+  ready: false, page: 'ic', fwBusy: false, model: 'GR3', lang: 'en',
   slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
@@ -371,8 +371,8 @@ export async function init(): Promise<void> {
       else familyDocs.gr4 = doc;
       const fam = familyOf(model), work = familyDocs[fam];
       set({ ...parseFamily(work), model,
-        page: doc.page === 'wall' || doc.page === 'copies' || doc.page === 'ratio' || doc.page === 'ic' ? doc.page : doc.page === 'script' ? 'wall' : 'ic',
-        lang: (LANGS as readonly string[]).includes(doc.lang) ? doc.lang : 'zh-CN', fwName: doc.fwName, showAll: !!doc.showAll,
+        page: doc.page === 'wall' || doc.page === 'copies' || doc.page === 'ratio' || doc.page === 'ic' || doc.page === 'feat' ? doc.page : doc.page === 'script' ? 'wall' : 'ic',
+        lang: (LANGS as readonly string[]).includes(doc.lang) ? doc.lang : 'en', fwName: doc.fwName, showAll: !!doc.showAll,
         previewMode: doc.previewMode === 'swatch' ? 'swatch' : 'photo', ratioBackdrop: doc.ratioBackdrop === 'gray' ? 'gray' : 'photo',
         // GR Mod 0.8 changed the power-off page: its tour (which now says where the pictures are chosen) shows once more
         toursSeen: TOUR_IDS.filter((id) => Array.isArray(doc.tours) && doc.tours.includes(id) && (id !== 'wall' || doc.toursV >= 2)) });
@@ -408,6 +408,8 @@ export function tourStep(delta: 1 | -1): void {
   set({ tour: { ...tr, index } });
 }
 /** Forget which tours were seen (and stop the one running): they start by themselves again. */
+/** Every guide marked as seen: none starts by itself any more (the ? menu still shows them). */
+export function skipAllTours(): void { set({ tour: undefined, toursSeen: [...TOUR_IDS] }); scheduleSave(); }
 export function resetTours(): void { set({ tour: undefined, toursSeen: [] }); scheduleSave(); }
 /** Finished or skipped: either way it is not started by itself again. */
 export function endTour(): void {

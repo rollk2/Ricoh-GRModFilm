@@ -753,68 +753,43 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
   );
 }
 
-type Place = 'left' | 'right';
-/**
- * The two slot cards and the switches share the left column. When the column is too short for all
- * three (a small window, a slot card grown by its preset or icon options), the switches move under
- * the preview on the right, and back when there is room again.
- */
+/** The slot cards on the left, the preview on the right (the switches have their own page from 0.9.9: Features). */
 function IcBody() {
   const allSlots = useStore(s => s.info!.slots);
   const choosable = useStore((s) => filmCountChoosable(s));
   const filmCount = useStore((s) => s.filmCount);
   const slots = useMemo(() => (choosable ? allSlots.slice(0, filmCount) : allSlots), [allSlots, choosable, filmCount]);
   const gr3x = useStore((s) => s.info?.family === 'gr3x');
-  const cardsRef = useRef<HTMLDivElement>(null);
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const from = useRef<DOMRect | null>(null);
-  const boxH = useRef(0);
-  const [place, setPlace] = useState<Place>('left');
-  const [belowH, setBelowH] = useState(0);
-  const placeRef = useRef<Place>(place); placeRef.current = place;
-  useLayoutEffect(() => {
-    const cards = cardsRef.current;
-    if (!cards) return;
-    let first = true;
-    const ro = new ResizeObserver(() => measure());
-    function measure(): void {
-      const box = boxRef.current;
-      if (box) { boxH.current = box.offsetHeight; ro.observe(box); }
-      if (placeRef.current === 'right') setBelowH(boxH.current);
-      const gap = parseFloat(getComputedStyle(cards!).rowGap) || 0;
-      const kids = [...cards!.children].filter((c) => c !== box) as HTMLElement[];
-      kids.forEach((k) => ro.observe(k));
-      const used = kids.reduce((a, k) => a + k.offsetHeight, 0) + gap * Math.max(0, kids.length - 1);
-      const want: Place = used + gap + boxH.current <= cards!.clientHeight + 0.5 ? 'left' : 'right';
-      if (want !== placeRef.current) {
-        from.current = first || !box ? null : box.getBoundingClientRect();
-        placeRef.current = want;
-        setBelowH(boxH.current);
-        setPlace(want);
-      }
-      first = false;
-    }
-    ro.observe(cards);
-    measure();
-    return () => ro.disconnect();
-  }, []);
-  const setBox = (el: HTMLDivElement | null): void => { boxRef.current = el; };
-  const switches = <FeatureSwitches mono={false} boxRef={setBox} from={from} />;
   const extras = useStore((s) => s.extras);
   return (
     <div className="ic" data-tour-page="ic">
       {gr3x
-        ? <div className="cards" ref={cardsRef}>{choosable && <FilmCountHead />}{slots.map((slot) => <SlotCard key={slot.id} id={slot.id} />)}{place === 'left' && switches}</div>
+        ? <div className="cards">{choosable && <FilmCountHead />}{slots.map((slot) => <SlotCard key={slot.id} id={slot.id} />)}</div>
         : (
-        <div className="cards" ref={cardsRef}>
+        <div className="cards">
         <SlotCard id="CY" /><SlotCard id="CG" />
         <ExtrasHead />
         {extras.map((x, i) => <ExtraSlotCard key={x.key} x={x} index={i} />)}
-        {place === 'left' && switches}
       </div>
         )}
-      <PreviewPane below={place === 'right' ? switches : undefined} belowH={belowH} />
+      <PreviewPane />
     </div>
+  );
+}
+
+/** 0.9.9: the firmware additions that are not slots (soft focus, date imprint, the film mode and its options), on a page of their own. */
+export function FeaturesPage() {
+  const info = useStore((s) => s.info);
+  const model = useStore((s) => s.model);
+  return (
+    <DropZone className="page" accept={isFirmware} onFiles={(f) => { void loadFirmwareFile(f[0]); }}>
+      <header className="page-head">
+        <span className="page-icon">{Ico.film}</span>
+        <h1>{t('navFeat')}</h1>
+      </header>
+      {!info && <FirmwareHero />}
+      {info && <div className="feat" data-tour-page="feat"><FeatureSwitches mono={model === 'MONO'} /></div>}
+    </DropZone>
   );
 }
 
@@ -932,7 +907,7 @@ export function ImageControlPage() {
       </header>
       {!info && <FirmwareHero />}
       {views && (orderView ? <IcViews view={view} /> : <IcBody />)}
-      {info && model === 'MONO' && <div className="mono-ic" data-tour-page="ic"><p className="muted">{t('monoNoSlots')}</p><FeatureSwitches mono /></div>}
+      {info && model === 'MONO' && <div className="mono-ic" data-tour-page="ic"><p className="muted">{t('monoNoSlots')}</p></div>}
     </DropZone>
   );
 }
