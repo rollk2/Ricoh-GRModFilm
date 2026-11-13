@@ -147,15 +147,17 @@ Chaque étape suit le même cycle : test en émulateur, flash, essai sur le boî
 
 ## Évolutions envisagées
 
-Décisions du 2026-11-10.
+Décisions des 2026-11-10 et 2026-11-11.
 
 ### Finitions de la v1
+**Release 0.9.8 arrêtée le 2026-11-13** (dernier correctif T-HIDE3 validé sur le boîtier). Décision du même jour : ce n'est **pas** la v1 ; on n'est pas pressé, la v1 viendra plus tard.
+**Périmètre de la 0.9.8 arrêté le 2026-11-13** : rien d'autre n'y entre. Estimations faites ce jour pour plus tard : entrée 19 (ADJ à 8 réglages) moyenne, 4 à 8 builds de test ; entrée 18 (firmwares 2.20 / 1.70) grosse, 15 à 30 builds, demande les firmwares, le dépôt amont et un boîtier en 2.20 ; entrée 15 (image des réglages) très grosse, 25 à 40 builds, ou 8 à 15 en version réduite (export dans le boîtier, réapplication au flash par l'application).
 1. ~~Bogue de lecture restant~~ : **abandonné le 2026-11-10** (non reproduit avec T-PLAY4d, scénarios A à N et variantes V1 à V7 justes).
 2. ~~Icône SR de l'écran de prise de vue~~ : **validée sur le boîtier (T-SR3, 2026-11-10)** : la main suit la stabilisation selon la vitesse. Choix de l'icône `0x532a9ae0`, appelé en `0x53170e30`. Intégrée aux builds de l'application (option `srIcon` de la recette), pour la prochaine version.
+3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
 - Formatage de la carte : **tous les rouleaux rembobinés** dès la fin du formatage (décision du 2026-11-10 ; avant, le compteur continuait). **Validé sur le boîtier (T-FMT3)**, mis dans les builds avec le mode pellicule, pour la prochaine version.
 - **Rewind Film sur un bouton** (demande du 2026-11-10) : fonction 46 de Fn Button Settings ; la question « Rewind the film? », OK rembobine, MENU ou l'attente annule. **Validé sur le boîtier (T-RWB1 à T-RWB3)**, publié en 0.9.6.
-- Réorganiser les ratios (Aspect Ratio) comme les recettes d'Image Control (demande du 2026-11-10) : à faire.
-3. ~~Uniformiser3. ~~Uniformiser les fonctions du levier ADJ et celles des touches~~ : **fermé le 2026-11-10, rien à faire** (décision de l'utilisateur). Inventaire fait : toute fonction ADJ existe déjà sur les touches ; manquent sur l'ADJ Shake Reduction, White Balance et Macro Mode ; une seule fiche ADJ libre garantie (Framerate avec No movie). Détail dans les notes.
+- Réorganiser les ratios (Aspect Ratio) comme les recettes d'Image Control : fait (l'application le permet déjà ; **validé sur le boîtier le 2026-11-13** : ordre du menu, cycle Fn, cadrages, ratio gardé au rallumage, verrou du rouleau). Ordre proposé du plus normal au plus excentrique : 3:2, 4:3, 1:1, 5:4, 16:9, 2:1, 3:1, 2.39:1, 65:24. Fermé.
 
 ### Mode pellicule
 4. Reprendre une surimpression après extinction et rallumage (réinjection de l'image, probablement via le développement RAW intégré).
@@ -170,10 +172,87 @@ Décisions du 2026-11-10.
 9. Développement dans l'appareil : diptyque, date au tirage et planche contact, en portant sur le boîtier le moteur déjà validé sur PC (`tools/develop`). Dépend du décodeur JPEG (décision D3 de `docs/ARCHITECTURE.md`).
 10. Dust removal et carte des poussières (décision du 2026-11-10) : **un menu** qui affiche la carte des poussières (point 11), puis lance un dust removal. Le nettoyage manuel natif passe par `0x532ae708(modèle, 1)`, comme le menu du boîtier, sans jamais modifier la fréquence ni l'amplitude de l'ultrason. Le nettoyage à la rentrée de l'objectif existe déjà (option native « à l'extinction »).
 11. Carte des poussières, sur le modèle du Dust Alert des reflex Pentax : photographier une surface claire à f/16 et afficher les taches détectées, avant le dust removal du point 10 et pour vérifier son effet. Demande l'analyse d'une image dans le boîtier (avec le décodeur JPEG de la V2).
+25. Gain map HDR dans les JPEG (Ultra HDR, norme ISO 21496-1, décision du 2026-11-11). Le JPEG garde l'image normale et embarque une carte de gain : sur un écran HDR (téléphones et Mac récents, Chrome), les hautes lumières brillent au-delà du blanc normal ; ailleurs, le JPEG s'affiche comme d'habitude. Source : Maxwooow, GR Mod 0.8.9 et 0.8.10 (GR IV 1.11 et 1.20 : carte calculée depuis la photo finie, gain plafonné à 1,2 diaphragme). Sur GR III : interrupteur par film ou par BOX, désactivé par défaut. Étudier l'interaction avec l'halation (la lueur pourrait profiter de la marge HDR) et avec le développement dans l'appareil (entrée 9 : la carte devrait être calculée au tirage, après le grain et la date).
 
 ### Après la v1 stabilisée (ambitieux, à étudier)
 12. Améliorer l'autofocus en basse lumière.
 13. Améliorer l'autonomie de la batterie.
+
+### Nouvelles fonctions
+Décisions des 2026-11-10 et 2026-11-11.
+
+14. Obturation électronique à 1/8000e de seconde. Objectif : grande ouverture en plein soleil sans filtre ND. L'obturateur mécanique du GR III plafonne à 1/4000e. À étudier d'abord : chercher dans le firmware un mode de lecture rapide du capteur déjà existant (aperçu, vidéo) plutôt que d'écrire un pilote ; mesurer le rolling shutter et les bandes sous éclairage artificiel ; décider entre bascule automatique au-delà de 1/4000e ou mode séparé ; rester cohérent avec la vitesse plancher du SR (0.9.4). Pas de flash en électronique. Chantier ambitieux, réservé à une session Fable.
+
+15. Image des réglages : export, import et flash avec réglages.
+
+    Principe : un fichier « image des réglages » est une copie complète et fidèle de tous les réglages du boîtier à un instant donné. Il peut être réappliqué en tout ou en partie, depuis le boîtier ou depuis l'application au moment de construire le firmware.
+
+    Contenu, découpé en blocs sélectionnables :
+    - Une BOX par bloc : U1, U2, U3, chacune avec tout ce qu'elle mémorise (film, format, réglages de prise de vue, seuil SR, Film Roll Mode).
+    - Les modes P, Av, Tv, M. À vérifier dans le firmware : ont-ils chacun leurs réglages ou un bloc commun (le seuil SR est « une fois pour P, Av, Tv, M ») ? La granularité proposée suit la structure réelle du firmware, sans en promettre plus.
+    - Les réglages généraux : Fn Button Settings (lignes Hold comprises), levier ADJ, Mode Memory, Setup, réglages des Image Controls et des films GR Mod (grain compris).
+    - L'état des rouleaux (compteurs) : exporté, jamais réappliqué par défaut (un import rembobine les rouleaux concernés, comme le formatage).
+
+    Format : en-tête (signature, version du format, modèle GR III / IIIx, version de GR Mod Film, empreinte de la recette des films, date), table des blocs présents, somme de contrôle par bloc et globale. Un dossier dédié sur la carte, plusieurs exports horodatés possibles.
+
+    Dans le boîtier :
+    - « Export Settings » : écrit une image complète sur la carte.
+    - « Import Settings » : choix du fichier, puis des blocs à appliquer (Tout, une ou plusieurs BOX, P / Av / Tv / M, réglages généraux).
+    - Sauvegarde immédiate des réglages après import (la veille ne sauvegarde pas).
+
+    Dans l'application :
+    - Ouvrir une image des réglages depuis la carte ou le disque, afficher son contenu bloc par bloc, cocher les blocs à appliquer.
+    - Construire le firmware avec ces blocs intégrés. Au premier démarrage après le flash (détecté par l'empreinte du build), le firmware applique les blocs choisis une seule fois, puis sauvegarde.
+    - Cas d'usage : réinstaller ou mettre à jour GR Mod Film sans tout reconfigurer, passer ses réglages d'un boîtier à un autre, partager une configuration.
+
+    Sécurité :
+    - Refus d'un bloc dont la somme de contrôle est fausse ; refus d'un fichier d'un autre modèle, sauf blocs déclarés compatibles entre GR III et GR IIIx (à établir).
+    - Avertissement si la version ou la recette des films diffère ; un film absent de la recette ramène le look à Standard.
+    - Chaque bloc appliqué passe par le garde-fou de GR Mod (valeurs inconnues ramenées aux valeurs d'usine), dans le boîtier comme au premier démarrage après flash.
+
+    À vérifier pendant l'exploration : fonction native de sauvegarde des réglages réutilisable ; taille, emplacement et découpage des réglages en mémoire (offsets par BOX et par mode) ; écriture de fichier depuis le menu (même brique que les dossiers de rouleau) ; mécanisme de reprise des enregistrements HTData au premier démarrage, déjà utilisé par GR Mod.
+
+16. Flash à nombre guide pour tout flash (demande d'un utilisateur Reddit, 2026-11-10).
+
+    Point de départ : GR Mod a déjà « Direct Flash » pour le GR IV (README, section Direct Flash ; `core/src/fw/aspect/directflash*.ts` ; `tools/directflash`), qui reproduit le comportement du GF-2 Flash Mode natif du GR III : ouverture = NG × √(ISO/100) / distance, flash à puissance fixe, exposition calculée depuis la distance de mise au point. Les versions récentes de Maxwooow l'ont enrichi (priorités d'exposition, vitesse maximale, correction sur le flash, réglages gardés entre les modes).
+
+    Objectif sur GR III / IIIx : étendre le GF-2 Flash Mode natif (`0x02000070`) à n'importe quel flash manuel, en laissant l'utilisateur choisir le nombre guide.
+    - Dans le boîtier : une liste de nombres guides (6 à 60, ou une table de flashs courants), réglable dans le menu Flash, avec la puissance du flash (1/1, 1/2, 1/4…) qui ajuste le NG effectif.
+    - Fonctionnement en P, Av, Tv, M, avec ISO Auto pris en compte. Étudier aussi le Snap Distance Priority : la distance y est connue d'avance, cas d'usage idéal en street au flash.
+    - À établir pendant l'exploration : où le GR III range le NG du GF-2 et comment il calcule l'exposition ; si le module du GR IV peut être porté tel quel ; compatibilité avec un flash qui communique (désactivé dans ce cas).
+    - Tests : vérification en émulateur contre une version Python de la règle (comme `tools/directflash/check.py`), puis essais réels avec au moins deux flashs de NG différents.
+
+17. Interdire la suppression d'une photo dans un rouleau non rembobiné. Sur argentique, une vue ratée reste sur la pellicule.
+    - Pendant qu'un rouleau est chargé, toute suppression des fichiers de son dossier est bloquée : bouton Delete en lecture, Delete dans le menu de lecture, suppression multiple ou par plage, et toute autre voie de suppression trouvée pendant l'exploration.
+    - Message à la tentative : « Roll in progress: rewind to delete », puis retour à la lecture.
+    - Les photos hors rouleau (dossier P / Av / Tv / M, rouleaux rembobinés ou clos) restent supprimables normalement.
+    - Le formatage reste autorisé (il rembobine tous les rouleaux).
+    - À vérifier : la protection native des fichiers (Protect) comme voie de mise en œuvre possible, et son interaction avec Delete All.
+
+27. Réglages masqués choisis dans le boîtier (décision du 2026-11-13 ; **intégré à la 0.9.8, validé sur le boîtier : T-HSET1b, T-HSET2, T-HSET3**) : une ligne « Hide Settings » dans **Setup**, qui ouvre une liste de cases (Face/Eye Detection, AF Assist Light, AF.C Setting, MF Auto Magnification, Flash Mode, GF-2 Flash Mode, Flash Exposure Comp.). La liste « Hidden settings » de l'application est **supprimée** : rien n'est masqué au premier allumage.
+    - Un réglage masqué garde la valeur qu'il avait au moment du masquage (régler d'abord, puis masquer) ; réversible sans reflasher, le même pour toutes les BOX.
+    - Mise en œuvre : un octet libre (un bit par réglage) écrit dans les 8 enregistrements ; écran de cases copié de Mode Memory (comme AF Point et Apply to U) ; les filtres actuels (lignes du menu, fonctions des touches, Hold, Wireless, cases ADJ lues Off, cases de Mode Memory forcées à « mémorisée ») testent le bit au lieu d'une liste fixe.
+    - Point dur : les listes d'ADJ Mode Setting, aujourd'hui raccourcies au build, à recalculer à l'ouverture de l'écran dans une copie en RAM.
+    - Estimation : moyenne, 8 à 14 builds de test, 4 à 6 sessions. Réalisé en 4 builds (T-HSET1, 1b, 2, 3), voie A pour les listes d'ADJ (calcul à la volée, sans RAM).
+
+### Reprises des forks de GR Mod
+Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre est permis, en citant chaque auteur dans le README (section Thanks) et dans les messages de commit.
+
+18. Firmwares GR III 2.20 et GR IIIx 1.70 (priorité, pour les bêta-testeurs dont le boîtier est déjà à jour). Source : Maxwooow, GR Mod 0.9.0 (testé sur boîtiers). Fusionner la base amont, puis reporter toutes les adresses de GR Mod Film sur 2.20 / 1.70. Garder 2.10 / 1.60 en parallèle. Chaque fonction revalidée en émulateur puis sur boîtier.
+
+19. Levier ADJ jusqu'à 8 réglages sur GR III / IIIx. Source : Maxwooow, GR Mod 0.8.9 (adjslots). Porter sur GR III : réglages 6 à 8 dans ADJ Mode Setting, valeurs protégées par le garde-fou. Vérifier la compatibilité avec le verrou du rouleau (cases ADJ lues Off pendant un rouleau).
+
+20. Vrai LUT appliqué au JPEG par le processeur, pour les films GR Mod. Source : orbitsail, branche cpu-lut (expérimental, GR IV). Objectif : rendre fidèlement les LUT très sélectifs en teinte (Aerochrome, infrarouge) que le modèle matrice + courbes approche mal. Critère d'adoption : temps de traitement par vue mesuré sur le boîtier ; option par film, désactivée par défaut, si le coût est sensible.
+
+21. Meilleur ajustement des LUT dans l'application (aucun changement dans le boîtier). Sources : sjclijie (feat/hue-sectors, feat/fitting-ciede2000-refinement : secteurs de teinte, affinage CIEDE2000) et orbitsail (hue-sectors-continuous, white-anchor, neutral-base : préservation du blanc, base neutre apprise sur de vraies paires RAW/JPEG). Comparer l'erreur d'ajustement (ΔE) avant et après sur les 20 films, garder ce qui améliore sans dégrader les neutres.
+
+22. Balance des blancs automatique apprise. Source : orbitsail (awbml ; GR IV). Après la v1, si le portage GR IV vers GR III est réaliste.
+
+23. Correction des ombres apprise. Source : orbitsail (shadowml, modèle entraîné sur FiveK ; GR IV, expérimental). Après la v1, mêmes conditions de portage. Vérifier la licence de la base FiveK.
+
+24. Réduction du bruit de chrominance, seconde passe à partir de 3200 ISO. Source : orbitsail (chroma-nr ; GR IV). Après la v1, mêmes conditions de portage.
+
+    Pour 22 à 24 : étudier d'abord si les structures du GR IV existent sur GR III avant toute estimation.
 
 ### Fait ou abandonné
 - **Prochain chantier (décidé le 2026-11-09) : rouleau chargé, réglages verrouillés.** En U1 à U3, Film Roll Mode sur On et rouleau entamé (compteur différent de 0, pas rembobiné), ces lignes de Still Image Settings disparaissent du menu (elles reviennent après le rembobinage, et en P, Av, Tv, M) :
@@ -186,6 +265,7 @@ Décisions du 2026-11-10.
 - ~~BOX suivante (fonction Fn, plan T25-BOX1)~~ : abandonnée (décision du 2026-11-09).
 - Stabilisation (IBIS) selon la vitesse (demande du 2026-11-09, rappelée le 2026-11-09) : SR activé sous une vitesse d'obturation choisie et coupé au-dessus, réglable dans Shake Reduction ou dans Auto SR Off (renommée « Auto SR On/Off »). En cours : recherche statique faite (valeur SR effective `0x53271dc4`, Tv courant `0x53548930`, voir les notes), Validée sur le boîtier (T-SR1, T-SR2) : la liste de Shake Reduction devient Off, 1/4000 (toujours active) … 30" ; seuil rangé dans l’octet de Shake Reduction (`+0x4f6`), donc par BOX et pour P, Av, Tv, M. Mise dans tout build GR III / IIIx complet, sans case (0.9.4). La main SR de l’écran ne suit pas encore la vitesse : version future.
 - Lignes de menu masquables depuis GR Mod Film (demande du 2026-11-09), comme pour la vidéo : une liste au choix dans l'application. Premières lignes demandées : Face/Eye Detection (`0x0200005e`), AF Assist Light (`0x0200005f`), AF.C Setting (`0x02000063`), MF Auto Magnification (`0x02000065`), Flash Mode (`0x020000dd`), GF-2 Flash Mode (`0x02000070`), Macro Mode (`0x02000071`). Même brique que le chantier ci-dessus. Un réglage masqué doit aussi disparaître des fonctions des touches et du levier ADJ (demande du 2026-11-09) : Face/Eye Detection est la fonction Fn 8 ; Flash Mode Fn 20 et ADJ 8 ; GF-2 Flash Mode Fn 41 et ADJ 0x13 ; Macro Mode Fn 45 (GR Mod Film) ; AF Assist Light, AF.C Setting et MF Auto Magnification n'ont ni fonction Fn ni fonction ADJ (à revérifier au moment du chantier, filtre des listes `0x531b9410` et listes ADJ).
+- **Correctif** (décision du 2026-11-11) : GF-2 Flash Mode masqué depuis l'application : la ligne reste proposée dans Mode Memory. Quand GF-2 Flash Mode est masqué, il doit aussi disparaître de la liste de Mode Memory. Vérifier au passage tous les réglages masquables : un réglage masqué ne doit apparaître nulle part, Mode Memory compris. À traiter avec le chantier « lignes masquables ». **Validé sur le boîtier (T-HIDE3, 2026-11-13)** : les trois cases absentes de Mode Memory, les autres présentes, aucun réglage masqué visible dans le menu, les touches et le levier ADJ ; la valeur gardée à l'allumage n'a pas pu être vue sur le boîtier (vérifiée en émulation) : les cases Flash Mode, Flash Exposure Comp. et GF-2 Flash Mode quittent Mode Memory quand leur réglage est masqué, et sont tenues « mémorisées » (sinon la valeur d'usine revenait à l'allumage en P, Av, Tv, M). Les quatre autres réglages masquables n'ont pas de case. Audit : menu, touches, Hold, Wireless, levier ADJ et Mode Memory couverts ; restent les icônes de l'écran de prise de vue et les informations de lecture, qui montrent la valeur imposée.
 - Ordre décidé le 2026-11-09 : lignes masquables, puis bogue de la lecture, puis publication 0.9.4.
 - Lecture de la dernière photo (bogue signalé le 2026-11-09) : après une vue de rouleau, une photo de P (dossier plus ancien) n'était pas annoncée à la lecture, qui restait sur la vue. Correctif : chaque photo créée est retenue (dossier, numéro), et la lecture s'ouvre dessus après une nouvelle photo (`playLast`). **Validé sur le boîtier (T-PLAY3d).**
 - Touche WB dans la liste des touches réglables de Fn Button Settings (demande du 2026-11-02) : **validée sur le boîtier (WB-RC1)** ; touche Macro ajoutée (WB-RC2, validée sur le boîtier, 0.9.2) ; White Balance devient aussi une fonction des autres touches.
@@ -195,6 +275,18 @@ Décisions du 2026-11-10.
 - Appuis longs (demande du 2026-11-08) : lignes « Hold » sous Fn, ISO, Drive, WB et Macro Button dans Fn Button Settings. Touches du pavé : au premier code de maintien ; Fn (aucun code de maintien) : chronométré par `tk_get_otm`, 600 ms, au relâchement. Réglages dans les octets libres `0x806`, `0x84a`, `0x88e`, `0xacf`, `0xae3`. **Validés sur le boîtier (T-HOLD3)**, 0.9.3.
 - Icône photo / vidéo du bouton Wireless au démarrage avec No movie : retirée (purement esthétique, décision du 2026-11-09).
 - Fonction « Snap DOF » dans Fn Button Settings (demande du 2026-11-08) : en Snap Distance Priority, chaque appui fait DOF1 → DOF2 → DOF3 → DOF1, la distance (molette avant) n'est jamais touchée. Champ trouvé par T-DOF5 : octet `+0xa3e` des réglages (0, 1, 2) ; écriture par la fonction native du boîtier `0x532720e4`, celle de la molette arrière. Hors Snap Distance Priority, l'appui ne fait rien. Vérifiée en émulateur (`snap_dof_probe.py`), **validée sur le boîtier (T-DOF6, 2026-11-09)**. Les listes Wireless Button et Hold Wireless Btn. proposent désormais les mêmes fonctions que les autres touches (limitation levée, à écrire dans la note de version).
+
+## Accessoires matériels (hors firmware)
+Décision du 2026-11-11.
+
+26. Support à imprimer en 3D, tenant à la fois le flash et le viseur sur la griffe unique du GR.
+    - Une semelle qui glisse dans la griffe du GR, avec deux sabots au-dessus : un sabot actif pour le flash, un sabot froid pour le viseur.
+    - Le contact du flash doit traverser le support : au minimum le contact central et la masse pour un flash manuel ; tous les contacts de la griffe pour conserver le GF-2 Flash Mode et le flash à nombre guide (entrée 16). À vérifier : brochage de la griffe du GR III.
+    - Semelle et contacts en métal, achetés tout faits (pied de griffe et sabot du commerce) ; seul le corps est imprimé. Une semelle imprimée s'use et peut abîmer la griffe du boîtier.
+    - Disposition : viseur au plus près de l'axe de l'objectif pour limiter la parallaxe ; flash décalé ou en hauteur pour éviter l'ombre de l'objectif en gros plan.
+    - Matériau : PETG ou ASA (chaleur en voiture, UV, choc). Profil le plus bas possible pour garder l'appareil compact.
+    - Poids : un flash lourd fait levier sur la griffe ; prévoir une butée ou un appui sur le dessus du boîtier, et limiter le flash conseillé à un modèle compact.
+    - Compatible avec le projet d'écran sur la griffe (visée par au-dessus) : concevoir le support pour qu'il puisse accueillir l'écran à la place du viseur.
 
 ## Licence
 GPL-2.0-only, comme GR Mod. Tout firmware partagé s'accompagne de son code source (ce dépôt).

@@ -65,7 +65,7 @@ import { GR3X_DATESTAMP_R7_CODE } from './picture-modules-r7';
 import { lookNameGlyphs } from '../aspect/datestamp';
 import { GR3X_JPEG_EXECUTE } from './jpeg-stage';
 import { GR3X_DIAL_TABLE } from './dial-probe';
-import { GR3X_PICTURE_MENU_ID, installGr3xEndScreenSetup, installGr3xPictureList, installGr3xPictureSetupLine } from './shutdown';
+import { GR3X_PICTURE_MENU_ID, installGr3xEndScreenSetup, installGr3xPictureList, installGr3xPictureSetupLine, installGr3xSetupLines } from './shutdown';
 import { GR3X_END_SCREEN_ID as END_SCREEN_ID, GR3X_PICTURE_LIST_ID, GR3X_PICTURE_MODE } from './endscreen';
 import { GR3X_FRAME_LOOK, GR3X_GAP, GR3X_HEAP_BASE, GR3X_ORIENT_BYTE, GR3X_ZERO_FILL_END } from './look-addresses';
 import { GR3X_DATESTAMP_R10_CODE, GR3X_DATESTAMP_R10_GRAIN_CODE, GR3X_DATESTAMP_R10_GRAIN_DIAG_CODE, GR3X_DATESTAMP_R10_GRAIN_FIND_CODE, GR3X_DATESTAMP_R10_KEYS_CODE, GR3X_DATESTAMP_R10_DIFF_CODE } from './picture-modules-r10';
@@ -450,7 +450,10 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
     tab?: { entry: number; movie: number; visible: number; title: number; icons: readonly [number, number, number] } };
   /** WB button (wb-button.ts): the WB Button line's list, a list record of its own opened by the
    * Fn Button Setting lines' controller (`controller`) instead of Horizon's (and the Macro Button line's). */
-  fnLines?: readonly { id: number; title: number; count: number; draw: number; set: number; isCurrent: number; controller: number }[] }) {
+  fnLines?: readonly { id: number; title: number; count: number; draw: number; set: number; isCurrent: number; controller: number }[];
+  /** T-HSET1 (hide-menu.ts): the Hide Settings line in Setup after Firmware Info/Options, opening Mode
+   * Memory's screen (`opens`): its name, and the code put first at the factory's entry. */
+  hideMenu?: { id: number; after: number; text: number; opens: number; factoryPrefix: string } }) {
   const iconOff = o.onOffText ? TEXT_ICON_OFF : ICON_OFF, iconOn = o.onOffText ? TEXT_ICON_ON : ICON_ON;
   const ids = o.date;
   if (o.picture && o.endScreen) fail('IIIx pictures: list or submenu');
@@ -459,7 +462,7 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
   const r8 = o.round8 === true;
   if (r8 && (!sub || !o.onOffText || [ids!.orient, ids!.shortName, ids!.longName, ids!.iconShortName, ids!.iconLongName].some(v => v === undefined)))
     fail('IIIx round 8 date imprint: the submenu, OFF / ON texts and the texts and icons of the third line and the two styles');
-  if (!ids && !o.picture && !o.endScreen && !o.film && !o.fnLines?.length) fail('no IIIx menu additions');
+  if (!ids && !o.picture && !o.endScreen && !o.film && !o.fnLines?.length && !o.hideMenu) fail('no IIIx menu additions');
   // --- Checks of the official code and data this relies on.
   const guards: readonly (readonly [number, number])[] = [
     ...(ids ? [[BUILDER, 0xe1a0c00d], [BUILDER + 4, movWord(3, lo(MENU_TABLE))], [BUILDER + 0x10, movWord(3, hi(MENU_TABLE), true)]] as const : []),
@@ -760,21 +763,30 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
     p.patch(BUILDER, 0xe1a0c00d, branchWord(BUILDER, builder), 'date imprint: still menu for this model');
     Object.assign(entries, { dateMenuWithoutNd: withoutNd, dateMenuWithoutHdf: withoutHdf, dateBuilder: builder });
   }
-  if (o.picture) Object.assign(entries, installGr3xPictureSetupLine(p, entries.pictureLine));
+  // T-HSET1: the Hide Settings line (no value, its name, as Setup's Create New Folder line).
+  const HM = o.hideMenu;
+  const setupInserts = HM ? [{ after: HM.after, id: HM.id, line: p.code(`push {r4,lr};mov r4,r1;mov r0,r4;mov r1,#0;bl #${LINE_VALUE_ICON};mov r0,r4;movw r1,#${HM.text};mov r2,r1;
+      pop {r4,lr};b #${TOP_SET_TITLE};`) }] : [];
+  if (HM) entries.hideMenuLine = setupInserts[0].line;
+  if (o.picture) Object.assign(entries, installGr3xPictureSetupLine(p, entries.pictureLine, setupInserts));
   if (o.endScreen) {
     // Setup's End Screen line opens the submenu, drawn as Setup's other submenu lines.
     const setupLine = p.code(`push {r4,lr};mov r4,r1;mov r0,r4;mov r1,#0;bl #${LINE_VALUE_ICON};mov r0,r4;movw r1,#${END_SCREEN_TITLE};mov r2,r1;
       pop {r4,lr};b #${TOP_SET_TITLE};`);
-    Object.assign(entries, { endScreenSetupLine: setupLine }, installGr3xEndScreenSetup(p, setupLine));
+    Object.assign(entries, { endScreenSetupLine: setupLine }, installGr3xEndScreenSetup(p, setupLine, setupInserts));
     // The picture list's mode is in the gap before the heap: the start-up fill clears it.
     if (!o.zeroFillDone) p.patch(GR3X_ZERO_FILL_END, GR3X_GAP, GR3X_HEAP_BASE, 'start-up zero fill reaches the heap base (clears the added RAM words)');
   }
+  if (HM && !o.picture && !o.endScreen) Object.assign(entries, installGr3xSetupLines(p, setupInserts));
 
   // --- Controller ids: Horizon Correction's list controller and key map.
   const rewind = o.film?.rewind;
   const mapped = [...lists.map(l => [l.id, l.controller ?? HORIZON_ID] as const), ...submenus.map(m => [m.id, D_RANGE_ID] as const),
     ...(rewind ? [[rewind.id, rewind.dialog] as const] : []),
-    ...(o.endScreen ? [[GR3X_PICTURE_LIST_ID, END_SCREEN_ID] as const] : [])];
+    ...(o.endScreen ? [[GR3X_PICTURE_LIST_ID, END_SCREEN_ID] as const] : []),
+    // T-HSET1: our line's keys as Mode Memory's line (the factory's prefix hands out the screen itself).
+    ...(HM ? [[HM.id, HM.opens] as const] : [])];
+  const hsPrefix = HM ? HM.factoryPrefix : '';
   // With the End Screen submenu the factory also sets the End Screen list's mode: picture list
   // (asked for GR3X_PICTURE_LIST_ID) or the camera's own (asked for End Screen itself).
   // T17-RWD1: the factory notes which line opens Create New Folder's dialog: rewind byte 1 for Rewind
@@ -784,11 +796,11 @@ export function installGr3xMenuAdditions(p: Gr3xDateProgram, o: { date?: Gr3xDat
   const rewindMode = rewind ? `movw ip,#${lo(rewind.id)};movt ip,#${hi(rewind.id)};cmp r1,ip;moveq r3,#1;beq rwset;
     movw ip,#${lo(rewind.menu[0])};movt ip,#${hi(rewind.menu[0])};sub ip,r1,ip;cmp ip,#${rewind.menu[1] - rewind.menu[0]};bhi rwdone;mov r3,#0;
     rwset:movw ip,#${lo(rewind.mode)};movt ip,#${hi(rewind.mode)};strb r3,[ip];rwdone:` : '';
-  const factory = o.endScreen ? p.code(rewindMode + [...mapped.map(([id, to]) => [id, to, id === GR3X_PICTURE_LIST_ID ? 1 : -1] as const), [END_SCREEN_ID, END_SCREEN_ID, 0] as const]
+  const factory = o.endScreen ? p.code(hsPrefix + rewindMode + [...mapped.map(([id, to]) => [id, to, id === GR3X_PICTURE_LIST_ID ? 1 : -1] as const), [END_SCREEN_ID, END_SCREEN_ID, 0] as const]
     .map(([id, to, mode], k) => `movw ip,#${lo(id)};movt ip,#${hi(id)};cmp r1,ip;bne f${k};movw r1,#${lo(to)};movt r1,#${hi(to)};` +
       (mode >= 0 ? `mov ip,#${mode};movw r3,#${lo(GR3X_PICTURE_MODE)};movt r3,#${hi(GR3X_PICTURE_MODE)};${r8 ? 'strb' : 'str'} ip,[r3];` : '') + `b done;f${k}:`).join('') +
     `done:movw r3,#0x13b;b #${FACTORY + 4};`)
-    : p.code(rewindMode + mapped.map(([id, to]) => `movw ip,#${lo(id)};movt ip,#${hi(id)};cmp r1,ip;
+    : p.code(hsPrefix + rewindMode + mapped.map(([id, to]) => `movw ip,#${lo(id)};movt ip,#${hi(id)};cmp r1,ip;
     movweq r1,#${lo(to)};movteq r1,#${hi(to)};`).join('') + `movw r3,#0x13b;b #${FACTORY + 4};`);
   p.patch(FACTORY, movWord(3, 0x13b), branchWord(FACTORY, factory), o.picture ? `${what}: list controller` : 'date imprint: list controller');
   const keys = p.code('ldr r0,[r0];' + mapped.map(([id, to]) => `movw ip,#${lo(id)};movt ip,#${hi(id)};cmp r0,ip;

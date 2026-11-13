@@ -13,8 +13,13 @@
  *  - At each settings load (round 10's scaffold), the value is written in the record in use and the
  *    eight stored records (U1..U3 and the others), so the camera starts with it and a recalled BOX
  *    brings it.
+ *  - Their Mode Memory box (Flash Mode, Flash Exposure Comp., GF-2 Flash Mode) leaves Mode Memory's list
+ *    (T-HIDE3; its visibility method, as Still/Movie's with the movie taken out), and the box is set to
+ *    « memorized » in every record with the value: Mode Memory then keeps the value at power-on and
+ *    never brings the factory's back, whatever the box held before.
  * Settings (list records of 0x53b3c6c0: the set handler maps the menu's item to the stored value):
  */
+import { branchWord } from '../aspect/arm';
 import { FirmwareError } from '../types';
 import type { Gr3xSite } from './round10';
 import { gr3xSettingsHook, gr3xSettingsPrior } from './round10';
@@ -28,6 +33,10 @@ export interface Gr3xHideable {
   /** The values in the menu's order (the program's choices), as stored. */ values: readonly number[];
   /** Button functions (0x53292ed0's numbers) and ADJ lever functions (0x53292810's). */ fn: readonly number[]; adj: readonly number[];
   /** A 4-byte setting: the value is an index into this table of words (its menu's values). */ table?: number;
+  /** Its Mode Memory box (T-HIDE3): the item of the screen's list (0x53b4d550) and the box's byte in the
+   * records (AfterReleaseModeMemory…, from each item's setter; the power-on merge 0x5324075c copies the
+   * factory's value when it is 0). Items read in the emulator: 5 Flash Mode, 6 Flash Exposure Comp., 10 GF-2 Flash Mode. */
+  memory?: { item: number; box: number };
 }
 export const GR3X_HIDEABLE = {
   /** ON, Auto Area, OFF (3 values, icons 0x129, 0x127, 0x128 of 0x532932e0; writer 0x53273064). */
@@ -39,18 +48,46 @@ export const GR3X_HIDEABLE = {
   /** On, Off (writer 0x532426c0). */
   mfMag: { line: 0x02000065, byte: 0x140, values: [1, 0], fn: [], adj: [] },
   /** Flash On, Flash On + Red-eye, Slow-speed Sync, Slow Sync + Red-eye (writer 0x5324beac). */
-  flash: { line: 0x020000dd, byte: 0x164, values: [0, 1, 2, 3], fn: [20], adj: [8] },
+  flash: { line: 0x020000dd, byte: 0x164, values: [0, 1, 2, 3], fn: [20], adj: [8], memory: { item: 5, box: 0xaf8 } },
   /** On, Off: 0 is On (icon 2, GF-2), 1 Off (icon 3, GF-2 crossed) by 0x53294120; its writer turns Snap
    * Distance Priority off (0xa3c = 1) when it is set On, as 0xa3c's writer turns it Off (writer 0x532734ec). */
-  gf2: { line: 0x02000070, byte: 0xb22, values: [0, 1], fn: [41], adj: [0x13] },
+  gf2: { line: 0x02000070, byte: 0xb22, values: [0, 1], fn: [41], adj: [0x13], memory: { item: 10, box: 0xb24 } },
   /** Flash Exposure Comp. (no line of its own; list record 13): a float at + 0x168 (writer 0x5324bf68)
    * from the table 0x53b592e0 (+1.0, +0.7, +0.3, 0.0, -0.3 ... -2.0: indexes 0..9; 0.0 first here,
    * the default). Its ADJ function 9 is GR Mod's soft focus in round 10 (adj-softfocus.ts): only
    * taken out without it. */
-  flashComp: { line: 0, byte: 0x168, values: [3, 0, 1, 2, 4, 5, 6, 7, 8, 9], fn: [21], adj: [9], table: 0x53b592e0 },
+  flashComp: { line: 0, byte: 0x168, values: [3, 0, 1, 2, 4, 5, 6, 7, 8, 9], fn: [21], adj: [9], table: 0x53b592e0, memory: { item: 6, box: 0xafa } },
 } as const satisfies Record<string, Gr3xHideable>;
 export type Gr3xHideableKey = keyof typeof GR3X_HIDEABLE;
 export type Gr3xHiddenSettings = Partial<Record<Gr3xHideableKey, number>>;
+
+/** T-HSET2 (hide-menu.ts): Hide Settings' boxes in order; box k is bit k + 1 of byte 0x905 of the records
+ * (bit 0: Mode Memory's AF Point box). */
+export const GR3X_HSET_KEYS = ['faceEye', 'afAssist', 'afc', 'mfMag', 'flash', 'gf2', 'flashComp'] as const satisfies readonly Gr3xHideableKey[];
+export const GR3X_HSET_BYTE = 0x905;
+const POINTER = 0x55063f34;
+/** Code: register `r` = the boxes' byte of the record in use (0 without a record in RAM); flags changed. */
+export function gr3xHideBitsLoad(r: string, tag: string): string {
+  return `movw ${r},#${lo(POINTER)};movt ${r},#${hi(POINTER)};ldr ${r},[${r}];cmp ${r},#0x40000000;blo ${tag}n;cmp ${r},#0xc0000000;bhs ${tag}n;tst ${r},#3;bne ${tag}n;
+    ldrb ${r},[${r},#${GR3X_HSET_BYTE}];b ${tag}h;${tag}n:mov ${r},#0;${tag}h:`;
+}
+/** Code: value register `v` set to 0 when it is one of `pairs`' values and that value's box is ticked;
+ * `bits` (pushed and restored) holds the boxes meanwhile. */
+export function gr3xHideBitsOff(v: string, bits: string, pairs: readonly (readonly [number, number])[], tag: string): string {
+  if (!pairs.length) return '';
+  return `push {${bits}};${gr3xHideBitsLoad(bits, tag)}` +
+    pairs.map(([f, bit], i) => `cmp ${v},#${f};bne ${tag}${i};tst ${bits},#${bit};movne ${v},#0;${tag}${i}:`).join('') + `pop {${bits}};`;
+}
+/** What each box takes out: [value, bit] pairs of the menu lines, button functions, ADJ functions, and Mode Memory's boxes. */
+export function gr3xHideMenuPlan(adjSoftFocus = false) {
+  const each = GR3X_HSET_KEYS.map((key, k) => ({ s: GR3X_HIDEABLE[key] as Gr3xHideable, bit: 1 << (k + 1) }));
+  return {
+    lines: each.filter(x => x.s.line).map(x => [x.s.line, x.bit] as const),
+    fns: each.flatMap(x => x.s.fn.map(f => [f, x.bit] as const)),
+    adj: each.flatMap(x => x.s.adj.filter(f => !(adjSoftFocus && f === 9)).map(f => [f, x.bit] as const)),
+    memory: each.filter(x => x.s.memory).map(x => ({ ...x.s.memory!, bit: x.bit })),
+  };
+}
 
 /** Checks a choice and returns the lines, functions and ADJ functions it hides, and its bytes. */
 export function gr3xHiddenPlan(hidden: Gr3xHiddenSettings, adjSoftFocus = false) {
@@ -61,9 +98,11 @@ export function gr3xHiddenPlan(hidden: Gr3xHiddenSettings, adjSoftFocus = false)
     if (!s.values.includes(v)) fail(`${k}: value ${v} is not one of ${s.values.join(', ')}`);
   }
   const ss = entries.map(([k, v]) => [(GR3X_HIDEABLE as Record<string, Gr3xHideable>)[k], v] as const);
+  const memory = ss.map(([s]) => (s as Gr3xHideable).memory).filter((m): m is { item: number; box: number } => !!m);
   return { lines: ss.map(([s]) => s.line).filter(l => l), fns: ss.flatMap(([s]) => s.fn),
     adj: ss.flatMap(([s]) => s.adj).filter(f => !(adjSoftFocus && f === 9)),
-    bytes: ss.map(([s, v]) => [s.byte, v, (s as Gr3xHideable).table ?? 0] as const) };
+    memoryItems: memory.map(m => m.item),
+    bytes: [...ss.map(([s, v]) => [s.byte, v, (s as Gr3xHideable).table ?? 0] as const), ...memory.map(m => [m.box, 1, 0] as const)] };
 }
 
 export interface Gr3xHiddenProgram {
@@ -98,6 +137,54 @@ export function installGr3xHiddenAdjLists(p: Gr3xHiddenProgram, adj: readonly nu
     if (p.u32(count) !== 0xe3a00013) fail('ADJ list count');
     p.patch(count, 0xe3a00013, (0xe3a00000 | kept.length) >>> 0, `hidden settings: ADJ list of ${kept.length}`);
   });
+}
+
+/** The ADJ lists' records (SelectMenuController list records 65..69 of 0x53b3c6c0: + 0x10 draw, + 0x18 set,
+ * + 0x20 is-current) and, in each of those three, the one read of the list (`ldrb`, r3 the list's address). */
+const LIST_RECORDS = 0x53b3c6c0, ADJ_RECORD = 65;
+const ADJ_READS = [
+  { field: 0x10, at: 0x28, word: 0xe7d34004, dest: 'r4', index: 'r4' }, // draw: ldrb r4,[r3,r4]
+  { field: 0x18, at: 0x20, word: 0xe7d31004, dest: 'r1', index: 'r4' }, // set: ldrb r1,[r3,r4]
+  { field: 0x20, at: 0x14, word: 0xe7d34001, dest: 'r4', index: 'r1' }, // is current: ldrb r4,[r3,r1]
+] as const;
+const movwImm = (w: number) => ((w >>> 4) & 0xf000) | (w & 0xfff);
+
+/**
+ * T-HSET3: ADJ Mode Setting's five lists without the functions whose Hide Settings box is ticked, worked out
+ * at each read (no copy, no RAM): each list's length (0x531b3bac + 8 i: 19) becomes the number of its
+ * functions not hidden, and each of its three reads (a row's text and icon, the choice, the current one)
+ * the n-th function not hidden. `pairs`: [ADJ function, bit of 0x905].
+ */
+export function installGr3xHideAdjLists(p: Gr3xHiddenProgram, pairs: readonly (readonly [number, number])[]) {
+  if (!pairs.length) return {};
+  const entries: Record<string, number> = {};
+  const skip = (v: string, back: string, tag: string) => pairs.map(([f, bit], i) => `cmp ${v},#${f};bne ${tag}${i};tst r6,#${bit};bne ${back};${tag}${i}:`).join('');
+  // r0 = n, r1 = the list: r0 = its n-th function not hidden (0 past the end).
+  entries.hsAdjFind = p.code(`push {r4,r5,r6,lr};mov r4,r0;mov r5,r1;${gr3xHideBitsLoad('r6', 'af')}mov r2,#0;
+    next:cmp r2,#${ADJ_LIST_LENGTH};bhs none;ldrb r0,[r5,r2];add r2,r2,#1;${skip('r0', 'next', 'as')}
+    cmp r4,#0;beq found;sub r4,r4,#1;b next;
+    none:mov r0,#0;found:pop {r4,r5,r6,pc};`);
+  GR3X_ADJ_LISTS.forEach((list, i) => {
+    const count = GR3X_ADJ_LIST_COUNTS[i];
+    if (p.u32(count) !== 0xe3a00013 || p.u32(count + 4) !== 0xe12fff1e) fail('ADJ list count');
+    entries[`hsAdjCount${i}`] = p.code(`push {r4,r5,r6,lr};movw r5,#${lo(list)};movt r5,#${hi(list)};${gr3xHideBitsLoad('r6', 'ac')}mov r2,#0;mov r0,#0;
+      next:cmp r2,#${ADJ_LIST_LENGTH};bhs done;ldrb r3,[r5,r2];add r2,r2,#1;${skip('r3', 'next', 'cs')}add r0,r0,#1;b next;
+      done:pop {r4,r5,r6,pc};`);
+    p.patch(count, 0xe3a00013, branchWord(count, entries[`hsAdjCount${i}`]), 'Hide Settings: ADJ list length without the hidden functions');
+    const record = LIST_RECORDS + (ADJ_RECORD + i) * 0x40;
+    ADJ_READS.forEach((r, k) => {
+      const fn = p.u32(record + r.field), at = fn + r.at;
+      if (p.u32(at) !== r.word) fail(`ADJ list ${i} read ${k}`);
+      // The list's address in r3 just before (movw / movt r3 in the six instructions before the read).
+      const before = Array.from({ length: 6 }, (_, j) => p.u32(at - 4 * (j + 1)));
+      const low = before.find(w => ((w & 0xfff0f000) >>> 0) === 0xe3003000), high = before.find(w => ((w & 0xfff0f000) >>> 0) === 0xe3403000);
+      if (low === undefined || high === undefined || ((movwImm(high) << 16) | movwImm(low)) >>> 0 !== list) fail(`ADJ list ${i} read ${k}: its address (${before.map(w => w.toString(16)).join(' ')})`);
+      const keep = r.dest === 'r1' ? 'r0,r2,r3,ip,lr' : 'r0,r1,r2,r3,ip,lr';
+      entries[`hsAdjRead${i}_${k}`] = p.code(`push {${keep}};mov r0,${r.index};mov r1,r3;bl #${entries.hsAdjFind};mov ${r.dest},r0;pop {${keep}};bx lr;`);
+      p.patch(at, r.word, (0xeb000000 | (((entries[`hsAdjRead${i}_${k}`] - at - 8) >> 2) & 0xffffff)) >>> 0, 'Hide Settings: ADJ list read without the hidden functions');
+    });
+  });
+  return entries;
 }
 
 /** At each settings load (the scaffold's hook): the values into the record in use and the eight stored ones. */

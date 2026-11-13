@@ -138,6 +138,16 @@ describe.skipIf(!input)('GR III WB button', () => {
     await expect(engine.buildFirmware([], ratios, [], { ...base, hiddenSettings: { macro: 0 } as never })).rejects.toThrow(/unknown setting/);
     await expect(engine.buildFirmware([], ratios, [], { filmCount: 3, hiddenSettings })).rejects.toThrow(/film mode/);
   }, 900000);
+  it('0.9.8: gives the film mode Hide Settings in Setup (the camera chooses), recorded and recognised', async () => {
+    const engine = await Engine.open(raw);
+    const ratios = [{ ratio: '65:24', name: 'XPan' }];
+    const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;
+    const built = await engine.buildFirmware([], ratios, [], base);
+    expect(await (await Engine.open(raw)).inspect(built.file)).toMatchObject({ verified: true });
+    const recipe = readGr3xBuildRecipe(encodeGr3xRatioRecipe(planGr3xMenu(ratios), { round7: true, round8: true, round9: true, round10: true, afPoint: true, filmMode: { codes: {} }, hideMenu: true }))!;
+    expect(recipe.hideMenu).toBe(true);
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(planGr3xMenu(ratios), { round7: true, round8: true, round9: true, round10: true, filmMode: { codes: {} }, hideMenu: true }))!.hideMenu).toBeUndefined();
+  }, 900000);
   it('needs the film mode', async () => {
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });
     await expect(buildGr3xAdjResearch(raw, menu, { dateImprint: true, dateMenu: 'submenu', round7: true, round8: true, round9: true, round10: true, filmRoll: 'fn7', wbButton: true })).rejects.toMatchObject({ code: 'unexpected-layout' });

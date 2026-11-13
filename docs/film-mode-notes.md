@@ -3954,3 +3954,203 @@ Certitude : **statique** (lecture du code 2.10), rien d'essayé sur le boîtier.
   GR Mod Film groupées en fin de liste (Film Advance, Rewind Film, White Balance, Macro Mode).
 - 0.9.6-RC1 construite par le moteur : auto-contrôle et inspection vérifiés ; la 0.9.5-RC1 reste
   reconnue. Sondes sur un build équivalent (10, dont `rewind_button_probe.py`), tests (371).
+
+## Ordre des ratios (Aspect Ratio), 0.9.8 (2026-11-12)
+
+- Demande du 2026-11-10 : réorganiser les ratios comme les recettes d'Image Control. Choix de
+  l'utilisateur : « Ordre seulement » (3:2 et 1:1 se déplacent aussi, rien n'est masqué).
+- Mécanisme : le menu Aspect Ratio et le cycle de la touche Fn suivent déjà une table d'ordre des
+  identifiants (`geometry.ratios.map(r => r.id)`, écrite aux `orderSites`) : 3:2 = 0, 1:1 = 3, ratios
+  ajoutés 4 à 10. Rien dans le firmware ne dépend de la position d'un ratio (certitude haute : la
+  table était déjà réécrite pour les ratios ajoutés, et la sonde `adj_probe.py` vérifie la table).
+- `planGr3xMenu(requests, order?)` (`geometry.ts`) : sans ordre, ou avec l'ordre habituel
+  `[0, 3, 4, ...]`, le plan est celui d'avant (les anciens builds se reconstruisent à l'identique) ;
+  sinon une permutation exacte des identifiants du menu (erreur `bad-ratio-order` autrement).
+- Recette (`ratio-recipe.ts`) : `ratioOrder` n'est écrit que s'il diffère de l'ordre habituel ; relu
+  et vérifié à l'inspection. Moteur : `BuildOptions.ratioOrder`.
+- Application (GR III / IIIx) : un seul bloc de création, nommage et placement (demande du
+  2026-11-12) : la liste des ratios suit l'ordre du menu, avec 3:2 et 1:1 en lignes fixes (ni
+  modifiables ni supprimables), et des flèches haut et bas à gauche de chaque ligne. La ligne
+  « Factory » et le bloc « Menu order » séparé sont retirés (le GR IV garde sa ligne Factory).
+  L'ordre est gardé dans le projet ; un ratio retiré quitte l'ordre, un ratio ajouté va en fin.
+- Vérifié : tests `gr3x-ratio-order.test.ts` (plan, recette, build du moteur inspecté) et
+  `gr3x-ui.test.mjs` (déplacements, ordre envoyé au build) ; émulation du cycle Fn sur un build
+  réordonné (XPan, 3:2, 4:3, 1:1). À tester sur le boîtier.
+
+## Réglages masqués et Mode Memory (T-HIDE3, 2026-11-12)
+
+- Constat (cahier, correctif du 2026-11-11) : GF-2 Flash Mode masqué restait proposé dans Mode Memory.
+- Cases de Mode Memory (table `0x53b4d550`, 24 éléments), textes anglais lus en émulation (certitude
+  haute) : 0 ISO Setting, 1 EV Compensation, 2 Focus, 3 Focus Peaking, 4 AE Metering, 5 Flash Mode,
+  6 Flash Exposure Comp., 7 White Balance, 8 Still/Movie, 9 Snap Distance Priority, **10 GF-2 Flash
+  Mode**, 11 Macro Mode, 12 Drive, 13 Self-timer, 14 AA Filter Simulator, 15 HDF, 16 Aspect Ratio,
+  17 Crop, 18 Image Control, 19 ADJ Mode Setting, 20 Shooting Info. Display, 21 Playback Info.
+  Display, 22 Image for Playback, 23 Outdoor View Setting. Attention : l'ordre des noms internes
+  `AfterReleaseModeMemory…` n'est pas celui des cases (GF2FlashMode est le dernier nom, mais la case 10).
+- Octet de chaque case (setter de l'élément, écrit dans les 8 enregistrements) : 0 `0xaee`, 1 `0xaf0`,
+  2 `0xaf2`, 3 `0xaf4`, 4 `0xaf6`, 5 `0xaf8`, 6 `0xafa`, 7 `0xafc`, 8 `0xafe`, 9 `0xb00`, 10 `0xb24`,
+  11 `0xb02`, 12 `0xb04`, 13 `0xb06`, 14 `0xb08`, 15 `0xb1e`, 16 `0xb0a`, 17 `0xb0c`, 18 `0xb0e`,
+  19 `0xb10`, 20 `0xb12`, 21 `0xb14`, 22 `0xb16`, 23 `0xb18`.
+- Fusion à l'allumage (`0x5324075c`, modes libres ; `r0` l'objet dont `+4` est l'enregistrement des
+  cases, `r1` l'enregistrement chargé, `0x532406fc` l'enregistrement d'usine) : case à 0 → la valeur
+  d'usine remplace la valeur (Flash Mode `+0x164` par `0xaf8`, Flash Exp. Comp. `+0x168` par `0xafa`,
+  GF-2 `+0xb22` par `0xb24`). Émulé : case à 0, la valeur choisie dans l'application était remplacée
+  par celle d'usine (bogue latent en P, Av, Tv, M) ; case à 1, elle reste.
+- Masquables sans case dans Mode Memory : Face/Eye Detection, AF Assist Light, AF.C Setting, MF Auto
+  Magnification.
+- Correctif (`hidden-settings.ts`, champ `memory` de Flash Mode, Flash Exposure Comp. et GF-2) : la case
+  est retirée de la liste (méthode de visibilité qui renvoie 0, comme Still/Movie avec No movie, V1-RC4)
+  et écrite à 1 (« mémorisée ») avec la valeur, au chargement des réglages, dans l'enregistrement en
+  cours et les huit stockés. Avec `afPoint` seulement (tout build complet l'a).
+- Audit des autres voies : menu (lignes masquées), touches, Hold, Wireless et Hold Wireless (même
+  filtre `0x531b9410`, une touche qui la portait fait Off), levier ADJ (listes raccourcies, case lue Off),
+  Mode Memory (ce correctif). Pas d'écran de panneau de contrôle sur GR III (aucun contrôleur trouvé).
+  Restent visibles, non modifiables : les icônes de l'écran de prise de vue et les informations de
+  lecture qui montrent la valeur imposée (non étudiées).
+- Vérifié : `film_roll_check.py` (3 cases cachées, textes 0x79, 0x7f, 0x49, Still/Movie toujours
+  caché), `hidden_probe.py` (cases écrites à 1), émulation de la fusion native, `guard_probe`,
+  `hold_probe`, `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`, tests.
+  Build T-HIDE3 par le moteur (réglages masqués habituels), auto-contrôle et inspection vérifiés.
+- **Résultat T-HIDE3 (2026-11-13)** : Flash Mode, Flash Exposure Comp. et GF-2 Flash Mode absents de
+  Mode Memory, les autres cases présentes ; aucun des sept réglages masqués visible dans le menu, les
+  touches ou le levier ADJ. La valeur gardée à l'allumage n'a pas pu être vue sur le boîtier (vérifiée
+  en émulation seulement).
+- **Résultat ordre des ratios (application de test 0.9.7, publiée en 0.9.8, 2026-11-13)** : ordre du menu, cycle Fn, cadrages,
+  ratio gardé au rallumage, verrou du rouleau et ordre gardé dans l'application : tout bon.
+
+## Hide Settings dans le boîtier : étape 0, recherche (2026-11-13)
+
+Décision du 2026-11-13 : une ligne « Hide Settings » dans Setup ouvre une liste de 7 cases (les
+réglages masquables) ; la liste de l'application est supprimée ; décocher laisse la case de Mode
+Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-HSET3 (listes ADJ).
+
+- **Onglet Setup** : descripteur `0x53b36a54` (entrée du tableau des onglets `0x5407d408`, copié en
+  RAM à `0x55001ec8`), **30 lignes sur 38** possibles, 11 pages (premières lignes 0, 7, 11, 13, 15,
+  17, 20, 23, 25, 27, 29 : la dernière page n'a qu'une ligne, `0x02000124`). Même méthode que
+  Customize Settings pour Film Roll Mode (descripteur recopié avec une ligne de plus).
+- **Ligne qui ouvre un écran** : la ligne Memory (`0x0200009b`) se dessine par `0x53196bcc` :
+  `0x5339de20(ligne, 0)` puis `0x5339dc70(ligne, 0x208 titre, 0x209 aide)`. Notre ligne : la même avec
+  nos textes. Les touches : `ActionModel::OnEvent` lit l'identifiant courant une seule fois
+  (`0x53221a4c`) ; un identifiant inconnu y est traduit (déjà fait pour Date Imprint) : le nôtre
+  devient `0x0200009b`.
+- **Fabrique** (`0x5316f3b8`) : pour `0x0200009b`, `0x53170670` crée **une seule fois** un
+  `ModeMemoryController` (`operator new` `0x536af2a8` de 0x18c octets, constructeur `0x53207424`) et le
+  garde en `+0x184` de la fabrique. Le constructeur pose le titre (`0x533a2ba0(+0x15c, 0x208)`), met les
+  24 états à 1, **remplit la liste une fois** (`0x53207348`, table `0x53b4d550`) et prépare les lignes
+  (`0x532067dc`). Notre écran : une seconde instance, construite par la fabrique pour notre
+  identifiant ; après le constructeur, sa liste remplacée par nos 7 cases, son titre par le nôtre.
+  Nos 7 états peuvent vivre dans ses octets d'état (`+0x174..`), inutilisés par nos cases.
+- **Stockage** : l'enregistrement n'a plus d'octet libre (`sr-speed.ts`). L'octet `0x905` (case AF
+  Point de Mode Memory) n'utilise que le bit 0 ; ses deux seuls accès (`afPointRead`, `afPointReset`)
+  comparent l'octet entier à 1. Bits 1 à 7 : nos 7 réglages, si ces deux accès masquent le bit 0 et
+  si l'écriture de la case AF Point garde les autres bits.
+- **RAM** : la zone remplie de zéros du round 10 est pleine (elle finit à `0x558043c0`). Il faut un
+  mot pour garder notre instance : à trouver (candidat : l'emplacement de la fabrique d'un écran de
+  test d'usine, jamais ouvert en usage normal).
+- **ADJ Mode Setting** : chaque liste (`GR3X_ADJ_LISTS`) est lue à 2 endroits par `movw/movt`
+  (`0x531b71cc`/`0x531b895c`, `0x531b71fc`/`0x531b8990`, `0x531b722c`/`0x531b89c4`,
+  `0x531b725c`/`0x531b89f8`, `0x531b728c`/`0x531b8a2c`) ; leur longueur vient de 5 fonctions d'une
+  instruction (`0x531b3bac + 8 i`, `mov r0,#0x13`). Filtrage en direct : ces 15 endroits.
+  À établir en T-HSET3 : copie filtrée en RAM (allouée une fois) ou réécriture sur place si la zone
+  est inscriptible.
+
+### Build T-HSET1 : ligne Hide Settings et écran de 7 cases (2026-11-13)
+
+- Option `hideMenu` (`hide-menu.ts`, branchée dans `adj.ts`, `datestamp.ts`, `shutdown.ts`,
+  `film-roll.ts`) ; build de recherche seulement pour l'instant (pas encore dans le moteur).
+- Ligne « Hide Settings » (identifiant `0x020001d0`) dans Setup juste après Firmware Info/Options
+  (ligne 23) : insertion commune à Setup seul, avec la ligne de l'image d'extinction ou avec End Screen
+  (`insertSetupLines`) ; les pages suivantes commencent une ligne plus loin.
+- Écran : celui de Mode Memory, partagé. À l'entrée de la fabrique, pour notre identifiant ou celui de
+  Memory, la fabrique est appelée pour Memory, puis la liste de l'écran est remplacée si elle n'est pas
+  celle demandée (nos cases sont numérotées à partir de 32) : nos 7 cases recopiées (insertion native
+  `0x532071fc` si le vecteur est plein), ou la copie native de Mode Memory (`0x53207348`) ; les lignes
+  préparées à nouveau (`memoryListSetup`) et le titre posé (`0x533a2ba0` : le nôtre ou `0x208`). Aucune
+  RAM à nous : la liste dit laquelle est affichée.
+- Les 7 cases : textes natifs Face Detection `0x37`, AF Assist Light `0x3a`, AF.C `0x51`, MF Auto
+  Magnification `0x5b`, Flash Mode `0x79`, GF-2 Flash Mode `0x49`, Flash Exposure Comp. `0x7f`. États
+  dans les octets d'état de l'écran (`+0x174 + k`), bit k + 1 de l'octet `0x905` (bit 0 : AF Point de
+  Mode Memory, qui ne touche plus que lui). Lus à l'ouverture de l'écran, écrits par chaque case dans
+  l'enregistrement en cours et les sept stockés.
+- Nom de la ligne en 21 langues, chaque caractère déjà présent dans les textes du boîtier de la langue
+  (vérifié en émulation) ; ja, ko, zh en « ne pas afficher les réglages » (設定を表示しない, 설정 표시 안
+  함, 设置不显示, 設定不顯示) faute des caractères de « cacher ».
+- Vérifié : `hide_menu_probe.py` (Setup, touches lues comme Memory, fabrique dans les deux sens et
+  insertion native, autres identifiants inchangés, dessin, bascule, écriture et lecture des bits, AF
+  Point sur le bit 0), `film_roll_check.py` (adapté : AF Point sur le bit 0 avec Hide Settings) et les
+  autres sondes sur T-HSET1 et T-HIDE3, tests ; sans l'option, T-HIDE3 se reconstruit à l'identique.
+- Risque à voir sur le boîtier : l'écran partagé (titre, nombre de lignes au passage d'une liste à
+  l'autre). V1-RC2 avait montré qu'une liste mal préparée éteint le boîtier.
+- **Résultat T-HSET1 (2026-11-13)** : la ligne est là, mais l'écran montre 7 lignes de Mode Memory
+  (ISO Setting, EV Compensation, Focus, AF Point, Focus Peaking, AE Metering, White Balance : la liste
+  visible de Mode Memory, Flash Mode et Flash Exp. Comp. masqués, coupée à nos 7 lignes).
+- Cause (lue dans le code, certitude haute) : le constructeur de l'écran pose une seule fois les textes
+  de chaque ligne (`0x53206990`, depuis la liste) et l'action OK de chaque ligne (`0x53206860`, un
+  foncteur vers la bascule de l'élément, posé par `0x533a8a18`) ; le remplissage à l'ouverture
+  (`0x53206a30`) ne redessine que les coches. Changer la liste changeait donc les coches et le nombre de
+  lignes, pas les textes ni les actions (OK aurait basculé les cases de Mode Memory).
+- **T-HSET1b** : après chaque changement de liste, ces deux fonctions sont rappelées sur l'écran,
+  comme dans le constructeur. Sondes : `hide_menu_probe.py` (les deux appels, dans l'ordre, avec
+  l'écran), `film_roll_check.py`, `hidden_probe.py`, `guard_probe.py`.
+- **Résultat T-HSET1b (2026-11-13), validé sur le boîtier** : « Hide Settings » sous Firmware
+  Info/Options, titre et 7 lignes justes ; deux cases cochées gardées en revenant et après extinction ;
+  Mode Memory normal (titre, lignes, coches) après passage par Hide Settings ; AF Point décoché puis
+  recoché sans effet sur nos cases.
+
+### Build T-HSET2 : les cases cachent réellement les réglages (2026-11-13)
+
+- Les mécanismes de T-HIDE1 / T-HIDE3 testent désormais le bit de la case (octet `0x905` de
+  l'enregistrement en cours, `gr3xHideBitsLoad`) en plus de leurs listes fixes : visibilité des lignes
+  du menu (`linesHidden`), filtre des fonctions des listes de touches (`0x531b9410`, Hold et Wireless
+  compris), touche qui porte encore une fonction cachée (GetEventCustomize `r2`, GetEventSwitchWlan
+  `r6`) : Off, cases ADJ lues Off (`rollLockAdj*`), cases Flash Mode (5), Flash Exposure Comp. (6) et
+  GF-2 (10) de Mode Memory (méthode de visibilité, la liste étant recopiée à chaque retour depuis
+  Hide Settings). Effet immédiat, sans redémarrage.
+- Cocher Flash Mode, GF-2 ou Flash Exposure Comp. met aussi sa case de Mode Memory à 1 (« mémorisée »)
+  dans l'enregistrement en cours et les sept stockés ; décocher ne la touche pas (décision du
+  2026-11-13). La valeur du réglage n'est jamais écrite : elle reste celle du moment.
+- Avec Hide Settings, la liste « Hidden settings » de l'application est refusée au build.
+- Vérifié : `hide_menu_probe.py` (lignes, filtre, touches, ADJ, cases de Mode Memory, écriture des cases,
+  11 combinaisons de cases), `film_roll_check.py` (adapté), `guard_probe`, `hold_probe`,
+  `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`, tests ; T-HIDE3 se
+  reconstruit à l'identique.
+- Pas encore : la liste des fonctions proposées dans ADJ Mode Setting (T-HSET3).
+- **Résultat T-HSET2 (2026-11-13), validé sur le boîtier** : protocole complet juste (lignes du menu,
+  touche Fn sans effet, case ADJ lue Off, listes de Fn Button Setting, case de Mode Memory, valeur de
+  Flash Mode gardée après rallumage en P, tout revient en décochant).
+
+### Build T-HSET3 : les listes d'ADJ Mode Setting suivent Hide Settings (2026-11-13)
+
+- Recherche : chaque liste (enregistrements de liste 65 à 69 de `0x53b3c6c0`) est lue à trois endroits,
+  tous `ldrb rD,[r3,rI]` avec `r3` l'adresse de la liste : le dessin d'une ligne (`+0x10` du
+  record, lecture à `+0x28`, `ldrb r4,[r3,r4]`), le choix (`+0x18`, à `+0x20`, `ldrb r1,[r3,r4]`) et la
+  fonction courante (`+0x20`, à `+0x14`, `ldrb r4,[r3,r1]`) ; la longueur est `mov r0,#0x13; bx lr`
+  (`0x531b3bac + 8 i`). Rien d'autre ne lit les listes.
+- Voie A (aucune RAM, aucune copie) : la longueur devient le nombre de fonctions non cachées de la
+  liste, chaque lecture le n-ième élément non caché (`hsAdjFind`), selon les bits de `0x905`. Effet
+  immédiat. Fonctions concernées : Flash Mode (8), GF-2 (0x13), Flash Exposure Comp. (9, sauf avec le
+  flou ADJ du round 10).
+- Vérifié : `hide_menu_probe.py` (les 5 longueurs et les 15 lectures pour 11 combinaisons de cases,
+  registres gardés, chaque lecture appelle bien son calcul), `film_roll_check`, `guard_probe`,
+  `hold_probe`, `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`,
+  `adj_softfocus_probe`, tests ; T-HIDE3 se reconstruit à l'identique.
+- **Résultat T-HSET3 (2026-11-13), validé sur le boîtier** : Flash Mode et GF-2 absents des 5 listes
+  d'ADJ Mode Setting une fois cochés, sans ligne vide ni doublon ; le choix dans la liste raccourcie est
+  bien enregistré ; une case qui portait Flash Mode reste lue Off ; tout revient en décochant.
+
+## Clôture de la 0.9.8 (2026-11-13)
+
+- Moteur : avec le mode pellicule (et `afPoint`, toujours là), tout build reçoit `hideMenu` ; la liste
+  de l'application (`hiddenSettings`) reste acceptée pour les anciennes recettes (0.9.4 à 0.9.7, qui se
+  reconstruisent à l'identique) et exclut `hideMenu`. Recette : `hideMenu` noté et relu.
+- Application : la liste « Hidden settings » est retirée ; un texte renvoie à Setup > Hide Settings.
+  Décision du 2026-11-13 : après la mise à jour, rien n'est caché tant que ce n'est pas coché dans le
+  boîtier (la note de version le dit).
+- README : Hide Settings et l'ordre des ratios.
+- **0.9.8-RC1** construite par le moteur comme l'application (options de `rc094.mjs` sans la liste) :
+  auto-contrôle et inspection vérifiés, « Hide Settings » et `hideMenu` présents dans le firmware
+  décodé ; sondes sur le build de recherche équivalent (T-HSET3) ; tests (412, plus les 5 échecs dus aux
+  fichiers de test absents).
+- **Résultat 0.9.8-RC1 (2026-11-13), validé sur le boîtier** : protocole complet juste (Hide Settings
+  coché puis gardé après rallumage, rouleau, Rewind Film, SR par vitesse, Fn + molette avant, ordre du
+  menu Aspect Ratio). Prête à publier.

@@ -240,8 +240,51 @@ export function installGr3xPictureList(p: Gr3xPictureProgram, ids: Gr3xPictureId
   return { pictureLine: line, pictureValues: table, pictureCount: count, pictureDraw: draw, pictureSet: set, pictureIsCurrent: isCurrent };
 }
 
-/** The Setup menu with the new line after End Screen. */
-export function installGr3xPictureSetupLine(p: Gr3xPictureProgram, line: number) {
+/** A line added to Setup after the line `after` (T-HSET1: Hide Settings after Firmware Info/Options). */
+export interface Gr3xSetupInsert { after: number; line: number; id: number }
+/** The lines `inserts` into a Setup descriptor `d` (its copy): the later lines move on, the later pages start one line later. */
+function insertSetupLines(d: Uint8Array, inserts: readonly Gr3xSetupInsert[]) {
+  const dv = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  for (const x of inserts) {
+    const n = d[D_COUNT];
+    if (n >= MAX_ITEMS) fail('unexpected-layout', 'IIIx Setup menu is full');
+    const ids = Array.from({ length: n }, (_, i) => dv.getUint32(D_ID + i * 4, true));
+    if (ids.includes(x.id)) fail('unexpected-layout', 'IIIx Setup line id in use');
+    const at = ids.indexOf(x.after) + 1;
+    if (!at) fail('unexpected-layout', 'IIIx Setup line to follow');
+    for (let i = n; i > at; i--) {
+      d.copyWithin(D_DRAW + i * 8, D_DRAW + (i - 1) * 8, D_DRAW + i * 8);
+      d.copyWithin(D_ID + i * 4, D_ID + (i - 1) * 4, D_ID + i * 4);
+      d.copyWithin(D_VISIBLE + i * 8, D_VISIBLE + (i - 1) * 8, D_VISIBLE + i * 8);
+    }
+    dv.setUint32(D_DRAW + at * 8, x.line, true); dv.setUint32(D_DRAW + at * 8 + 4, 0, true);
+    dv.setUint32(D_ID + at * 4, x.id, true);
+    dv.setUint32(D_VISIBLE + at * 8, 0, true); dv.setUint32(D_VISIBLE + at * 8 + 4, 0, true);
+    for (let k = 1; k < d[D_PAGES]; k++) if (d[D_FIRST + k] >= at) d[D_FIRST + k]++;
+    d[D_COUNT] = n + 1;
+  }
+}
+function officialSetup(p: Gr3xPictureProgram) {
+  if (p.word(SETUP_ENTRY_IMAGE) !== SETUP_MENU) fail('unexpected-layout', 'IIIx Setup menu entry');
+  if (new DataView(p.read(SETUP_ENTRY_RAM, 4).buffer).getUint32(0, true) !== SETUP_MENU) fail('unexpected-layout', 'IIIx Setup menu entry (RAM)');
+  const setup = p.read(SETUP_MENU, DESCRIPTOR), sv = new DataView(setup.buffer);
+  if (setup[D_PAGES] !== 11 || [...setup.subarray(D_FIRST, D_FIRST + 11)].join() !== SETUP_FIRSTS.join() || setup[D_COUNT] !== SETUP_ITEMS)
+    fail('unexpected-layout', 'IIIx Setup menu is not the official one');
+  for (let i = SETUP_ITEMS; i < MAX_ITEMS; i++)
+    if (sv.getUint32(D_DRAW + i * 8, true) || sv.getUint32(D_DRAW + i * 8 + 4, true) || sv.getUint32(D_ID + i * 4, true) !== NO_ITEM || sv.getUint32(D_VISIBLE + i * 8, true) || sv.getUint32(D_VISIBLE + i * 8 + 4, true)) fail('unexpected-layout', 'IIIx Setup menu spare items');
+  return setup;
+}
+/** T-HSET1: Setup with the lines `inserts` only (without the power-off pictures' lines). */
+export function installGr3xSetupLines(p: Gr3xPictureProgram, inserts: readonly Gr3xSetupInsert[]) {
+  const d = officialSetup(p).slice();
+  insertSetupLines(d, inserts);
+  const copy = p.append(d);
+  p.patch(SETUP_ENTRY_IMAGE, SETUP_MENU, copy, 'Setup menu with the added lines');
+  return { setupMenu: copy };
+}
+
+/** The Setup menu with the new line after End Screen (and the lines `inserts`). */
+export function installGr3xPictureSetupLine(p: Gr3xPictureProgram, line: number, inserts: readonly Gr3xSetupInsert[] = []) {
   if (p.word(SETUP_ENTRY_IMAGE) !== SETUP_MENU) fail('unexpected-layout', 'IIIx Setup menu entry');
   if (new DataView(p.read(SETUP_ENTRY_RAM, 4).buffer).getUint32(0, true) !== SETUP_MENU) fail('unexpected-layout', 'IIIx Setup menu entry (RAM)');
   const setup = p.read(SETUP_MENU, DESCRIPTOR), sv = new DataView(setup.buffer);
@@ -262,13 +305,14 @@ export function installGr3xPictureSetupLine(p: Gr3xPictureProgram, line: number)
   dv.setUint32(D_VISIBLE + at * 8, 0, true); dv.setUint32(D_VISIBLE + at * 8 + 4, 0, true);
   d.set(SETUP_FIRSTS_NEW, D_FIRST);
   d[D_COUNT] = SETUP_ITEMS + 1;
+  insertSetupLines(d, inserts);
   const copy = p.append(d);
   p.patch(SETUP_ENTRY_IMAGE, SETUP_MENU, copy, 'power-off pictures: Setup menu with the picture line');
   return { pictureSetupMenu: copy };
 }
 
 /** Round 6: the Setup menu with End Screen (item 10) opening the End Screen submenu (endscreen.ts). */
-export function installGr3xEndScreenSetup(p: Gr3xPictureProgram, line: number) {
+export function installGr3xEndScreenSetup(p: Gr3xPictureProgram, line: number, inserts: readonly Gr3xSetupInsert[] = []) {
   if (p.word(SETUP_ENTRY_IMAGE) !== SETUP_MENU) fail('unexpected-layout', 'IIIx Setup menu entry');
   if (new DataView(p.read(SETUP_ENTRY_RAM, 4).buffer).getUint32(0, true) !== SETUP_MENU) fail('unexpected-layout', 'IIIx Setup menu entry (RAM)');
   const setup = p.read(SETUP_MENU, DESCRIPTOR), sv = new DataView(setup.buffer);
@@ -280,6 +324,7 @@ export function installGr3xEndScreenSetup(p: Gr3xPictureProgram, line: number) {
   const d = setup.slice(), dv = new DataView(d.buffer);
   dv.setUint32(D_DRAW + END_SCREEN_ITEM * 8, line, true);
   dv.setUint32(D_ID + END_SCREEN_ITEM * 4, GR3X_PICTURE_MENU_ID, true);
+  insertSetupLines(d, inserts);
   const copy = p.append(d);
   p.patch(SETUP_ENTRY_IMAGE, SETUP_MENU, copy, 'power-off pictures: Setup > End Screen opens the End Screen submenu');
   return { endScreenSetupMenu: copy };

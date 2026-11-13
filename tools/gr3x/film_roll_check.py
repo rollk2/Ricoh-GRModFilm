@@ -156,6 +156,8 @@ def verify(data,manifest,seed=3101):
         cur=bytearray(rng.randrange(256) for _ in range(SIZE)) if cur is None else bytearray(cur)
         # Form 'menu': the record in use's Film Roll Mode (bit 0 of 0x9b1) on unless asked off.
         if menu_form:cur[FLAGS]=(cur[FLAGS]|1) if film else (cur[FLAGS]&~1)
+        # T-HSET2: no Hide Settings box ticked here (hide_menu_probe.py checks what they take out).
+        if 'hsItems' in manifest['entries']:cur[0x905]&=1
         boxes=[bytearray(rng.randrange(256) for _ in range(SIZE)) for _ in range(8)]
         if box is not None:boxes[mode]=bytearray(box)
         cpu.mem_write(CUR,bytes(cur))
@@ -1256,12 +1258,24 @@ def verify(data,manifest,seed=3101):
         count('AF point reset')
     # 41. T24-AF2: the « AF Point » box of Mode Memory (after Focus), its setting at + 0x905 of the records.
     if manifest.get('afPoint'):
-        AFS=0x558043bc;SET=0x905;ITEMS=0x53b4d550;T=e['afPointItems'];MU=bool(manifest.get('memoryU'));US=0x558043bd;USET=0x943
+        AFS=0x558043bc;SET=0x905;ITEMS=0x53b4d550;T=e['afPointItems'];MU=bool(manifest.get('memoryU'));US=0x558043bd;USET=0x943;HS='hsItems' in e
         rd32=lambda a:struct.unpack('<I',bytes(cpu.mem_read(a,4)))[0]
         N=26 if MU else 25
         orig=bytes(data[ITEMS-0x53000000:ITEMS-0x53000000+24*0x28]);tab=bytes(cpu.mem_read(T,N*0x28))
+        # Hidden items: Still/Movie (the movie taken out) and, T-HIDE3, the hidden settings' boxes.
+        MEMH={'flash':5,'flashComp':6,'gf2':10};hid=[MEMH[k] for k in (manifest.get('hiddenSettings') or {}) if k in MEMH]
+        stillMovie='memoryHidden' in e and struct.unpack_from('<I',tab,9*0x28+0x20)[0]==e['memoryHidden']
+        assert ('memoryHidden' in e)==(stillMovie or bool(hid)),'hidden items entry'
         if 'memoryHidden' in e:
-            o_=bytearray(orig);struct.pack_into('<II',o_,8*0x28+0x20,e['memoryHidden'],0);orig=bytes(o_)
+            o_=bytearray(orig)
+            for k_ in ([8] if stillMovie else [])+hid:struct.pack_into('<II',o_,k_*0x28+0x20,e['memoryHidden'],0)
+            orig=bytes(o_)
+        # T-HSET2: Flash Mode's, Flash Exposure Comp.'s and GF-2's boxes follow their Hide Settings box (hide_menu_probe.py).
+        hsv=[k_ for k_ in (5,6,10) if 'hsMemoryVisible%d'%k_ in e]
+        if hsv:
+            o_=bytearray(orig)
+            for k_ in hsv:struct.pack_into('<II',o_,k_*0x28+0x20,e['hsMemoryVisible%d'%k_],0)
+            orig=bytes(o_)
         assert tab[:3*0x28]==orig[:3*0x28] and tab[4*0x28:25*0x28]==orig[3*0x28:],'items copied'
         ours=struct.unpack('<10I',tab[3*0x28:4*0x28])
         assert ours[0]==24 and ours[2]==e['afPointDraw'] and ours[4]==e['afPointToggle'] and ours[6]==e['afPointWrite'] and ours[1]>=0x200 and ours[9]==0 and ours[8]==0,ours
@@ -1282,10 +1296,16 @@ def verify(data,manifest,seed=3101):
             assert (utext(0),utext(1),utext(2),utext(19))==('Uにも適用','Apply to U modes','Appliquer en U','在U中应用'),[utext(r_) for r_ in range(21)]
             count('apply to U item')
         if 'memoryHidden' in e:
+            p.run(e['memoryHidden'],STOP,{0:0x1234});assert cpu.reg_read(reg.UC_ARM_REG_R0)==0
+        if stillMovie:
             sm=struct.unpack('<10I',tab[9*0x28:10*0x28])
             assert sm[0]==8 and sm[1]==0x5f and sm[8]==e['memoryHidden'] and sm[9]==0,sm
-            p.run(e['memoryHidden'],STOP,{0:0x1234});assert cpu.reg_read(reg.UC_ARM_REG_R0)==0
             count('still/movie hidden')
+        for k_ in hid:
+            row=k_+1 if k_>=3 else k_
+            it=struct.unpack('<10I',tab[row*0x28:(row+1)*0x28])
+            assert it[0]==k_ and it[1]=={5:0x79,6:0x7f,10:0x49}[k_] and it[8]==e['memoryHidden'] and it[9]==0,(k_,it)   # Flash Mode, Flash Exposure Comp., GF-2 Flash Mode
+            count('hidden setting box hidden')
         count('AF point items')
         p.memory_stubs=True;LISTO=0x63059000
         try:cpu.mem_map(LISTO,0x2000)
@@ -1317,8 +1337,10 @@ def verify(data,manifest,seed=3101):
                 cur,boxes=setup(3,pointer=pointer);cpu.mem_write(AFS,bytes([st]));cpu.ctl_flush_tb()
                 regs={4:0x4444,5:0x5555};p.run(e['afPointWrite'],STOP,regs);count('AF point write')
                 c2,b2=state();want_c=bytearray(cur);want_b=[bytearray(b) for b in boxes]
-                if pointer:want_c[SET]=st^1
-                for b in want_b[:7]:b[SET]=st^1
+                # T-HSET1 (Hide Settings built): bit 0 only, the other bits kept.
+                put0=(lambda old:(old&~1)|(st^1)) if HS else (lambda old:st^1)
+                if pointer:want_c[SET]=put0(want_c[SET])
+                for b in want_b[:7]:b[SET]=put0(b[SET])
                 assert c2==bytes(want_c) and b2==[bytes(b) for b in want_b],(st,pointer)
                 for k in (4,5):assert cpu.reg_read(getattr(reg,'UC_ARM_REG_R%d'%k))==regs[k]
         if MU:
@@ -1344,13 +1366,16 @@ def verify(data,manifest,seed=3101):
                     for b in want_b[:7]:b[USET]=st
                     assert c2==bytes(want_c) and b2==[bytes(b) for b in want_b],(st,pointer)
         assert rd32(0x532071f8)==(0xea000000|(((e['afPointRead']-0x532071f8-8)>>2)&0xffffff))
-        for v,want in ((0,1),(1,0),(2,1),(255,1),(None,1)):
+        for v,want in ((0,1),(1,0),(2,1),(255,0 if HS else 1),(None,1)):
             for u in ((0,1,2,255) if MU else (0,)):
                 cur,boxes=setup(3,pointer=v is not None)
                 if v is not None:cur[SET]=v;cur[USET]=u;cpu.mem_write(CUR,bytes(cur))
                 cpu.mem_write(AFS,b'\x77\x77');cpu.ctl_flush_tb()
-                regs={0:0x7070,4:0x4444};p.run(e['afPointRead'],0x53206a30,regs);count('AF point read')
-                assert cpu.mem_read(AFS,1)[0]==want and cpu.reg_read(reg.UC_ARM_REG_R0)==0x7070 and cpu.reg_read(reg.UC_ARM_REG_R4)==0x4444,(v,cpu.mem_read(AFS,1)[0])
+                # T-HSET1: the screen's list read too (r0 the screen: here an empty list).
+                SCR=LISTO+0x800
+                if HS:cpu.mem_write(SCR+0x168,struct.pack('<II',SCR,SCR))
+                regs={0:SCR if HS else 0x7070,4:0x4444};p.run(e['afPointRead'],0x53206a30,regs);count('AF point read')
+                assert cpu.mem_read(AFS,1)[0]==want and cpu.reg_read(reg.UC_ARM_REG_R0)==regs[0] and cpu.reg_read(reg.UC_ARM_REG_R4)==0x4444,(v,cpu.mem_read(AFS,1)[0])
                 assert cpu.mem_read(US,1)[0]==((1 if (u==1 and v is not None) else 0) if MU else 0x77),(v,u,cpu.mem_read(US,1)[0])
         p.memory_stubs=False;cpu.mem_write(AFS,b'\0');cpu.ctl_flush_tb()
         # Power-on: the merge after Focus (0x53240874), r3 the factory record, r4 the record loaded.
