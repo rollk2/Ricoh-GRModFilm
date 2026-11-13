@@ -63,9 +63,16 @@ addresses, same emulator checks) but has **not been tested on a camera**.
 - **Roll lock** (0.9.4): while a roll is loaded (not rewound), Image Control, Aspect Ratio, Crop,
   Drive Mode, File Format, JPEG Recorded Pixels and Color Space leave the menu, their button and
   ADJ lever functions run Off: the roll's film and format cannot change by mistake.
-- **Hidden camera settings** (0.9.4, chosen in the program): Face/Eye Detection, AF Assist Light,
-  AF.C Setting, MF Auto Magnification, Flash Mode, GF-2 Flash Mode and Flash Exposure Comp. can each
-  be taken out of the camera (menu, buttons, ADJ lever), held at the value you choose.
+- **Hide Settings** (0.9.8, in the camera: Setup > Hide Settings, under Firmware Info/Options): a list
+  of boxes for Face/Eye Detection, AF Assist Light, AF.C Setting, MF Auto Magnification, Flash Mode,
+  GF-2 Flash Mode and Flash Exposure Comp. A ticked setting leaves the menu, the buttons' lists (Hold
+  and Wireless included), ADJ Mode Setting's lists and Mode Memory at once; a button or ADJ slot
+  still holding it does nothing; its value stays as it was. Unticked, it comes back. Ticking Flash
+  Mode, GF-2 or Flash Exposure Comp. also ticks its Mode Memory box, so that power-on keeps the value.
+  From 0.9.4 to 0.9.7 the settings were hidden from the program, each held at a value chosen there;
+  after updating to 0.9.8 nothing is hidden until ticked in the camera.
+- **Aspect Ratio menu order** (0.9.8, in the program): 3:2, 1:1 and the added ratios are ordered on
+  the Aspect ratio page with the arrows; the camera's menu and the Fn cycle follow that order.
 - **Playback** (0.9.4) opens on the last picture taken, whatever the folder (before, it could show
   the roll's last frame after a photo in P).
 - **SR by shutter speed** (0.9.4, every GR III / IIIx build): Shake Reduction's list becomes Off,

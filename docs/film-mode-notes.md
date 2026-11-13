@@ -4137,3 +4137,17 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
 - **Résultat T-HSET3 (2026-11-13), validé sur le boîtier** : Flash Mode et GF-2 absents des 5 listes
   d'ADJ Mode Setting une fois cochés, sans ligne vide ni doublon ; le choix dans la liste raccourcie est
   bien enregistré ; une case qui portait Flash Mode reste lue Off ; tout revient en décochant.
+
+## Clôture de la 0.9.8 (2026-11-13)
+
+- Moteur : avec le mode pellicule (et `afPoint`, toujours là), tout build reçoit `hideMenu` ; la liste
+  de l'application (`hiddenSettings`) reste acceptée pour les anciennes recettes (0.9.4 à 0.9.7, qui se
+  reconstruisent à l'identique) et exclut `hideMenu`. Recette : `hideMenu` noté et relu.
+- Application : la liste « Hidden settings » est retirée ; un texte renvoie à Setup > Hide Settings.
+  Décision du 2026-11-13 : après la mise à jour, rien n'est caché tant que ce n'est pas coché dans le
+  boîtier (la note de version le dit).
+- README : Hide Settings et l'ordre des ratios.
+- **0.9.8-RC1** construite par le moteur comme l'application (options de `rc094.mjs` sans la liste) :
+  auto-contrôle et inspection vérifiés, « Hide Settings » et `hideMenu` présents dans le firmware
+  décodé ; sondes sur le build de recherche équivalent (T-HSET3) ; tests (412, plus les 5 échecs dus aux
+  fichiers de test absents).
