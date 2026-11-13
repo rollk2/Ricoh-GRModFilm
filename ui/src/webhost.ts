@@ -6,6 +6,10 @@ import type { DirEntry, FirmwareRelease, HostInfo, ParkedEntry, ParkedFailure, R
 /** The site's release page (what « update » and the release notes point at). */
 export const WEB_RELEASES = 'https://github.com/rollk2/Ricoh-GRModFilm/releases';
 
+/** The model's download page on Ricoh's site (with the licence): the site cannot fetch the file itself (no CORS). */
+export const ricohPage = (model: string): string => `https://www.ricoh-imaging.co.jp/english/support/digital/${
+  model.startsWith('GR3X') ? 'gr3x_s' : model.startsWith('GR3') ? 'gr3_s' : 'gr4_s'}.html`;
+
 export class WebHostError extends Error {
   code: string;
   constructor(code: string, message: string) { super(message); this.code = code; }
@@ -127,7 +131,7 @@ export function makeWebHost(version: string) {
       return unavailable('Downloading the official firmware');
     },
     async firmwareProgress(): Promise<{ active: boolean; received: number; total: number }> { return { active: false, received: 0, total: 0 }; },
-    async firmwarePage(_model: string, _version?: string): Promise<void> { /* W2: Ricoh's page */ },
+    async firmwarePage(model: string, _version?: string): Promise<void> { window.open(ricohPage(model), '_blank', 'noopener'); },
     async updateCheck(): Promise<UpdateInfo> { return { current: version, available: false, size: 0, canInstall: false, reason: 'web', ready: false }; },
     async updateDownload(_signal?: AbortSignal): Promise<void> { /* the site is always the latest */ },
     async updateProgress(): Promise<{ active: boolean; received: number; total: number }> { return { active: false, received: 0, total: 0 }; },

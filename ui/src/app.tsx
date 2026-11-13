@@ -2,7 +2,8 @@ import { LANGS } from '@grmod/core';
 import type { CameraModel, LangCode } from '@grmod/core';
 import { useRef, useState } from 'react';
 import { Busy, ConfirmDialog, Hint, Ico, Select, Toasts, useDismiss } from './components';
-import { host } from './host';
+import { host, onWeb } from './host';
+import { canPickFolder } from './webhost';
 import { LANG_LABEL, t } from './i18n';
 import type { Key } from './i18n';
 import { CopiesPage } from './copies';
@@ -30,7 +31,7 @@ function Sidebar() {
         {(!isGr3(model) || menuPics || !info) && <button className={`nav ${page === 'wall' ? 'on' : ''}`} data-tour="nav-wall" onClick={() => setPage('wall')}>{Ico.image}<span>{t('navWall')}</span></button>}
       </nav>
       <div className="grow" />
-      <button className={`nav low ${page === 'copies' ? 'on' : ''}`} data-tour="nav-copies" onClick={() => setPage('copies')}>{Ico.archive}<span>{t('navCopies')}</span></button>
+      {!onWeb && <button className={`nav low ${page === 'copies' ? 'on' : ''}`} data-tour="nav-copies" onClick={() => setPage('copies')}>{Ico.archive}<span>{t('navCopies')}</span></button>}
       <div className="side-props">
         <FirmwareRow />
         <Select<CameraModel>
@@ -43,7 +44,7 @@ function Sidebar() {
         />
       </div>
       <div className="side-foot">
-        <button className="about-link" data-tour="version" title={t('wnTitle')} onClick={() => openWhatsNew()}>v{host.info?.version || ''}</button>
+        <button className="about-link" data-tour="version" title={t('wnTitle')} onClick={() => { if (onWeb) void host.releasePage(host.info?.version || ''); else openWhatsNew(); }}>v{host.info?.version || ''}</button>
         <UpdatePill />
         <span className="grow" />
         <HelpMenu />
@@ -81,6 +82,24 @@ function OutputBar() {
   // With the bridge firmware open the buttons stay live but offer the official download instead.
   const bridge = bridgeLoaded(s) && !s.busy;
   const run = (kind: 'card' | 'folder'): void => { if (bridge) { askForOfficial(); return; } void outputFirmware({ kind }); };
+  // The web site: no card list; the card is a folder picked (Chrome, Edge) or the file is downloaded (Safari, Firefox).
+  if (onWeb) {
+    const pick = canPickFolder();
+    return (
+      <footer className="outbar">
+        <div className="out-card" data-tour="card">
+          <span className="out-ico">{Ico.card}</span>
+          <Hint label={t('cardReqTitle')}>
+            <b>{t('cardReqTitle')}</b>
+            <span>{t('cardReq1')}</span>
+          </Hint>
+          <span className="muted out-web">{t(pick ? 'webCardHint' : 'webDlHint')}</span>
+        </div>
+        <span className="grow" />
+        {s.page !== 'copies' && <button className="btn primary" data-tour="web-write" disabled={!can && !bridge} onClick={() => run('folder')}>{pick ? Ico.card : Ico.download}<span>{t(pick ? 'webPick' : 'webDownload')}</span></button>}
+      </footer>
+    );
+  }
   return (
     <footer className="outbar">
       <div className="out-card" data-tour="card">
@@ -120,7 +139,7 @@ function HelpMenu() {
           <button role="menuitem" onClick={() => { setOpen(false); replayTour(); }}>{t('tourReplay')}</button>
           <button role="menuitem" onClick={() => { setOpen(false); restartTours(); }}>{t('tourRestart')}</button>
           {/* GR Mod Film does not update itself: the menu opens its releases page instead. */}
-          {host.available && <button role="menuitem" onClick={() => { setOpen(false); void host.updatePage(); }}>{t('updPage')}</button>}
+          {host.available && <button role="menuitem" onClick={() => { setOpen(false); void host.updatePage(); }}>{t(onWeb ? 'wnGitHub' : 'updPage')}</button>}
         </div>
       )}
     </div>

@@ -559,3 +559,4 @@ html.look-grabbing, html.look-grabbing * { cursor: grabbing !important; }
 .look-order-reset { align-self: flex-start; margin-left: 44px; }
 .look-order-reset svg { width: 14px; height: 14px; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.out-web { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
