@@ -4157,3 +4157,32 @@ Préparée sous le numéro 0.9.8 (builds 0.9.8-RC1, artefacts 0.9.8-test), publi
 - **Résultat 0.9.8-RC1 (2026-11-13), validé sur le boîtier** : protocole complet juste (Hide Settings
   coché puis gardé après rallumage, rouleau, Rewind Film, SR par vitesse, Fn + molette avant, ordre du
   menu Aspect Ratio). Prête à publier.
+
+## Image des réglages (version 0.9.8, dernière avant la v1.0) : étape 0, recherche (2026-11-13)
+
+Décisions du 2026-11-13 : un seul fichier sur la carte ; au chargement tout est réappliqué (les
+rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier allumage après le flash.
+
+- **La carte est le lecteur `C:`** : les fonctions de diagnostic du boîtier y écrivent (`C:\wlaninfo.txt`
+  `0x530159d8`, `C:\BLE_RF.txt` `0x533e2230`) et lisent (`C:\audioCnf.txt` `0x535671c0`).
+- **Système de fichiers** (certitude haute, deux usages concordants) : un objet à table virtuelle,
+  `[0x53594d74() + 0x14]` ou `[[0x53627bdc() + 4] + 0x38]` :
+  `+0x14 (fs, "C:", 0)` carte disponible ; `+0x1c (fs, chemin, mode, &descripteur, &erreur)` ouvrir
+  (mode 1 lecture, vu en `0x5362d714` ; mode 0 écriture, vu pour `C:\BLE_RF.txt`) ;
+  `+0x24 (fs, descripteur, tampon, taille, &erreur)` lire ; `+0x28 (fs, descripteur, tampon, taille, 0)`
+  écrire ; `+0x20 (fs, descripteur, &erreur)` fermer. Service de plus haut niveau, verrouillé :
+  `0x5362e238 (svc, chemin, 0)` existence, `0x5362d8e4 (svc, chemin, tampon, taille)` lecture d'un
+  fichier entier (3 essais, `0x5362d838` / `0x5362d714`). À établir en T-SET1 : le comportement exact
+  du mode 0 (création, troncature) et la tâche d'où l'appeler.
+- **Réglages** : l'enregistrement en cours (`*0x55063f34`) et les sept stockés (`0x55063f38 + 4 n`), de
+  `0xb26` octets sauvegardés (`GR3X_APP_DATA_WRITE`, film-format.ts) ; Setup, Fn, ADJ, Mode Memory, BOX,
+  octets de GR Mod Film compris. Le fichier : en-tête (signature, version du format, modèle, version de
+  GR Mod Film), les huit enregistrements, une somme de contrôle par enregistrement et globale.
+- **Lignes du menu** : deux lignes dans Setup (« Save Settings to Card », « Load Settings from Card »),
+  sur le modèle de Rewind Film : le dialogue Oui/Non de Create New Folder, détourné par l'octet de mode
+  (`GR3X_REWIND_MODE`), avec nos questions et nos messages de fin.
+- **Import** : valeurs passées au garde-fou, octets des rouleaux remis à zéro (rembobinés), chaque
+  enregistrement sauvegardé ; les valeurs en cours ne sont relues qu'au démarrage : message « éteindre
+  et rallumer », à confirmer en T-SET2.
+- **Application** (T-SET3) : appliquer une seule fois au premier allumage demande une marque persistante ;
+  l'enregistrement n'a plus d'octet libre : à chercher (autre emplacement des données d'application).
