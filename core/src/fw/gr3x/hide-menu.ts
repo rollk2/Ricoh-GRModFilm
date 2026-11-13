@@ -9,8 +9,10 @@
  *    same screen: at the factory's entry, for our id or Mode Memory's, the factory is asked for Mode
  *    Memory's, then the screen's list (vector + 0x168 / + 0x16c / + 0x170 of 0x28-byte items) is set
  *    to the list wanted when it holds the other one (our items are numbered from 32), the rows set up
- *    again (film-roll.ts memoryListSetup) and the title set (0x533a2ba0(+ 0x15c, text): ours, or
- *    Mode Memory's 0x208). No RAM of our own: the list itself tells which one is up.
+ *    again (film-roll.ts memoryListSetup), the title set (0x533a2ba0(+ 0x15c, text): ours, or Mode
+ *    Memory's 0x208), and the rows' texts (0x53206990) and OK actions (0x53206860, each row's item's
+ *    toggle) set again from the list, as the constructor does (T-HSET1: without them the rows kept
+ *    Mode Memory's texts and actions). No RAM of our own: the list itself tells which one is up.
  *  - Our boxes: each item's draw, toggle and write (member functions, this = the screen) keep their
  *    state in the screen's state bytes (+ 0x174 + k; Mode Memory reads its own again at each start).
  *    The state is bit k + 1 of byte 0x905 of the records (bit 0: Mode Memory's AF Point box, which then
@@ -42,6 +44,8 @@ export const GR3X_HSET_ITEMS = [
 ] as const;
 export const GR3X_HSET_SETTING = GR3X_AF_POINT_SETTING;
 const ITEM_BASE = 32, STATE = 0x174;
+/** The screen's rows from its list, as its constructor does: each row's texts (0x53206990), each row's OK action, its item's toggle (0x53206860). */
+const ROW_TEXTS = 0x53206990, ROW_ACTIONS = 0x53206860;
 const FACTORY = 0x5316f3b8, MEMORY_COPY = 0x53207348, VECTOR_GROW = 0x532071fc, SET_TEXT = 0x533a2ba0, MEMORY_TITLE = 0x208;
 const LIST_ROW = 0x53394758, ROW_ICON = 0x533a8990, TICK_ON = 0x10f, TICK_OFF = 0x10e;
 const POINTER = 0x55063f34, STORED = 0x55063f38;
@@ -65,6 +69,7 @@ export function gr3xHideMenuRead(): string {
 export function installGr3xHideMenu(p: Gr3xHideMenuProgram, title: number, listSetup: number) {
   if (p.u32(FACTORY + 4) !== 0xe1a0c00d) fail('the factory');
   if (p.u32(MEMORY_COPY) !== 0xe1a0c00d || p.u32(VECTOR_GROW) !== 0xe1a0c00d) fail('Mode Memory\'s list');
+  if (p.u32(ROW_TEXTS) !== 0xe5902168 || p.u32(ROW_ACTIONS) !== 0xe1a0c00d) fail('Mode Memory\'s rows');
   const entries: Record<string, number> = {};
   const tick = (r: string) => `cmp ${r},#0;movwne r1,#${TICK_ON};movweq r1,#${TICK_OFF};`;
   const items = new Uint8Array(GR3X_HSET_ITEMS.length * 0x28), iv = new DataView(items.buffer);
@@ -105,6 +110,7 @@ export function installGr3xHideMenu(p: Gr3xHideMenuProgram, title: number, listS
     memory:mov r0,r6;bl #${MEMORY_COPY};
     rows:mov r0,r6;bl #${listSetup};
     ldr r0,[r6,#0x15c];cmp r4,#0;movweq r1,#${MEMORY_TITLE};movwne r1,#${title};bl #${SET_TEXT};
+    mov r0,r6;bl #${ROW_TEXTS};mov r0,r6;bl #${ROW_ACTIONS};
     out:mov r0,r6;pop {r4,r5,r6,pc};`);
   const factory = entries.hsFactory;
   return { entries, factoryPrefix: `movw ip,#${lo(GR3X_HSET_ID)};movt ip,#${hi(GR3X_HSET_ID)};cmp r1,ip;beq #${factory};

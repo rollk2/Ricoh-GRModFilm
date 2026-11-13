@@ -5,7 +5,7 @@
   - Setup: the menu table's Setup entry points at a copy with our line right after Firmware
     Info/Options, every other line in the official order, one more line, the later pages one later;
   - the menu's key map reads our id as Mode Memory's (0x0200009b), other ids as before;
-  - the factory: our id and Mode Memory's go to our wrapper, another id goes on as before; the wrapper
+  - the factory: our id and Mode Memory's go to our wrapper (rows' texts and OK actions set again after a change), another id goes on as before; the wrapper
     asks the factory for Mode Memory's screen (stubbed: a screen whose list holds Mode Memory's items),
     puts our seven items in its list for our id (title ours, the rows set up again), Mode Memory's back
     for Mode Memory's id (its native copy, title 0x208), nothing when the list is already the one asked;
@@ -24,7 +24,7 @@ from native_probe import STOP
 
 ID=0x020001d0;MEMORY=0x0200009b;AFTER=0x0200011a;SETTING=0x905
 SETUP_ENTRY=0x5407d408;SETUP=0x53b36a54;FACTORY=0x5316f3b8
-LIST_ROW=0x53394758;ROW_ICON=0x533a8990;SET_TEXT=0x533a2ba0;MEMORY_COPY=0x53207348;GROW=0x532071fc;MEMORY_FILL=0x53206a30
+ROW_TEXTS=0x53206990;ROW_ACTIONS=0x53206860;LIST_ROW=0x53394758;ROW_ICON=0x533a8990;SET_TEXT=0x533a2ba0;MEMORY_COPY=0x53207348;GROW=0x532071fc;MEMORY_FILL=0x53206a30
 TEXTS=(0x37,0x3a,0x51,0x5b,0x79,0x49,0x7f)
 POINTER=0x55063f34;STORED=0x55063f38
 I=0x63044000;VEC=0x63045000;REC=0x63046000;BOXES=0x63048000;ROW=0x6304a000;FACT=0x6304a800
@@ -60,7 +60,7 @@ def verify(data,manifest):
     # --- The factory.
     calls=[]
     def stub(cpu,at,size,user):
-        name={e['hsFactoryBody']:'body',MEMORY_COPY:'copy',SET_TEXT:'title',e['memoryListSetup']:'rows',GROW:'grow'}[at]
+        name={e['hsFactoryBody']:'body',MEMORY_COPY:'copy',SET_TEXT:'title',e['memoryListSetup']:'rows',GROW:'grow',ROW_TEXTS:'texts',ROW_ACTIONS:'actions'}[at]
         calls.append((name,r(cpu,0),r(cpu,1)))
         if name=='body':cpu.reg_write(reg.UC_ARM_REG_R0,I)
         if name=='copy':
@@ -68,7 +68,7 @@ def verify(data,manifest):
             T=e['afPointItems'];b=u32(cpu,I+0x168)
             cpu.mem_write(b,bytes(cpu.mem_read(T,26*0x28)));put(cpu,I+0x16c,b+26*0x28)
         cpu.reg_write(reg.UC_ARM_REG_PC,cpu.reg_read(reg.UC_ARM_REG_LR))
-    hooks=[c.hook_add(UC_HOOK_CODE,stub,begin=a,end=a) for a in (e['hsFactoryBody'],MEMORY_COPY,SET_TEXT,e['memoryListSetup'],GROW)]
+    hooks=[c.hook_add(UC_HOOK_CODE,stub,begin=a,end=a) for a in (e['hsFactoryBody'],MEMORY_COPY,SET_TEXT,e['memoryListSetup'],GROW,ROW_TEXTS,ROW_ACTIONS)]
     c.mem_write(I,bytes(0x200));c.mem_write(VEC,bytes(0x1000));put(c,I+0x15c,0x7171)
     put(c,I+0x168,VEC);put(c,I+0x16c,VEC);put(c,I+0x170,VEC+32*0x28)
     def factory(ident,regs_extra=None):
@@ -83,11 +83,11 @@ def verify(data,manifest):
     ours=[struct.unpack('<10I',bytes(c.mem_read(e['hsItems']+0x28*k,0x28))) for k in range(7)]
     for k,it in enumerate(ours):
         assert it[0]==32+k and it[1]==TEXTS[k] and it[2]==e['hsDraw%d'%k] and it[4]==e['hsToggle%d'%k] and it[6]==e['hsWrite%d'%k] and it[3]==it[5]==it[7]==it[8]==it[9]==0,it
-    assert factory(ID)==I and [x[0] for x in calls]==['body','rows','title'] and calls[0][2]==MEMORY and calls[2][2]!=0x208,calls
+    assert factory(ID)==I and [x[0] for x in calls]==['body','rows','title','texts','actions'] and calls[0][2]==MEMORY and calls[2][2]!=0x208 and calls[3][1]==calls[4][1]==I,calls
     hsTitle=calls[2][2];assert items()==ours;count('our list')
     assert factory(ID)==I and [x[0] for x in calls]==['body'];count('list kept')
     # Mode Memory's back: its native copy, its title.
-    assert factory(MEMORY)==I and [x[0] for x in calls]==['body','copy','rows','title'] and calls[3][1:]==(0x7171,0x208),calls
+    assert factory(MEMORY)==I and [x[0] for x in calls]==['body','copy','rows','title','texts','actions'] and calls[3][1:]==(0x7171,0x208) and calls[4][1]==calls[5][1]==I,calls
     assert len(items())==26;count('mode memory list')
     factory(ID);assert items()==ours
     # The grow path: a full vector (capacity = begin) grows through the native insert.

@@ -4081,3 +4081,14 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
   autres sondes sur T-HSET1 et T-HIDE3, tests ; sans l'option, T-HIDE3 se reconstruit à l'identique.
 - Risque à voir sur le boîtier : l'écran partagé (titre, nombre de lignes au passage d'une liste à
   l'autre). V1-RC2 avait montré qu'une liste mal préparée éteint le boîtier.
+- **Résultat T-HSET1 (2026-11-13)** : la ligne est là, mais l'écran montre 7 lignes de Mode Memory
+  (ISO Setting, EV Compensation, Focus, AF Point, Focus Peaking, AE Metering, White Balance : la liste
+  visible de Mode Memory, Flash Mode et Flash Exp. Comp. masqués, coupée à nos 7 lignes).
+- Cause (lue dans le code, certitude haute) : le constructeur de l'écran pose une seule fois les textes
+  de chaque ligne (`0x53206990`, depuis la liste) et l'action OK de chaque ligne (`0x53206860`, un
+  foncteur vers la bascule de l'élément, posé par `0x533a8a18`) ; le remplissage à l'ouverture
+  (`0x53206a30`) ne redessine que les coches. Changer la liste changeait donc les coches et le nombre de
+  lignes, pas les textes ni les actions (OK aurait basculé les cases de Mode Memory).
+- **T-HSET1b** : après chaque changement de liste, ces deux fonctions sont rappelées sur l'écran,
+  comme dans le constructeur. Sondes : `hide_menu_probe.py` (les deux appels, dans l'ordre, avec
+  l'écran), `film_roll_check.py`, `hidden_probe.py`, `guard_probe.py`.
