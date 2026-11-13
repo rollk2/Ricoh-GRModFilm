@@ -286,6 +286,28 @@ describe('GR IIIx UI family isolation', () => {
     store.setBridgeOpen(true);
     expect(store.getState().bridgeOpen).toBe(false);
   });
+  it('0.9.8: opens a GRFILM.SET, refuses a damaged one, writes it to the chosen root, and keeps it for its own camera only', async () => {
+    const { gr3xSettingsHeader, GR3X_SETTINGS_COUNT, GR3X_SETTINGS_RECORD } = await import('../src/fw/gr3x/settings-file');
+    const make = (model) => {
+      const out = new Uint8Array(0x20 + GR3X_SETTINGS_COUNT * (GR3X_SETTINGS_RECORD + 4)); out.set(gr3xSettingsHeader(model, '0.9.8'));
+      return out; // empty records: their sums are 0
+    };
+    const file = (bytes, name = 'GRFILM.SET') => ({ name, arrayBuffer: async () => bytes.slice().buffer });
+    await store.adoptFirmware('fwdc243b.bin', '1.60', new Uint8Array([1]));
+    const bad = make('gr3x'); bad[0x20 + 5] = 1;
+    await store.loadSettingsFile(file(bad));
+    expect(store.getState().settingsFile).toBeNull();
+    const good = make('gr3x');
+    await store.loadSettingsFile(file(good));
+    expect(store.getState().settingsFile).toMatchObject({ name: 'GRFILM.SET', model: 'gr3x', version: '0.9.8' });
+    await store.writeSettingsFile({ kind: 'folder' });
+    expect(mocks.host.write).toHaveBeenCalledWith('/chosen/GRFILM.SET', good);
+    // A GR III file with the GR IIIx's firmware open: kept, never written with the firmware.
+    await store.loadSettingsFile(file(make('gr3')));
+    expect(store.settingsFileFor()).toBeNull();
+    store.clearSettingsFile();
+    expect(store.getState().settingsFile).toBeNull();
+  });
   it('switching between GR III and GR IIIx closes the other camera\'s firmware', async () => {
     mocks.engine.open.mockResolvedValue({ ...info(), version: '2.10', filename: 'fwdc239b.bin', models: ['GR3_HDF'], });
     await store.adoptFirmware('fwdc239b.bin', '2.10', new Uint8Array([1]));

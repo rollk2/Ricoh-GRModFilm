@@ -4241,3 +4241,19 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
   case de Hide Settings, BOX U1 revenus après redémarrage ; rouleaux rembobinés) ; l'arrêt ne réécrit pas
   l'enregistrement en cours avec les anciennes valeurs ; fichier absent : « Settings not loaded. », rien
   ne change.
+
+### T-SET3 : le fichier de réglages dans GR Mod Film, et 0.9.8-RC1 (2026-11-13)
+
+- Décision du 2026-11-13 : voie A. L'application ouvre un `GRFILM.SET` (carte « Settings file » de la
+  page Image Control, mode pellicule), le contrôle comme le boîtier (`readGr3xSettingsFile`), montre le
+  modèle et la version, et l'écrit à la racine de la carte avec le firmware (ligne dans la confirmation) ou
+  seul ; un fichier de l'autre modèle est gardé mais jamais écrit. La préparation de la carte ne déplace
+  que les anciens firmwares et scripts : `GRFILM.SET` reste. Le chargement se fait dans le boîtier.
+- Moteur : tout build du mode pellicule (avec la touche Macro, sans Snap DOF) reçoit `settingsFile`, la
+  version écrite dans le fichier étant `GR3X_SETTINGS_PROGRAM_VERSION` (égale à `package.json`, test) ;
+  recette : `settingsFile.version`. Les anciens fichiers restent reconnus (T-HIDE3, 0.9.7-RC1 vérifiés ;
+  la 0.9.6-RC1 du scratchpad ne l'était déjà pas avec le code de la 0.9.7 publiée).
+- Vérifié : test de l'interface (ouverture, refus d'un fichier abîmé, écriture, autre modèle), tests (417),
+  capture de l'application avec le vrai fichier du boîtier (lu valide, GR III, 0.9.8).
+- **0.9.8-RC1** construite par le moteur comme l'application : auto-contrôle et inspection vérifiés ;
+  « Hide Settings », « Save Settings to Card » et « Load Settings from Card » présents.

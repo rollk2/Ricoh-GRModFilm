@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { FACTORY_LOOK_IDS, card, GR3X_FILM_IDS, GR3X_HIDEABLE, GR3X_MAX_CUSTOM_RATIOS, GR3X_T4_CUSTOM, LANGS, MAX_CUSTOM_RATIOS, MAX_EXTRA_SLOTS, SHUTDOWN_MAX_PICTURES, SHUTDOWN_NAME_MAX, validateExtraSlotName, validateGr3xRatioName, validateRatioName, validateShutdownName } from '@grmod/core';
+import { FACTORY_LOOK_IDS, card, GR3X_FILM_IDS, GR3X_HIDEABLE, readGr3xSettingsFile, GR3X_MAX_CUSTOM_RATIOS, GR3X_T4_CUSTOM, LANGS, MAX_CUSTOM_RATIOS, MAX_EXTRA_SLOTS, SHUTDOWN_MAX_PICTURES, SHUTDOWN_NAME_MAX, validateExtraSlotName, validateGr3xRatioName, validateRatioName, validateShutdownName } from '@grmod/core';
 import type { CameraModel, ClarityChange, ExtraSlotSpec, FirmwareInfo, FirmwareSummary, LangCode, LookLayout, PresetResult, RatioPreview, RatioSpec, ShutdownPictureSpec, SlotId, SlotRequest, SoftFocusRequest, SoftFocusStrength } from '@grmod/core';
 import { engine, EngineError } from './engine';
 import { host, HostError, sha256Hex } from './host';
@@ -66,6 +66,8 @@ export interface State {
   ratios: RatioItem[]; activeRatio?: string; ratioBackdrop: RatioBackdrop;
   /** GR III / IIIx: the Aspect Ratio menu's order: '3:2', '1:1' and the rows' ids (0.9.7). */
   ratioOrder: string[];
+  /** 0.9.8: a GRFILM.SET opened in the program (not kept in the project), written to the card's root. */
+  settingsFile: { name: string; data: Uint8Array; model: 'gr3' | 'gr3x'; version: string } | null;
   soft: boolean; dateStamp: boolean; monoUnlock: boolean;
   /** GR III / IIIx: the film mode, and the movie taken out. */
   filmMode: boolean; noMovie: boolean;
@@ -108,7 +110,7 @@ const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '',
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
   ready: false, page: 'ic', fwBusy: false, model: 'HDF', lang: 'zh-CN',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -1274,6 +1276,39 @@ const firmwareFilename = (): card.FirmwareFilename => {
   return (card.FIRMWARE_FILES as readonly string[]).includes(name ?? '') ? name as card.FirmwareFilename : card.FIRMWARE_FILE;
 };
 
+/** 0.9.8: the settings file's name on the card (core GR3X_SETTINGS_PATH, at the root). */
+export const SETTINGS_FILE = 'GRFILM.SET';
+/** The camera the open firmware is for (the settings file says which it was written by). */
+const openModel = (s: State = state): 'gr3' | 'gr3x' | undefined => s.info?.family !== 'gr3x' ? undefined : s.info.filename === 'fwdc243b.bin' ? 'gr3x' : 'gr3';
+/** The settings file opened, when it is for the open firmware's camera and the film mode is on (its Load line). */
+export function settingsFileFor(s: State = state) {
+  return s.settingsFile && filmModeOn(s) && openModel(s) === s.settingsFile.model ? s.settingsFile : null;
+}
+/** Opens a GRFILM.SET (written by « Save Settings to Card ») and checks it as the camera will. */
+export async function loadSettingsFile(f: File): Promise<void> {
+  try {
+    const data = new Uint8Array(await f.arrayBuffer());
+    const got = readGr3xSettingsFile(data);
+    set({ settingsFile: { name: f.name, data, model: got.model, version: got.version } });
+    const m = openModel();
+    if (m && m !== got.model) toast(t('settingsFileOtherModel'), 'info');
+  } catch { toast(t('settingsFileBad'), 'error'); }
+}
+export function clearSettingsFile(): void { set({ settingsFile: null }); }
+/** Writes the settings file alone to the card's root (or a folder). */
+export async function writeSettingsFile(dest: Dest): Promise<void> {
+  const sf = state.settingsFile;
+  if (!sf || state.busy) return;
+  const target = await destination(dest);
+  if (!target) return;
+  try {
+    set({ busy: t('writing') });
+    await runPlan(target.root, [{ op: 'write', path: [SETTINGS_FILE], data: sf.data }]);
+    set({ busy: undefined });
+    toast(target.volume ? t('written', { p: host.join(target.root, SETTINGS_FILE) }) : t('exported', { p: target.root }), 'ok');
+  } catch (e) { set({ busy: undefined }); fail(e); }
+}
+
 export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   if (!state.info?.models.includes(state.model)) return;
   if (!stock && !state.info.capabilities.build) { toast(t('fwCannotBuild'), 'info'); return; }
@@ -1318,6 +1353,8 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
     if (extras.length) lines.push(t('extraLine', { n: extras.length, l: extras.map((x) => (x.halation ? `${x.name} (${t('halation')})` : x.name)).join(' / ') }));
     if (lookLayout) lines.push(t('lookOrderLine', { n: lookLayout.hidden.length }));
     if (pictures.length) lines.push(t('wallMenuLine', { n: pictures.length, l: pictures.map((p) => p.name).join(' / ') }));
+    const sfLine = settingsFileFor();
+    if (sfLine) lines.push(t('settingsFileLine', { v: sfLine.version || '?' }));
     if (!(await ask(t('confirmTitle'), lines, t('confirmOk')))) return;
   }
   const target = await destination(dest);
@@ -1348,6 +1385,9 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
     let moved = 0;
     if (target.volume) moved = await firmwareToCard(target.volume, file);
     else await runPlan(target.root, [{ op: 'write', path: [firmwareFilename()], data: file }]);
+    // 0.9.8: the settings file opened in the program goes to the card's root with the firmware (Setup > Load Settings from Card).
+    const sf = stock ? null : settingsFileFor();
+    if (sf) await runPlan(target.root, [{ op: 'write', path: [SETTINGS_FILE], data: sf.data }]);
     set({ busy: undefined });
     doneToast(target.root, target.volume, moved, firmwareFilename());
   } catch (e) { set({ busy: undefined }); fail(e); }

@@ -24,4 +24,6 @@ export type { Gr3Profile } from './fw/gr3x/profile';
 export { GFX_RATIOS, GR3X_BASE_SIZES, GR3X_MAX_CUSTOM_RATIOS, GR3X_RATIO_NAME_MAX, GR3X_T4_CUSTOM, planGr3xMenu, planGr3xRatio, validateGr3xRatioName } from './fw/gr3x/geometry';
 export { GR3X_FILM_IDS, GR3X_FILM_NAMES } from './fw/gr3x/look-resources';
 export { GR3X_HIDEABLE } from './fw/gr3x/hidden-settings';
+export { readGr3xSettingsFile, GR3X_SETTINGS_PATH } from './fw/gr3x/settings-file';
+export type { Gr3xSettingsFile } from './fw/gr3x/settings-file';
 export type { Gr3xHiddenSettings, Gr3xHideableKey } from './fw/gr3x/hidden-settings';

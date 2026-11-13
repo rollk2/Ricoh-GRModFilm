@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { GR3X_SETTINGS_COUNT, GR3X_SETTINGS_HEADER, GR3X_SETTINGS_RECORD, GR3X_SETTINGS_TEXTS, gr3xSettingsHeader, readGr3xSettingsFile } from '../src/fw/gr3x/settings-file';
 import { LANGS } from '../src/fw/names';
+import { readFileSync } from 'node:fs';
+import { GR3X_SETTINGS_PROGRAM_VERSION } from '../src/fw/gr3x/settings-file';
 
 function file(model: 'gr3' | 'gr3x', version: string, seed = 1) {
   let x = seed;
@@ -33,6 +35,9 @@ describe('settings file', () => {
     expect(() => readGr3xSettingsFile(out.slice(0, out.length - 1))).toThrow(/wrong length/);
     const damaged = out.slice(); damaged[GR3X_SETTINGS_HEADER + 3 * (GR3X_SETTINGS_RECORD + 4) + 100] ^= 1;
     expect(() => readGr3xSettingsFile(damaged)).toThrow(/record 3 damaged/);
+  });
+  it('writes the program\'s own version (kept equal to the root package.json)', () => {
+    expect(GR3X_SETTINGS_PROGRAM_VERSION).toBe(JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version);
   });
   it('has its four texts in every language', () => {
     for (const g of ['line', 'question', 'done', 'failed'] as const) {

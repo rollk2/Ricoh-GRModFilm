@@ -13,7 +13,7 @@ import {
   addRatio, addWallFiles, askForOfficial, getState, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
   maxRatios, moveRatio, ratioListNow, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
-  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setFilmCode, filmModeChoosable, filmModeOn, filmCodeProblem,
+  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
   setDirectFlash,
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
@@ -662,6 +662,30 @@ function HalationProp({ k }: { k: SlotKey }) {
 }
 
 /** One switch of the firmware additions: icon, name, one line of detail. */
+/** 0.9.8: a GRFILM.SET (Setup > Save Settings to Card) opened, checked, and written to the card's root
+ * (with the firmware, or alone), to be loaded in the camera with Setup > Load Settings from Card. */
+function SettingsFileCard() {
+  const sf = useStore((s) => s.settingsFile);
+  const fitting = useStore((s) => !!settingsFileFor(s));
+  return (
+    <div className="hidden-settings">
+      <div className="soft-text"><b>{t('settingsFileTitle')}</b><span className="muted small">{t('settingsFileSub')}</span></div>
+      {sf ? (
+        <>
+          <div className="soft-text"><b className="ellipsis">{sf.name}</b>
+            <span className="muted small">{t('settingsFileInfo', { m: sf.model === 'gr3x' ? 'GR IIIx' : 'GR III', v: sf.version || '?' })}{fitting ? ` · ${t('settingsFileWith')}` : ` · ${t('settingsFileOtherModel')}`}</span></div>
+          <div className="chips">
+            {fitting && <button className="btn small" onClick={() => { void writeSettingsFile({ kind: 'card' }); }}>{t('settingsFileWrite')}</button>}
+            <button className="btn ghost small" onClick={() => clearSettingsFile()}>{t('settingsFileRemove')}</button>
+          </div>
+        </>
+      ) : (
+        <FileButton className="btn small" accept=".set,.SET" onFiles={(f) => { void loadSettingsFile(f[0]); }}>{Ico.plus}<span>{t('settingsFileOpen')}</span></FileButton>
+      )}
+    </div>
+  );
+}
+
 /** GR III / IIIx film mode: the camera settings are hidden in the camera itself (0.9.7: Setup > Hide Settings). */
 function HiddenSettings() {
   return (
@@ -723,6 +747,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
       {filmOk && <FeatureRow icon={Ico.noMovie} title={t('navNoMovie')} sub={t('noMovieSub')} on={noMovie} onChange={setNoMovie} />}
       {filmOk && <FeatureRow icon={Ico.dial} title={t('navRearDialOff')} sub={t('rearDialOffSub')} on={rearDialOff} onChange={setRearDialOff} />}
       {filmOk && filmMode && <HiddenSettings />}
+      {filmOk && filmMode && <SettingsFileCard />}
     </div>
   );
 }
