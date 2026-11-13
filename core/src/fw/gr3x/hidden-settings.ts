@@ -60,6 +60,34 @@ export const GR3X_HIDEABLE = {
 export type Gr3xHideableKey = keyof typeof GR3X_HIDEABLE;
 export type Gr3xHiddenSettings = Partial<Record<Gr3xHideableKey, number>>;
 
+/** T-HSET2 (hide-menu.ts): Hide Settings' boxes in order; box k is bit k + 1 of byte 0x905 of the records
+ * (bit 0: Mode Memory's AF Point box). */
+export const GR3X_HSET_KEYS = ['faceEye', 'afAssist', 'afc', 'mfMag', 'flash', 'gf2', 'flashComp'] as const satisfies readonly Gr3xHideableKey[];
+export const GR3X_HSET_BYTE = 0x905;
+const POINTER = 0x55063f34;
+/** Code: register `r` = the boxes' byte of the record in use (0 without a record in RAM); flags changed. */
+export function gr3xHideBitsLoad(r: string, tag: string): string {
+  return `movw ${r},#${lo(POINTER)};movt ${r},#${hi(POINTER)};ldr ${r},[${r}];cmp ${r},#0x40000000;blo ${tag}n;cmp ${r},#0xc0000000;bhs ${tag}n;tst ${r},#3;bne ${tag}n;
+    ldrb ${r},[${r},#${GR3X_HSET_BYTE}];b ${tag}h;${tag}n:mov ${r},#0;${tag}h:`;
+}
+/** Code: value register `v` set to 0 when it is one of `pairs`' values and that value's box is ticked;
+ * `bits` (pushed and restored) holds the boxes meanwhile. */
+export function gr3xHideBitsOff(v: string, bits: string, pairs: readonly (readonly [number, number])[], tag: string): string {
+  if (!pairs.length) return '';
+  return `push {${bits}};${gr3xHideBitsLoad(bits, tag)}` +
+    pairs.map(([f, bit], i) => `cmp ${v},#${f};bne ${tag}${i};tst ${bits},#${bit};movne ${v},#0;${tag}${i}:`).join('') + `pop {${bits}};`;
+}
+/** What each box takes out: [value, bit] pairs of the menu lines, button functions, ADJ functions, and Mode Memory's boxes. */
+export function gr3xHideMenuPlan(adjSoftFocus = false) {
+  const each = GR3X_HSET_KEYS.map((key, k) => ({ s: GR3X_HIDEABLE[key] as Gr3xHideable, bit: 1 << (k + 1) }));
+  return {
+    lines: each.filter(x => x.s.line).map(x => [x.s.line, x.bit] as const),
+    fns: each.flatMap(x => x.s.fn.map(f => [f, x.bit] as const)),
+    adj: each.flatMap(x => x.s.adj.filter(f => !(adjSoftFocus && f === 9)).map(f => [f, x.bit] as const)),
+    memory: each.filter(x => x.s.memory).map(x => ({ ...x.s.memory!, bit: x.bit })),
+  };
+}
+
 /** Checks a choice and returns the lines, functions and ADJ functions it hides, and its bytes. */
 export function gr3xHiddenPlan(hidden: Gr3xHiddenSettings, adjSoftFocus = false) {
   const entries = Object.entries(hidden) as [string, number][];

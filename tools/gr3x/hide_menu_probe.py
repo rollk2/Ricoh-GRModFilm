@@ -132,7 +132,9 @@ def verify(data,manifest):
             bit=1<<(k+1)
             for a,fill in [(REC,0xa5)]+[(x,0x5a) for j,x in enumerate(recs) if j!=bad]:
                 b=bytes(c.mem_read(a,0xb28));want=(fill&~bit)|(bit if state else 0)
-                assert b[SETTING]==want and b[:SETTING]+b[SETTING+1:]==bytes([fill])*(0xb27),(hex(a),k,b[SETTING])
+                # T-HSET2: ticked, Flash Mode, GF-2 and Flash Exposure Comp. also set their Mode Memory box to 1.
+                box={4:0xaf8,5:0xb24,6:0xafa}.get(k) if state else None
+                assert b[SETTING]==want and all(b[o]==(1 if o==box else fill) for o in range(0xb28) if o!=SETTING),(hex(a),k,b[SETTING])
             if bad is not None:assert bytes(c.mem_read(recs[bad],0xb28))==bytes([0x5a])*0xb28
             count('write')
     for x in hooks:c.hook_del(x)
@@ -160,7 +162,90 @@ def verify(data,manifest):
         records();c.mem_write(REC+SETTING,bytes([0xfe]));c.mem_write(AFS,bytes([state]));p.run(e['afPointWrite'],STOP,{0:I})
         assert c.mem_read(REC+SETTING,1)[0]==(0xfe|(0 if state else 1)) and c.mem_read(recs[0]+SETTING,1)[0]==(0x5a&~1|(0 if state else 1)),state
         count('AF point write')
+    # --- T-HSET2: what a ticked box takes out (bit k + 1 of 0x905 of the record in use).
+    if 'hsMemoryVisible5' in e:
+        thset2(p,c,e,data,count)
     return dict(cases=cases,title=hsTitle,rtos_sha256=hashlib.sha256(data).hexdigest(),hardware_tested=False)
+
+# T-HSET2: each box's setting: its line, button functions, ADJ functions, Mode Memory item and box.
+BOXES_HS=(('faceEye',0x0200005e,(8,),(),None),('afAssist',0x0200005f,(),(),None),('afc',0x02000063,(),(),None),('mfMag',0x02000065,(),(),None),
+          ('flash',0x020000dd,(20,),(8,),(5,0xaf8)),('gf2',0x02000070,(41,),(0x13,),(10,0xb24)),('flashComp',0,(21,),(9,),(6,0xafa)))
+MODEL=0x55063f30;MODEB=0x6304a100;IDW=0x6304a200;VISIBLE=0x5319a720
+def thset2(p,c,e,data,count):
+    soft='softFocusSlot0' in e
+    def state(bits,mode=3):
+        c.mem_write(MODEB,bytes([mode]));c.mem_write(REC,bytes(0xb28));c.mem_write(REC+SETTING,bytes([bits]))
+        c.mem_write(MODEL,struct.pack('<II',MODEB,REC))
+    patterns=[0]+[1<<(k+1) for k in range(7)]+[0xfe,0xaa,0x54]
+    # Lines: hidden while their box is ticked, in every mode; the others asked natively.
+    seen=[]
+    def vis(cpu,at,size,user):
+        seen.append(1);cpu.reg_write(reg.UC_ARM_REG_R0,0x77);cpu.reg_write(reg.UC_ARM_REG_PC,cpu.reg_read(reg.UC_ARM_REG_LR))
+    h=c.hook_add(UC_HOOK_CODE,vis,begin=VISIBLE,end=VISIBLE)
+    for bits in patterns:
+        for k,(key,line,fns,adj,mem) in enumerate(BOXES_HS):
+            if not line:continue
+            for mode in (0,3):
+                state(bits,mode);seen.clear();c.mem_write(IDW,struct.pack('<I',line))
+                p.run(e['linesHidden'],STOP,{0:1,1:2,2:3,10:IDW})
+                ticked=bool(bits&(1<<(k+1)));hidden=r(c,0)==0 and not seen
+                assert hidden==ticked and (ticked or (r(c,0)==0x77 and seen)),(key,hex(bits),mode)
+                count('line hidden' if hidden else 'line shown')
+        for other in (0x02000066,0x0200004e,0x02000071):
+            state(bits);seen.clear();c.mem_write(IDW,struct.pack('<I',other));p.run(e['linesHidden'],STOP,{0:1,1:2,2:3,10:IDW})
+            assert r(c,0)==0x77 and seen,hex(other);count('other line shown')
+    c.hook_del(h)
+    # Button lists' filter: a ticked box's functions refused (0), the others as the camera's.
+    p.stubs_on=True;p.fn_stubs=True
+    native={}
+    for f in range(0,47):
+        state(0);p.call(0x531b9410,f);native[f]=r(c,0)
+    for bits in patterns:
+        off={f for k,b in enumerate(BOXES_HS) if bits&(1<<(k+1)) for f in b[2]}
+        for f in range(0,47):
+            state(bits);p.call(0x531b9410,f);assert r(c,0)==(0 if f in off else native[f]),(f,hex(bits))
+        count('filter')
+    # A button still holding one: Off while ticked (GetEventCustomize's r2, GetEventSwitchWlan's r6).
+    for bits in patterns:
+        off={f for k,b in enumerate(BOXES_HS) if bits&(1<<(k+1)) for f in b[2]}
+        for f in (0,1,8,9,19,20,21,22,26,41):
+            state(bits);regs={0:0x1110,1:0x2221,2:f,3:0x3333,4:0x44,5:0x55}
+            p.run(0x5329bcc8,0x5329bccc,regs);assert r(c,2)==(0 if f in off else f) and r(c,0)==0x1110 and r(c,3)==0x3333,(f,hex(bits))
+            regs={0:0x1110,1:0x2221,2:0x2222,3:0x3333,4:0x44,5:0x55,6:f,12:0xcc}
+            p.run(0x5329a0a0,0x5329a0a4,regs);assert r(c,6)==(0 if f in off else f) and c.reg_read(reg.UC_ARM_REG_R12)==0xcc and r(c,0)==0x1110,(f,hex(bits))
+            count('button Off' if f in off else 'button kept')
+    p.stubs_on=False;p.fn_stubs=False
+    # ADJ slots: a ticked box's ADJ functions read Off (no roll loaded).
+    OBJ=0x6304a300
+    for bits in patterns:
+        off={f for k,b in enumerate(BOXES_HS) if bits&(1<<(k+1)) for f in b[3] if not (soft and f==9)}
+        for i,at in enumerate((0x5324633c,0x53246348,0x53246354,0x53246360,0x5324636c)):
+            for f in range(0,0x14):
+                state(bits);c.mem_write(REC+0x918+2*i,bytes([f]));c.mem_write(OBJ,struct.pack('<II',0,REC))
+                p.run(at,STOP,{0:OBJ});assert r(c,0)==(0 if f in off else f),(i,f,hex(bits))
+        count('ADJ')
+    # Mode Memory: the three boxes' visibility (0 while ticked) in the table the screen copies.
+    T=e['afPointItems']
+    for k,(key,line,fns,adj,mem) in enumerate(BOXES_HS):
+        if not mem:continue
+        item,box=mem;row=item+1 if item>=3 else item
+        it=struct.unpack('<10I',bytes(c.mem_read(T+row*0x28,0x28)));assert it[0]==item and it[8]==e['hsMemoryVisible%d'%item] and it[9]==0,(key,it)
+        for bits in patterns:
+            state(bits);p.run(it[8],STOP,{0:0x1234});assert r(c,0)==(0 if bits&(1<<(k+1)) else 1),(key,hex(bits))
+            count('memory box visibility')
+    # Ticking Flash Mode, GF-2 or Flash Exposure Comp. sets its Mode Memory box « memorized »; unticking leaves it.
+    recs=[BOXES+0x1000*j for j in range(7)]
+    for k,(key,line,fns,adj,mem) in enumerate(BOXES_HS):
+        for st in (1,0):
+            c.mem_write(REC,bytes(0xb28));c.mem_write(MODEL,struct.pack('<II',MODEB,REC))
+            for a_ in recs:c.mem_write(a_,bytes(0xb28))
+            c.mem_write(STORED,b''.join(struct.pack('<I',x) for x in recs))
+            c.mem_write(I+0x174+k,bytes([st]));p.run(e['hsWrite%d'%k],STOP,{0:I})
+            for a_ in [REC]+recs:
+                b=bytes(c.mem_read(a_,0xb28));want={SETTING:(1<<(k+1)) if st else 0}
+                if mem and st:want[mem[1]]=1
+                assert all(b[o]==want.get(o,0) for o in range(0xb28)),(key,st,hex(a_),[hex(o) for o in range(0xb28) if b[o]!=want.get(o,0)])
+            count('box write')
 
 if __name__=='__main__':
     a=argparse.ArgumentParser(description=__doc__)

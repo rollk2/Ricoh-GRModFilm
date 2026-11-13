@@ -156,6 +156,8 @@ def verify(data,manifest,seed=3101):
         cur=bytearray(rng.randrange(256) for _ in range(SIZE)) if cur is None else bytearray(cur)
         # Form 'menu': the record in use's Film Roll Mode (bit 0 of 0x9b1) on unless asked off.
         if menu_form:cur[FLAGS]=(cur[FLAGS]|1) if film else (cur[FLAGS]&~1)
+        # T-HSET2: no Hide Settings box ticked here (hide_menu_probe.py checks what they take out).
+        if 'hsItems' in manifest['entries']:cur[0x905]&=1
         boxes=[bytearray(rng.randrange(256) for _ in range(SIZE)) for _ in range(8)]
         if box is not None:boxes[mode]=bytearray(box)
         cpu.mem_write(CUR,bytes(cur))
@@ -1267,6 +1269,12 @@ def verify(data,manifest,seed=3101):
         if 'memoryHidden' in e:
             o_=bytearray(orig)
             for k_ in ([8] if stillMovie else [])+hid:struct.pack_into('<II',o_,k_*0x28+0x20,e['memoryHidden'],0)
+            orig=bytes(o_)
+        # T-HSET2: Flash Mode's, Flash Exposure Comp.'s and GF-2's boxes follow their Hide Settings box (hide_menu_probe.py).
+        hsv=[k_ for k_ in (5,6,10) if 'hsMemoryVisible%d'%k_ in e]
+        if hsv:
+            o_=bytearray(orig)
+            for k_ in hsv:struct.pack_into('<II',o_,k_*0x28+0x20,e['hsMemoryVisible%d'%k_],0)
             orig=bytes(o_)
         assert tab[:3*0x28]==orig[:3*0x28] and tab[4*0x28:25*0x28]==orig[3*0x28:],'items copied'
         ours=struct.unpack('<10I',tab[3*0x28:4*0x28])

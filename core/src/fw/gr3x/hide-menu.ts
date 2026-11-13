@@ -19,11 +19,15 @@
  *    keeps to it): read at the screen's start (film-roll.ts afPointRead), written by each box into the
  *    record in use and the seven stored ones, the other bits kept.
  *  - The keys: the menu's key map (datestamp.ts) reads our id as Mode Memory's.
+ * T-HSET2: a box ticked takes its setting out (film-roll.ts: the menu line, the button and ADJ functions, a
+ * button or ADJ slot still holding it runs Off, its Mode Memory box) while the box is ticked, the value kept as
+ * it is; ticking Flash Mode, GF-2 Flash Mode or Flash Exposure Comp. also sets its Mode Memory box « memorized ».
  * Names: the camera's own texts of the settings; the line's name in 21 languages, every character
  * one the camera's texts of that language already show.
  */
 import { FirmwareError } from '../types';
 import { GR3X_AF_POINT_SETTING } from './film-roll';
+import { GR3X_HIDEABLE, GR3X_HSET_KEYS } from './hidden-settings';
 
 const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 const fail = (what: string): never => { throw new FirmwareError('unexpected-layout', `IIIx Hide Settings: ${what}`); };
@@ -67,6 +71,7 @@ export function gr3xHideMenuRead(): string {
 
 /** `title`: the line's text id; `listSetup`: film-roll.ts memoryListSetup (the rows' view types for the list as it is). */
 export function installGr3xHideMenu(p: Gr3xHideMenuProgram, title: number, listSetup: number) {
+  if (GR3X_HSET_ITEMS.map(x => x.key).join() !== GR3X_HSET_KEYS.join()) fail('boxes order');
   if (p.u32(FACTORY + 4) !== 0xe1a0c00d) fail('the factory');
   if (p.u32(MEMORY_COPY) !== 0xe1a0c00d || p.u32(VECTOR_GROW) !== 0xe1a0c00d) fail('Mode Memory\'s list');
   if (p.u32(ROW_TEXTS) !== 0xe5902168 || p.u32(ROW_ACTIONS) !== 0xe1a0c00d) fail('Mode Memory\'s rows');
@@ -83,9 +88,13 @@ export function installGr3xHideMenu(p: Gr3xHideMenuProgram, title: number, listS
       found:ldr r0,[r4,#0x164];bl #${LIST_ROW};ldrb ip,[r4,#${off}];${tick('ip')}pop {r4,lr};b #${ROW_ICON};`);
     // The bit into the record in use and the seven stored copies (0..6), the other bits kept.
     const put = `ldrb ip,[r3,#${GR3X_HSET_SETTING}];bic ip,ip,#${bit};orr ip,ip,r1;strb ip,[r3,#${GR3X_HSET_SETTING}];`;
+    // T-HSET2: ticked, a setting with a Mode Memory box (Flash Mode, GF-2 Flash Mode, Flash Exposure Comp.) has
+    // that box set « memorized » too, so that power-on keeps its value (T-HIDE3); unticked, the box stays as it is.
+    const memory = (GR3X_HIDEABLE[GR3X_HSET_KEYS[k]] as { memory?: { box: number } }).memory;
+    const box = memory ? `cmp r1,#0;movne ip,#1;strbne ip,[r3,#${memory.box}];` : '';
     const write = p.code(`ldrb r1,[r0,#${off}];cmp r1,#0;movne r1,#${bit};
-      movw r2,#${lo(POINTER)};movt r2,#${hi(POINTER)};ldr r3,[r2];${ram('r3', 'w0')}${put}w0:
-      mov r0,#0;wl:movw r2,#${lo(STORED)};movt r2,#${hi(STORED)};ldr r3,[r2,r0,lsl #2];${ram('r3', 'wn')}${put}
+      movw r2,#${lo(POINTER)};movt r2,#${hi(POINTER)};ldr r3,[r2];${ram('r3', 'w0')}${put}${box}w0:
+      mov r0,#0;wl:movw r2,#${lo(STORED)};movt r2,#${hi(STORED)};ldr r3,[r2,r0,lsl #2];${ram('r3', 'wn')}${put}${box}
       wn:add r0,r0,#1;cmp r0,#6;bls wl;bx lr;`);
     iv.setUint32(k * 0x28, n, true); iv.setUint32(k * 0x28 + 4, text, true);
     iv.setUint32(k * 0x28 + 8, draw, true); iv.setUint32(k * 0x28 + 0x10, toggle, true); iv.setUint32(k * 0x28 + 0x18, write, true);

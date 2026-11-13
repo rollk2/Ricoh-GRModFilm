@@ -4096,3 +4096,22 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
   Info/Options, titre et 7 lignes justes ; deux cases cochées gardées en revenant et après extinction ;
   Mode Memory normal (titre, lignes, coches) après passage par Hide Settings ; AF Point décoché puis
   recoché sans effet sur nos cases.
+
+### Build T-HSET2 : les cases cachent réellement les réglages (2026-11-13)
+
+- Les mécanismes de T-HIDE1 / T-HIDE3 testent désormais le bit de la case (octet `0x905` de
+  l'enregistrement en cours, `gr3xHideBitsLoad`) en plus de leurs listes fixes : visibilité des lignes
+  du menu (`linesHidden`), filtre des fonctions des listes de touches (`0x531b9410`, Hold et Wireless
+  compris), touche qui porte encore une fonction cachée (GetEventCustomize `r2`, GetEventSwitchWlan
+  `r6`) : Off, cases ADJ lues Off (`rollLockAdj*`), cases Flash Mode (5), Flash Exposure Comp. (6) et
+  GF-2 (10) de Mode Memory (méthode de visibilité, la liste étant recopiée à chaque retour depuis
+  Hide Settings). Effet immédiat, sans redémarrage.
+- Cocher Flash Mode, GF-2 ou Flash Exposure Comp. met aussi sa case de Mode Memory à 1 (« mémorisée »)
+  dans l'enregistrement en cours et les sept stockés ; décocher ne la touche pas (décision du
+  2026-11-13). La valeur du réglage n'est jamais écrite : elle reste celle du moment.
+- Avec Hide Settings, la liste « Hidden settings » de l'application est refusée au build.
+- Vérifié : `hide_menu_probe.py` (lignes, filtre, touches, ADJ, cases de Mode Memory, écriture des cases,
+  11 combinaisons de cases), `film_roll_check.py` (adapté), `guard_probe`, `hold_probe`,
+  `wb_button_probe`, `sr_speed_probe`, `rewind_button_probe`, `format_probe`, tests ; T-HIDE3 se
+  reconstruit à l'identique.
+- Pas encore : la liste des fonctions proposées dans ADJ Mode Setting (T-HSET3).
