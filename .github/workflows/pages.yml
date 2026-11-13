@@ -1,14 +1,14 @@
 # GR Mod Film as a web site on GitHub Pages (https://rollk2.github.io/Ricoh-GRModFilm/): the same interface as
 # the program, run in the browser (the firmware is built on the visitor's computer, nothing is sent anywhere).
-# A tag vX.Y.Z publishes the site of that version, as the release workflow publishes the programs; it can also
-# be run by hand (Actions > pages > Run workflow).
+# Each push to main (a merged pull request) publishes the site; it can also be run by hand (Actions > pages >
+# Run workflow). GitHub Pages accepts deployments from main only, by default.
 #
 # Once only, in the repository: Settings > Pages > Build and deployment > Source: GitHub Actions.
 name: pages
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
