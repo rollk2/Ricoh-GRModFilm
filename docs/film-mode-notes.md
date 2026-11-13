@@ -4215,3 +4215,25 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
   ou « Settings not saved. » ; Rewind Film (ligne et touche) et Create New Folder inchangés. Le fichier du
   boîtier relu par le lecteur : en-tête juste (GR III, 0.9.8), les neuf sommes justes, contenu cohérent (cases
   de Hide Settings, rouleaux, noms des films) ; le neuvième enregistrement (stocké 7) est vide.
+
+### Build T-SET2 : « Load Settings from Card » (2026-11-13)
+
+- Ligne `0x020001d2` dans Setup, juste après « Save Settings to Card » ; même dialogue, octet de mode 4
+  (5 après un échec : « Settings not loaded. ») ; fin : « Loaded. Restart the camera. » (21 langues, ja,
+  ko, zh reformulés en « appliquer les réglages de la carte » faute du caractère de « lire »).
+- `installGr3xSettingsLoad` : 1) contrôles avant toute modification : carte, les huit pointeurs
+  d'enregistrement en RAM, `C:\GRFILM.SET` ouvert en lecture (mode 1), en-tête (`GRFS`, format 1, taille,
+  nombre, modèle de ce boîtier ; la version n'est pas contrôlée, décision du 2026-11-13), puis la somme de
+  chaque enregistrement, lus par morceaux de 0x100 octets sur la pile ; fichier fermé. 2) Fichier rouvert,
+  chaque enregistrement lu à sa place (en cours, stockés 0 à 6), le neuvième (stocké 7, l'enregistrement
+  d'usine, vide) lu et jeté. 3) Pour chacun des huit : vue 0 (rouleau rembobiné), puis sauvegarde comme le
+  boîtier (`GR3X_APP_DATA_WRITE`, indice 1 pour l'enregistrement en cours, 2 + n pour le stocké n, 0xb26
+  octets). Les réglages actifs ne sont relus qu'au démarrage, où le garde-fou de GR Mod contrôle tout.
+- Vérifié : `settings_file_probe.py` (ligne, touches, fabrique en mode 4, textes et action des modes 4 et 5 ;
+  chargement complet : enregistrements remplacés, vue 0, huit sauvegardes aux bons indices, le neuvième
+  intact ; refus sans aucune modification ni sauvegarde : pas de carte, ouverture refusée, autre fichier,
+  autre modèle, autre format, enregistrement abîmé au début, au milieu et à la fin, fichier coupé, fichier
+  vide, pointeur hors RAM), `hide_menu_probe` (adaptée), les autres sondes, tests ; anciens builds
+  identiques.
+- À voir sur le boîtier : que l'arrêt ne réécrive pas l'enregistrement en cours avec les valeurs actives
+  d'avant le chargement (les BOX ne sont pas concernées).
