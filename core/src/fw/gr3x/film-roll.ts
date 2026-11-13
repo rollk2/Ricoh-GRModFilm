@@ -1436,7 +1436,11 @@ const blWord = (at: number, to: number) => (0xeb000000 | (((to - at - 8) >> 2) &
  * power-on in U1 to U3, to the record in use (the BOXes saved are never changed).
  */
 export function installGr3xAfPointMemory(p: Gr3xRollProgram & { read(at: number, n: number): Uint8Array; append(b: Uint8Array): number }, text: number, uText?: number,
-  o: { film?: boolean; filmRecall?: number; hideStillMovie?: boolean; hideItems?: readonly number[] } = {}) {
+  o: { film?: boolean; filmRecall?: number; hideStillMovie?: boolean; hideItems?: readonly number[];
+    /** T-HSET1: the AF Point box keeps to bit 0 of its byte (bits 1..7: Hide Settings' boxes), and `hsRead`
+     * (r0 the screen, r3 the record in use) runs at the screen's start, before the list is filled. */
+    hideSettings?: { read: string } } = {}) {
+  const bit0 = !!o.hideSettings;
   const withU = uText !== undefined;
   for (const at of [MEMORY_COPY_LOW, MEMORY_COPY_HIGH, MEMORY_COPY_END, MEMORY_START_END, MEMORY_AFTER_FOCUS, ...(withU ? [MERGE_CHOICE] : [])])
     if (p.sites.some(s => s.address === at)) throw new FirmwareError('unexpected-instruction', 'IIIx Mode Memory boxes: already patched');
@@ -1450,7 +1454,7 @@ export function installGr3xAfPointMemory(p: Gr3xRollProgram & { read(at: number,
     ldr r0,[r0,#0x164];mov r1,sp;mov r3,#0x3a;bl #${LIST_TYPES};add sp,sp,#${MEMORY_ROWS_MAX};pop {r4,pc};`);
   p.patch(MEMORY_LIST_CALL, blWord(MEMORY_LIST_CALL, MEMORY_LIST_SETUP), blWord(MEMORY_LIST_CALL, entries.memoryListSetup), 'Mode Memory: a view type for every row (the camera\'s array has 24)');
   // One box: its state byte (1 ticked), its item number, its setting; `inverted`: ticked is setting 0.
-  const box = (name: string, state: number, item: number, setting: number, inverted: boolean) => {
+  const box = (name: string, state: number, item: number, setting: number, inverted: boolean, onlyBit0 = false) => {
     const st = `movw ip,#${lo(state)};movt ip,#${hi(state)};`;
     const tick = `ldrb ip,[ip];cmp ip,#0;movwne r1,#${TICK_ON};movweq r1,#${TICK_OFF};`;
     entries[`${name}Draw`] = p.code(`${st}mov r0,r1;${tick}b #${ROW_ICON};`);
@@ -1460,18 +1464,20 @@ export function installGr3xAfPointMemory(p: Gr3xRollProgram & { read(at: number,
       none:mov r1,#0;
       found:ldr r0,[r4,#0x164];bl #${LIST_ROW};${st}${tick}pop {r4,lr};b #${ROW_ICON};`);
     // The setting into the record in use and the seven stored copies (0..6; not the factory record).
+    // onlyBit0 (T-HSET1): the other bits of the byte kept.
+    const put = onlyBit0 ? `ldrb ip,[r3,#${setting}];bic ip,ip,#1;orr ip,ip,r1;strb ip,[r3,#${setting}];` : `strb r1,[r3,#${setting}];`;
     entries[`${name}Write`] = p.code(`${st}ldrb r1,[ip];${inverted ? 'eor r1,r1,#1;' : ''}and r1,r1,#1;
-      movw r2,#${lo(POINTER)};movt r2,#${hi(POINTER)};ldr r3,[r2];${ram('r3', 'w0')}strb r1,[r3,#${setting}];w0:
-      mov r0,#0;wl:movw r2,#${lo(STORED)};movt r2,#${hi(STORED)};ldr r3,[r2,r0,lsl #2];${ram('r3', 'wn')}strb r1,[r3,#${setting}];
+      movw r2,#${lo(POINTER)};movt r2,#${hi(POINTER)};ldr r3,[r2];${ram('r3', 'w0')}${put}w0:
+      mov r0,#0;wl:movw r2,#${lo(STORED)};movt r2,#${hi(STORED)};ldr r3,[r2,r0,lsl #2];${ram('r3', 'wn')}${put}
       wn:add r0,r0,#1;cmp r0,#6;bls wl;bx lr;`);
     // Its state at the screen's start, from the record in use (r3; r1, r2 free).
     return (tag: string) => inverted
-      ? `mov r1,#1;${ram('r3', `r${tag}`)}ldrb r2,[r3,#${setting}];cmp r2,#1;moveq r1,#0;r${tag}:${st}strb r1,[ip];`
+      ? `mov r1,#1;${ram('r3', `r${tag}`)}ldrb r2,[r3,#${setting}];${onlyBit0 ? 'tst r2,#1;movne r1,#0;' : 'cmp r2,#1;moveq r1,#0;'}r${tag}:${st}strb r1,[ip];`
       : `mov r1,#0;${ram('r3', `r${tag}`)}ldrb r2,[r3,#${setting}];cmp r2,#1;moveq r1,#1;r${tag}:${st}strb r1,[ip];`;
   };
-  const readAf = box('afPoint', AF_POINT_STATE, AF_POINT_ITEM, GR3X_AF_POINT_SETTING, true);
+  const readAf = box('afPoint', AF_POINT_STATE, AF_POINT_ITEM, GR3X_AF_POINT_SETTING, true, bit0);
   const readU = withU ? box('memoryU', MEMORY_U_STATE, MEMORY_U_ITEM, GR3X_MEMORY_U_SETTING, false) : undefined;
-  entries.afPointRead = p.code(`movw r2,#${lo(POINTER)};movt r2,#${hi(POINTER)};ldr r3,[r2];${readAf('a')}${readU ? readU('u') : ''}b #${MEMORY_FILL};`);
+  entries.afPointRead = p.code(`movw r2,#${lo(POINTER)};movt r2,#${hi(POINTER)};ldr r3,[r2];${readAf('a')}${readU ? readU('u') : ''}${o.hideSettings ? `movw r2,#${lo(POINTER)};movt r2,#${hi(POINTER)};ldr r3,[r2];${o.hideSettings.read}` : ''}b #${MEMORY_FILL};`);
   p.patch(MEMORY_START_END, branchWord(MEMORY_START_END, MEMORY_FILL), branchWord(MEMORY_START_END, entries.afPointRead), 'Mode Memory: our boxes read at the screen\'s start');
   // The items: the camera's 24 with AF Point after Focus, Apply to U modes last.
   const items = p.read(GR3X_MEMORY_ITEMS, GR3X_MEMORY_ITEM_COUNT * 0x28);
@@ -1505,7 +1511,7 @@ export function installGr3xAfPointMemory(p: Gr3xRollProgram & { read(at: number,
   // `add r5,r4,#count * 0x28`: 25 items 0x3e8 (0xfa ror 30), 26 items 0x410 (0x41 ror 28).
   p.patch(MEMORY_COPY_END, 0xe2845d0f, withU ? 0xe2845e41 : 0xe2845ffa, `Mode Memory: ${count} items (end: + 0x${(count * 0x28).toString(16)})`);
   // Power-on, where Mode Memory applies: the AF point back to the factory's when the box is unticked.
-  entries.afPointReset = p.code(`ldr r2,[fp,#-0x30];ldrb ip,[r2,#${GR3X_AF_POINT_SETTING}];cmp ip,#1;bne kept;
+  entries.afPointReset = p.code(`ldr r2,[fp,#-0x30];ldrb ip,[r2,#${GR3X_AF_POINT_SETTING}];${bit0 ? 'tst ip,#1;beq kept;' : 'cmp ip,#1;bne kept;'}
     add ip,r3,#${GR3X_AF_AREA_CENTER};ldr r0,[ip];ldr r1,[ip,#4];add ip,r4,#${GR3X_AF_AREA_CENTER};str r0,[ip];str r1,[ip,#4];
     kept:b #${MEMORY_AFTER_FOCUS + 4};`);
   p.patch(MEMORY_AFTER_FOCUS, 0xe51b2030, branchWord(MEMORY_AFTER_FOCUS, entries.afPointReset), 'Mode Memory: AF Point unticked, the AF point to the centre');

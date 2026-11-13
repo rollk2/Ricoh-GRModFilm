@@ -4053,3 +4053,31 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
   instruction (`0x531b3bac + 8 i`, `mov r0,#0x13`). Filtrage en direct : ces 15 endroits.
   À établir en T-HSET3 : copie filtrée en RAM (allouée une fois) ou réécriture sur place si la zone
   est inscriptible.
+
+### Build T-HSET1 : ligne Hide Settings et écran de 7 cases (2026-11-13)
+
+- Option `hideMenu` (`hide-menu.ts`, branchée dans `adj.ts`, `datestamp.ts`, `shutdown.ts`,
+  `film-roll.ts`) ; build de recherche seulement pour l'instant (pas encore dans le moteur).
+- Ligne « Hide Settings » (identifiant `0x020001d0`) dans Setup juste après Firmware Info/Options
+  (ligne 23) : insertion commune à Setup seul, avec la ligne de l'image d'extinction ou avec End Screen
+  (`insertSetupLines`) ; les pages suivantes commencent une ligne plus loin.
+- Écran : celui de Mode Memory, partagé. À l'entrée de la fabrique, pour notre identifiant ou celui de
+  Memory, la fabrique est appelée pour Memory, puis la liste de l'écran est remplacée si elle n'est pas
+  celle demandée (nos cases sont numérotées à partir de 32) : nos 7 cases recopiées (insertion native
+  `0x532071fc` si le vecteur est plein), ou la copie native de Mode Memory (`0x53207348`) ; les lignes
+  préparées à nouveau (`memoryListSetup`) et le titre posé (`0x533a2ba0` : le nôtre ou `0x208`). Aucune
+  RAM à nous : la liste dit laquelle est affichée.
+- Les 7 cases : textes natifs Face Detection `0x37`, AF Assist Light `0x3a`, AF.C `0x51`, MF Auto
+  Magnification `0x5b`, Flash Mode `0x79`, GF-2 Flash Mode `0x49`, Flash Exposure Comp. `0x7f`. États
+  dans les octets d'état de l'écran (`+0x174 + k`), bit k + 1 de l'octet `0x905` (bit 0 : AF Point de
+  Mode Memory, qui ne touche plus que lui). Lus à l'ouverture de l'écran, écrits par chaque case dans
+  l'enregistrement en cours et les sept stockés.
+- Nom de la ligne en 21 langues, chaque caractère déjà présent dans les textes du boîtier de la langue
+  (vérifié en émulation) ; ja, ko, zh en « ne pas afficher les réglages » (設定を表示しない, 설정 표시 안
+  함, 设置不显示, 設定不顯示) faute des caractères de « cacher ».
+- Vérifié : `hide_menu_probe.py` (Setup, touches lues comme Memory, fabrique dans les deux sens et
+  insertion native, autres identifiants inchangés, dessin, bascule, écriture et lecture des bits, AF
+  Point sur le bit 0), `film_roll_check.py` (adapté : AF Point sur le bit 0 avec Hide Settings) et les
+  autres sondes sur T-HSET1 et T-HIDE3, tests ; sans l'option, T-HIDE3 se reconstruit à l'identique.
+- Risque à voir sur le boîtier : l'écran partagé (titre, nombre de lignes au passage d'une liste à
+  l'autre). V1-RC2 avait montré qu'une liste mal préparée éteint le boîtier.

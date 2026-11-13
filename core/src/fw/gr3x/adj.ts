@@ -48,6 +48,7 @@ import { installGr3xPlayProbe } from './play-probe';
 import { installGr3xPlayLast } from './play-last';
 import { GR3X_SR_SPEEDS, gr3xSrSpeedText, installGr3xSrSpeed } from './sr-speed';
 import { installGr3xFormatRewind } from './film-format';
+import { GR3X_HSET_AFTER, GR3X_HSET_ID, GR3X_HSET_NAMES, GR3X_MEMORY_ID, gr3xHideMenuRead, installGr3xHideMenu } from './hide-menu';
 import { gr3xHiddenPlan, installGr3xHiddenAdjLists, installGr3xHiddenValues, type Gr3xHiddenSettings } from './hidden-settings';
 import { GR3X_FILM_ADVANCE_NAMES, GR3X_FILM_ROLL_MODE_NAMES, installGr3xFilmAdvanceFn, installGr3xFilmRoll, installGr3xRetakeProbe, installGr3xFilmMessage, GR3X_FILM_NEW_ROLL_NAMES, GR3X_MESSAGE_CLEAR, GR3X_CANCEL_CLEAR, GR3X_REVIEW_ARM_CLEAR, GR3X_ADVANCE_ONCE_CLEAR, GR3X_FILM_REWIND_NAMES, GR3X_FILM_REWIND_QUESTIONS, installGr3xFilmRewind, GR3X_FILM_REWIND_ID, GR3X_FOLDER_DIALOG_ID, GR3X_REWIND_MODE, GR3X_MENU_IDS, installGr3xMenuRebuild, installGr3xHideMovieTab, installGr3xBlockMovie, installGr3xHideLines, installGr3xFilmFileNames, installGr3xAfReset, installGr3xAfPointMemory, GR3X_AF_POINT_NAMES, GR3X_MEMORY_U_NAMES, GR3X_HIDDEN_LINES, GR3X_FILM_TAB_NAMES, GR3X_MOVIE_ENTRY_IMAGE, GR3X_MOVIE_TAB, GR3X_FILM_ADVANCE_ICON, GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE, GR3X_SIDE_BUTTON_TEXTS, GR3X_SIDE_BUTTON_NAMES, GR3X_ROLL_LOCKED_LINES, installGr3xRollLockAdj } from './film-roll';
 
@@ -152,6 +153,8 @@ export interface Gr3xAdjFeatures {
   rollLock?: boolean;
   /** With the film mode: camera settings hidden, each held at the value chosen (hidden-settings.ts, T-HIDE1). */
   hiddenSettings?: Gr3xHiddenSettings;
+  /** T-HSET1 (hide-menu.ts): a Hide Settings line in Setup opening a list of boxes (with `afPoint` and the film mode). */
+  hideMenu?: boolean;
   /** Test builds (T-PLAY0): playback's opening noted in the key ring (with `grainTag: 'keys'`, no dial probe). */
   playProbe?: boolean | 'ref';
   /** With the film mode: playback opens on the last picture taken (T-PLAY2, play-last.ts). */
@@ -286,6 +289,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   if (hiddenPlan && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx hidden settings: only with the film mode');
   // T-HIDE3: a hidden setting's Mode Memory box leaves the list built with the AF Point box (every full build has it).
   if (hiddenPlan?.memoryItems.length && !features.afPoint) fail('IIIx hidden settings: Mode Memory boxes need afPoint');
+  if (features.hideMenu && !(features.afPoint && (features.filmRoll === 'film' || features.filmRoll === 'name2'))) fail('IIIx Hide Settings: with afPoint and the film mode');
+  const hsCount = features.hideMenu ? 1 : 0;
   if (rollLock && !(features.filmRoll === 'film' || features.filmRoll === 'name2')) fail('IIIx roll lock: only with the film mode');
   if (holdButtons && !macroButton) fail('IIIx hold buttons: with the Macro button');
   if (snapButton && !macroButton) fail('IIIx Snap DOF: with the Macro button');
@@ -380,9 +385,10 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   // Pictures: round 5 line name, Original, names; round 6 Type, Picture, Original, names.
   const pictureTexts = pictureCount ? (pictureSub ? 3 : 2) + pictureCount : 0;
   const srCount = features.srSpeed && features.srSpeed.seconds === undefined ? GR3X_SR_SPEEDS.length : 0;
-  const columns = m.textCount + additions.length + (softFocus ? 1 : 0) + dateTexts + pictureTexts + (filmMenu ? 1 : 0) + (filmFn ? 1 : 0) + (filmMessage ? 1 : 0) + (filmRewind ? 2 : 0) + (filmTab ? 1 : 0) + (features.afPoint ? 1 : 0) + (features.afPoint && features.memoryU ? 1 : 0) + (wbButton ? 1 : 0) + (macroButton ? 1 : 0) + (snapButton ? 1 : 0) + (holdButtons ? GR3X_HOLD_KEYS.length : 0) + srCount;
+  const columns = m.textCount + additions.length + (softFocus ? 1 : 0) + dateTexts + pictureTexts + (filmMenu ? 1 : 0) + (filmFn ? 1 : 0) + (filmMessage ? 1 : 0) + (filmRewind ? 2 : 0) + (filmTab ? 1 : 0) + (features.afPoint ? 1 : 0) + (features.afPoint && features.memoryU ? 1 : 0) + (wbButton ? 1 : 0) + (macroButton ? 1 : 0) + (snapButton ? 1 : 0) + (holdButtons ? GR3X_HOLD_KEYS.length : 0) + srCount + hsCount;
   // The SR speeds' texts, the very last (sr-speed.ts); before them the Hold lines' names (Fn, Macro, WB, ISO, Drive).
-  const end = columns - srCount, srText = end;
+  // T-HSET1: Hide Settings' name, the very last text (after the SR speeds').
+  const end = columns - srCount - hsCount, srText = end, hsText = columns - 1;
   const holdCount = holdButtons ? GR3X_HOLD_KEYS.length : 0, holdText = end - holdCount;
   // T24-AF2: the AF Point box's name, the last added text (then Apply to U's, then WB Button's).
   const memoryU = !!(features.afPoint && features.memoryU);
@@ -478,6 +484,10 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     const name = GR3X_AF_POINT_NAMES[lang], text = append(utf16z(name));
     new DataView(rows[row].buffer).setUint32(afText * 4, append(Uint8Array.from([name.length + 1, 1, 0, 0, ...words([text])])), true);
   });
+  if (hsCount) GR3X_SOFT_FOCUS_ROWS.forEach((lang, row) => {
+    const name = GR3X_HSET_NAMES[lang], text = append(utf16z(name));
+    new DataView(rows[row].buffer).setUint32(hsText * 4, append(Uint8Array.from([name.length + 1, 1, 0, 0, ...words([text])])), true);
+  });
   if (memoryU) GR3X_SOFT_FOCUS_ROWS.forEach((lang, row) => {
     const name = GR3X_MEMORY_U_NAMES[lang], text = append(utf16z(name));
     new DataView(rows[row].buffer).setUint32(uText * 4, append(Uint8Array.from([name.length + 1, 1, 0, 0, ...words([text])])), true);
@@ -520,7 +530,9 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   // T24-AF1: the AF point reset with Mode Memory's Focus.
   const afResetEntries = { ...(features.afReset ? installGr3xAfReset({ code, sites, patch }) : {}),
     ...(features.afPoint ? installGr3xAfPointMemory({ code, sites, patch, read, append }, afText, memoryU ? uText : undefined,
-      { film: !!roll && filmMenu, ...(roll ? { filmRecall: roll.entries.filmRollRecall } : {}), hideStillMovie: movieLines, hideItems: hiddenPlan?.memoryItems ?? [] }) : {}) };
+      { film: !!roll && filmMenu, ...(roll ? { filmRecall: roll.entries.filmRollRecall } : {}), hideStillMovie: movieLines, hideItems: hiddenPlan?.memoryItems ?? [],
+        ...(hsCount ? { hideSettings: { read: gr3xHideMenuRead() } } : {}) }) : {}) };
+  const hideMenu = hsCount ? installGr3xHideMenu({ code, append, u32: word }, hsText, (afResetEntries as Record<string, number>).memoryListSetup) : undefined;
   // T23: the movie taken out (test forms vid1.. or noMovie), with or without the film mode.
   const movieEntries = {
     ...(movieTabHidden ? installGr3xHideMovieTab({ code, sites, patch }) : {}),
@@ -664,7 +676,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
       ...(round7 ? { onOffText: true } : {}), ...(date8 ? { round8: true } : {}), ...(round10 ? { zeroFillDone: true } : {}),
       ...(roll && filmMenu ? { film: { text: filmText, set: roll.entries.filmMenuSet, isCurrent: roll.entries.filmMenuIsCurrent, visible: roll.entries.filmMenuVisible,
         ...(filmRewind ? { rewind: { id: GR3X_FILM_REWIND_ID, text: filmText + 3, visible: roll.entries.filmRewindVisible, dialog: GR3X_FOLDER_DIALOG_ID, mode: GR3X_REWIND_MODE, menu: GR3X_MENU_IDS } } : {}),
-        ...(filmTab ? { tab: { entry: GR3X_MOVIE_ENTRY_IMAGE, movie: GR3X_MOVIE_TAB, visible: roll.entries.filmMenuVisible, title: filmText + 5, icons: [filmIcon, filmIcon + 1, filmIcon + 2] as const } } : {}) } } : {}), ...(wb ? { fnLines: wb.lines } : {}) }),
+        ...(filmTab ? { tab: { entry: GR3X_MOVIE_ENTRY_IMAGE, movie: GR3X_MOVIE_TAB, visible: roll.entries.filmMenuVisible, title: filmText + 5, icons: [filmIcon, filmIcon + 1, filmIcon + 2] as const } } : {}) } } : {}), ...(wb ? { fnLines: wb.lines } : {}),
+      ...(hideMenu ? { hideMenu: { id: GR3X_HSET_ID, after: GR3X_HSET_AFTER, text: hsText, opens: GR3X_MEMORY_ID, factoryPrefix: hideMenu.factoryPrefix } } : {}) }),
     ...(dateImprint ? installGr3xDateImprintStage({ code, append, patch, word, read },
       round7 ? { stash: GR3X_HALATION_STASH, monoFilms: layer.monoFilms ?? [], ...(lookNames ? { names: lookNames } : {}), ...(round10 ? { r10: true } : {}), ...(features.grainTag ? { grainTags: features.grainTag } : {}), ...(features.grain && round10 ? { photo: GR3X_PHOTO_WORD } : {}) } : undefined,
       probeEntries?.filmProbeTime ?? (messageEntries as Record<string, number>).filmProbeTime, probe?.exposure ?? (roll && (features.filmRoll === 'end2' || features.filmRoll === 'end3' || features.filmRoll === 'clo1' || features.filmRoll === 'clo2' || features.filmRoll === 'clo3' || features.filmRoll === 'clo4' || features.filmRoll === 'msg1' || features.filmRoll === 'rwd1' || features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film')) ? GR3X_MESSAGE_CLEAR + GR3X_REVIEW_ARM_CLEAR + GR3X_ADVANCE_ONCE_CLEAR + roll.exposure : roll && features.filmRoll === 'fn6' ? GR3X_CANCEL_CLEAR + roll.exposure : roll && (features.filmRoll === 'dir3' || features.filmRoll === 'dg1' || features.filmRoll === 'dg2' || features.filmRoll === 'dg3' || features.filmRoll === 'dir4' || features.filmRoll === 'dir5' || features.filmRoll === 'dir6' || features.filmRoll === 'dir7' || features.filmRoll === 'dir8' || features.filmRoll === 'dir9' || features.filmRoll === 'dir10' || features.filmRoll === 'dir11' || features.filmRoll === 'dir12' || features.filmRoll === 'dir13' || features.filmRoll === 'dir14' || features.filmRoll === 'end1') ? GR3X_REVIEW_ARM_CLEAR + GR3X_ADVANCE_ONCE_CLEAR + roll.exposure : roll && (features.filmRoll === 'fn7' || features.filmRoll === 'dir1' || features.filmRoll === 'dir2') ? GR3X_REVIEW_ARM_CLEAR + roll.exposure : roll?.exposure), dateHidden) : {}),
@@ -705,7 +718,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     schema: 1, kind: 'gr3x-adj-patchset' as const, profile: profile.id,
     originalRtosSha256: profile.rtosSha256, originalLength: p.rtosLength, base: BASE,
     sites, append: { address: geometry.append.address, bytes: hex(payload) }, geometry,
-    entries: { ...geometry.entries, ...(holdEntries ?? {}), ...playEntries, ...playLastEntries, ...srSpeedEntries, ...formatEntries, ...rollLockAdj, ...hiddenValues, ...scaffold, ratioText, ratioIcon, fnCycle, ...imageEntries, ...developEntries, ...afEntries, ...mapEntries, ...liveEntries, ...messageEntries, ...rawEntries, ...shadingEntries, ...fullRawEntries, ...softEntries, ...dateEntries, ...lookEntries, ...(probeEntries ?? {}), ...fnEntries, ...rewindEntries, ...movieEntries, ...afResetEntries, ...(filmIcons ? { filmIconBase: filmIcon } : {}), ...(wb ? { ...wb.entries, wbOpen, ...(macroPress ? { macroPress } : {}), ...(snapStep ? { snapStep } : {}), ...(rewindPress ? { rewindPress } : {}) } : {}), ...grainEntries, ...dialEntries },
+    entries: { ...geometry.entries, ...(holdEntries ?? {}), ...playEntries, ...playLastEntries, ...srSpeedEntries, ...formatEntries, ...rollLockAdj, ...hiddenValues, ...scaffold, ratioText, ratioIcon, fnCycle, ...imageEntries, ...developEntries, ...afEntries, ...mapEntries, ...liveEntries, ...messageEntries, ...rawEntries, ...shadingEntries, ...fullRawEntries, ...softEntries, ...dateEntries, ...lookEntries, ...(probeEntries ?? {}), ...fnEntries, ...rewindEntries, ...movieEntries, ...afResetEntries, ...(hideMenu?.entries ?? {}), ...(filmIcons ? { filmIconBase: filmIcon } : {}), ...(wb ? { ...wb.entries, wbOpen, ...(macroPress ? { macroPress } : {}), ...(snapStep ? { snapStep } : {}), ...(rewindPress ? { rewindPress } : {}) } : {}), ...grainEntries, ...dialEntries },
     catalogs: { order, textRoots, textColumns: columns, iconRoot, iconCount },
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
