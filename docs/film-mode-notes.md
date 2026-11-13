@@ -4210,3 +4210,8 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
   le lecteur TypeScript, `hide_menu_probe` (adaptée), les autres sondes, tests (415) ; T-HIDE3 et la
   0.9.7-RC1 se reconstruisent à l'identique.
 - À voir sur le boîtier : le mode 0 de l'ouverture (création, écrasement), l'appel depuis le dialogue.
+- **Résultat T-SET1 (2026-11-13), validé sur le boîtier** : ligne et messages justes ; `GRFILM.SET` de
+  25 772 octets, identique en taille après deux sauvegardes (le mode 0 crée ou écrase) ; sans carte, refus
+  ou « Settings not saved. » ; Rewind Film (ligne et touche) et Create New Folder inchangés. Le fichier du
+  boîtier relu par le lecteur : en-tête juste (GR III, 0.9.8), les neuf sommes justes, contenu cohérent (cases
+  de Hide Settings, rouleaux, noms des films) ; le neuvième enregistrement (stocké 7) est vide.
