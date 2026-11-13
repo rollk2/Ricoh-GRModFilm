@@ -183,7 +183,7 @@ Décisions des 2026-11-10 et 2026-11-11.
 
 14. Obturation électronique à 1/8000e de seconde. Objectif : grande ouverture en plein soleil sans filtre ND. L'obturateur mécanique du GR III plafonne à 1/4000e. À étudier d'abord : chercher dans le firmware un mode de lecture rapide du capteur déjà existant (aperçu, vidéo) plutôt que d'écrire un pilote ; mesurer le rolling shutter et les bandes sous éclairage artificiel ; décider entre bascule automatique au-delà de 1/4000e ou mode séparé ; rester cohérent avec la vitesse plancher du SR (0.9.4). Pas de flash en électronique. Chantier ambitieux, réservé à une session Fable.
 
-15. Image des réglages : export, import et flash avec réglages.
+15. Image des réglages : export, import et flash avec réglages. **Version 0.9.9, dernière itération avant la v1.0 (décisions du 2026-11-13)** : un seul fichier sur la carte (« Save » le remplace, « Load » le relit, pas d'écran de choix) ; au chargement, tout est réappliqué (BOX, P/Av/Tv/M, réglages généraux), les rouleaux rembobinés comme après un formatage ; dans GR Mod Film, le fichier est ouvert, son contenu montré, et il est appliqué une fois au premier allumage après le flash (pas d'édition des valeurs). Le choix des blocs et les exports multiples restent pour plus tard. Plan : recherche, T-SET1 (export), T-SET2 (import dans le boîtier), T-SET3 (application), RC.
 
     Principe : un fichier « image des réglages » est une copie complète et fidèle de tous les réglages du boîtier à un instant donné. Il peut être réappliqué en tout ou en partie, depuis le boîtier ou depuis l'application au moment de construire le firmware.
 
