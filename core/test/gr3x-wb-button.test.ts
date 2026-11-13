@@ -138,7 +138,7 @@ describe.skipIf(!input)('GR III WB button', () => {
     await expect(engine.buildFirmware([], ratios, [], { ...base, hiddenSettings: { macro: 0 } as never })).rejects.toThrow(/unknown setting/);
     await expect(engine.buildFirmware([], ratios, [], { filmCount: 3, hiddenSettings })).rejects.toThrow(/film mode/);
   }, 900000);
-  it('0.9.8: gives the film mode Hide Settings in Setup (the camera chooses), recorded and recognised', async () => {
+  it('0.9.7: gives the film mode Hide Settings in Setup (the camera chooses), recorded and recognised', async () => {
     const engine = await Engine.open(raw);
     const ratios = [{ ratio: '65:24', name: 'XPan' }];
     const base = { filmCount: 3, adjSoftFocus: true, afPoint: true, memoryU: true, filmMode: { codes: {} }, noMovie: true, wbButton: true, macroButton: true, grain: true } as const;

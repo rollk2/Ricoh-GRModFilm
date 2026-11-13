@@ -994,7 +994,7 @@ export function setNoMovie(noMovie: boolean): void {
 }
 export function rearDialOffOn(s: State = state): boolean { return !!s.rearDialOff && filmModeChoosable(s); }
 /** The settings hidden with the film mode (none without it). */
-/** 0.9.8: the camera chooses what it hides (Setup > Hide Settings); the program's former list is kept in projects but no longer built. */
+/** 0.9.7: the camera chooses what it hides (Setup > Hide Settings); the program's former list is kept in projects but no longer built. */
 export function hiddenSettingsOn(_s: State = state): Record<string, number> { return {}; }
 /** Hide a setting with that value, or show it again (`value` undefined). */
 export function setHiddenSetting(key: string, value: number | undefined): void {

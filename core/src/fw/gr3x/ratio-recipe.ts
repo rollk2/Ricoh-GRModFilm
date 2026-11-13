@@ -52,7 +52,7 @@ export function encodeGr3xRatioRecipe(menu: readonly Gr3xMenuRatio[], features: 
     ...(features.formatRewind === true && features.filmMode ? { formatRewind: true } : {}),
     // Camera settings hidden, each at its value (hidden-settings.ts, T-HIDE1).
     ...(features.hiddenSettings && Object.keys(features.hiddenSettings).length && features.filmMode ? { hiddenSettings: { ...features.hiddenSettings } } : {}),
-    // Hide Settings in Setup, the camera choosing what is hidden (hide-menu.ts, T-HSET1..3, 0.9.8).
+    // Hide Settings in Setup, the camera choosing what is hidden (hide-menu.ts, T-HSET1..3, 0.9.7).
     ...(features.hideMenu && features.afPoint && features.filmMode ? { hideMenu: true } : {}),
     // The rear dial's rotation ignored everywhere (dial-probe.ts), round 10.
     ...(features.rearDialOff && features.round10 ? { rearDialOff: true } : {}),
