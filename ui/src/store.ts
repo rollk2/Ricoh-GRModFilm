@@ -352,7 +352,8 @@ async function saveProject(): Promise<void> {
 }
 export async function init(): Promise<void> {
   if (!host.available) { set({ ready: true }); return; }
-  void engine.heartbeat(host.info!.token);
+  // The web site has no shell to keep alive (webhost.ts).
+  if (host.info!.kind !== 'web') void engine.heartbeat(host.info!.token);
   void ensureIconFont();
   void loadPreviewPhoto();
   void loadBuilds();
