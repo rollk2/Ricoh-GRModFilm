@@ -20,7 +20,7 @@ import {
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
   filmCountChoosable, setFilmCount,
   hasLookLayout, isGr3, KEEP_VISIBLE, lookHiddenNow, lookMonoOnly, lookName, lookOrderAvailable, lookOrderNow, moveLook, moveLookTo, resetLookLayout, setLookHidden,
-  setWallName, wallMax, wallMenuProblem,
+  setWallName, wallMax, wallMenuProblem, exportRatios, exportRecipes, importRatios, importRecipes,
 } from './store';
 import type { ExtraSlot, RatioItem, SlotKey, WallItem } from './store';
 
@@ -898,10 +898,14 @@ export function ImageControlPage() {
             {info.bridge
               ? <span className="chip warn">{Ico.bridge}<span className="ellipsis">{fwName || info.filename} · {t('fwBridgeValue')}</span></span>
               : <span className="chip ok">{Ico.check}<span className="ellipsis">{fwName || info.filename} · {info.version}</span></span>}
-            {!onWeb && <Menu items={[
-              { label: t('writeStock'), run: () => { void outputFirmware({ kind: 'card' }, true); } },
-              { label: t('exportStock'), run: () => { void outputFirmware({ kind: 'folder' }, true); } },
-            ]}>{Ico.more}</Menu>}
+            <Menu items={[
+              { label: t('packImportRecipes'), run: () => { void importRecipes(); } },
+              { label: t('packExportRecipes'), run: () => { void exportRecipes(); } },
+              ...(onWeb ? [] : [
+                { label: t('writeStock'), run: () => { void outputFirmware({ kind: 'card' }, true); } },
+                { label: t('exportStock'), run: () => { void outputFirmware({ kind: 'folder' }, true); } },
+              ]),
+            ]}>{Ico.more}</Menu>
           </div>
         )}
       </header>
@@ -1034,7 +1038,11 @@ export function RatioPage() {
       <header className="page-head">
         <span className="page-icon">{Ico.ratio}</span>
         <h1>{t('navRatio')}</h1>
-        {info && <div className="head-right"><span className="chip">{`${ratios.filter(r => r.ratio.trim()).length}/${max}`}</span></div>}
+        {info && <div className="head-right"><span className="chip">{`${ratios.filter(r => r.ratio.trim()).length}/${max}`}</span>
+          <Menu items={[
+            { label: t('packImportRatios'), run: () => { void importRatios(); } },
+            { label: t('packExportRatios'), run: () => { void exportRatios(); } },
+          ]}>{Ico.more}</Menu></div>}
       </header>
       {!info && <FirmwareHero />}
       {info && (
