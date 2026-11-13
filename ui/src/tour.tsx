@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { t } from './i18n';
 import type { Key } from './i18n';
-import { endTour, getState, isGr3, resetTours, startTour, tourStep, useStore } from './store';
+import { endTour, getState, isGr3, resetTours, startTour, tourStep, useStore, skipAllTours } from './store';
 import type { TourId } from './store';
 
 type Side = 'right' | 'left' | 'top' | 'bottom';
@@ -30,6 +30,7 @@ export const TOURS: Record<TourId, Step[]> = {
     step('language', 'OvLang'),
     step('nav-ic', 'OvIc'),
     step('nav-ratio', 'OvRatio'),
+    step('nav-feat', 'OvFeat'),
     step(['nav-ic', 'nav-ratio'], 'OvCombine'),
     step('nav-wall', 'OvWall'),
     step('nav-copies', 'OvCopies'),
@@ -47,11 +48,13 @@ export const TOURS: Record<TourId, Step[]> = {
     step('ic-preset', 'IcPreset', 'bottom'),
     step('ic-icon', 'IcIcon', 'bottom'),
     step('ic-extra', 'IcExtra', 'bottom'),
-    step('ic-soft', 'IcSoft', 'top'),
     step('ic-tabs', 'IcTabs', 'bottom'),
     step('ic-mode', 'IcMode', 'bottom'),
     step('ic-preview', 'IcPreview', 'left'),
     step('write', 'IcWrite', 'top'),
+  ],
+  feat: [
+    step('ic-soft', 'IcSoft', 'bottom'),
   ],
   ratio: [
     step('ratio-factory', 'RatioFactory', 'bottom'),
@@ -239,6 +242,7 @@ function TourLayer() {
           <span className="tour-count">{tour.index + 1} / {tour.steps.length}</span>
           <span className="grow" />
           {tour.replay && !last && <button type="button" className="btn ghost small" onClick={() => endTour()}>{t('tourSkip')}</button>}
+          {!tour.replay && !last && <button type="button" className="btn ghost small" onClick={() => skipAllTours()}>{t('tourSkipAll')}</button>}
           {tour.index > 0 && <button type="button" className="btn small" onClick={() => tourStep(-1)}>{t('tourBack')}</button>}
           <button type="button" className="btn primary small" ref={next} onClick={() => tourStep(1)}>{last ? t('tourDone') : t('tourNext')}</button>
         </div>

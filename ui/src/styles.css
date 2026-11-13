@@ -560,3 +560,7 @@ html.look-grabbing, html.look-grabbing * { cursor: grabbing !important; }
 .look-order-reset svg { width: 14px; height: 14px; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .out-web { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* 0.9.9: the Features page (the switches, Hide Settings and the settings file) */
+.feat { flex: 1; min-height: 0; overflow-y: auto; max-width: 720px; padding-right: 3px; }
+.hidden-settings { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 14px 12px 58px; border-top: 1px solid var(--line); }
+.hidden-settings .soft-text { align-self: stretch; }
