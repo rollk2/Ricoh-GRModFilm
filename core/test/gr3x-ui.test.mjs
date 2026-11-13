@@ -152,6 +152,7 @@ describe('GR IIIx UI family isolation', () => {
     expect(store.getState().slots.F9.preset).toBeUndefined();
   });
   it('keeps each camera family’s own work apart when switching or opening a different model', async () => {
+    store.setModel('HDF'); // GR IV work first (the program starts on the GR III)
     store.getState().slots.CY = { ...store.getState().slots.CY, names: { en: 'GR IV film' }, preset: { result: {} } };
     store.setModel('GR3X_HDF');
     expect(store.getState().slots.CY.preset).toBeUndefined();

@@ -95,6 +95,20 @@ addresses, same emulator checks) but has **not been tested on a camera**.
 In the program: switch **Film mode** (and **No movie**, **Rear dial off** if wanted) on the GR III / IIIx page, and
 give each GR Mod film a 4-character **Film code** (A-Z, 0-9; the folder takes the first three).
 
+## Use it in the browser
+
+**[Open GR Mod Film](https://rollk2.github.io/Ricoh-GRModFilm/)**: nothing to install. The firmware is
+built on your computer, in the browser; nothing is sent anywhere.
+
+1. Download your camera's official firmware from Ricoh's site (the dialog of the site links to it) and open
+   the `.zip` in the site (no need to unzip it).
+2. Choose your settings, as in the program.
+3. In Chrome or Edge, « Choose the card… » writes the firmware to the memory card's root (choose the card's
+   root folder). In Safari or Firefox, « Download firmware » downloads it: copy it to the card's root.
+
+What the site cannot do (the browser does not allow it): download Ricoh's file itself, list the cards,
+move the files already on the card aside, keep firmware copies. The program below does these.
+
 ## Install
 
 Download the program for your computer from this repository's

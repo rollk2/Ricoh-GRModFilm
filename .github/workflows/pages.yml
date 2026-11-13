@@ -1,0 +1,56 @@
+# GR Mod Film as a web site on GitHub Pages (https://rollk2.github.io/Ricoh-GRModFilm/): the same interface as
+# the program, run in the browser (the firmware is built on the visitor's computer, nothing is sent anywhere).
+# A tag vX.Y.Z publishes the site of that version, as the release workflow publishes the programs; it can also
+# be run by hand (Actions > pages > Run workflow).
+#
+# Once only, in the repository: Settings > Pages > Build and deployment > Source: GitHub Actions.
+name: pages
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the site
+        working-directory: ui
+        run: |
+          npx tsc --noEmit -p .
+          npx vite build --mode web --outDir site --emptyOutDir
+          touch site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ui/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
