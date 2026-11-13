@@ -4237,3 +4237,7 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
   identiques.
 - À voir sur le boîtier : que l'arrêt ne réécrive pas l'enregistrement en cours avec les valeurs actives
   d'avant le chargement (les BOX ne sont pas concernées).
+- **Résultat T-SET2 (2026-11-13), validé sur le boîtier (100 %)** : chargement juste (réglages de P,
+  case de Hide Settings, BOX U1 revenus après redémarrage ; rouleaux rembobinés) ; l'arrêt ne réécrit pas
+  l'enregistrement en cours avec les anciennes valeurs ; fichier absent : « Settings not loaded. », rien
+  ne change.
