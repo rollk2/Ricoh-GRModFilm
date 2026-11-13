@@ -5,8 +5,8 @@ import { engine, EngineError } from './engine';
 import { host, HostError, onWeb, sha256Hex } from './host';
 import { DOWNLOADS } from './webhost';
 import { firmwareFromZip, isZip } from './zip';
-import { emptyRecipe, makeRatioPack, makeRecipePack, mergeRatios, PackError, placeRecipes, RATIOS_EXT, readRatioPack, readRecipePack, RECIPES_EXT } from './packs';
-import type { PackRecipe } from './packs';
+import { COMMUNITY_LICENSE, emptyRecipe, makeRatioPack, makeRecipePack, mergeRatios, PackError, placeRecipes, RATIOS_EXT, readRatioPack, readRecipePack, RECIPES_EXT } from './packs';
+import type { CommunityEntry, CommunityIndex, PackMeta, PackRecipe } from './packs';
 import type { ParkedEntry, Volume } from './host';
 import { t } from './i18n';
 import type { Key } from './i18n';
@@ -15,7 +15,7 @@ import type { Crop } from './pixels';
 import { decodePreview } from './preview';
 import defaultPhotoUrl from './assets/preview.jpg';
 
-export type Page = 'ic' | 'ratio' | 'feat' | 'wall' | 'copies';
+export type Page = 'ic' | 'ratio' | 'feat' | 'wall' | 'community' | 'copies';
 /** One added aspect ratio as typed; `preview` is what the camera would make of it (absent while that is worked out). */
 export interface RatioItem { id: string; ratio: string; name: string; preview?: RatioPreview }
 export interface PresetState { fileName: string; kind: 'xmp' | 'cube'; text: string; busy: boolean; result?: PresetResult; error?: string }
@@ -56,7 +56,7 @@ export interface BuildRecord { sha256: string; time: number; slots: { id: SlotId
 /** `warn` is an optional caution shown under the lines (used where something is deleted for good). */
 /** A guided tour: `overview` is the one of the first start, the others belong to a page. */
 export type TourId = 'overview' | Page;
-export const TOUR_IDS: readonly TourId[] = ['overview', 'ic', 'ratio', 'feat', 'wall', 'copies'];
+export const TOUR_IDS: readonly TourId[] = ['overview', 'ic', 'ratio', 'feat', 'wall', 'community', 'copies'];
 /** The tour being shown: `steps` are the indices of its steps that have something to point at; a replay can be skipped. */
 export interface TourState { id: TourId; steps: number[]; index: number; replay: boolean }
 /** `reset`: the firmware written is the official one; the dialog asks in red whether the camera's settings were reset first. */
@@ -380,7 +380,7 @@ export async function init(): Promise<void> {
       else familyDocs.gr4 = doc;
       const fam = familyOf(model), work = familyDocs[fam];
       set({ ...parseFamily(work), model,
-        page: doc.page === 'wall' || doc.page === 'copies' || doc.page === 'ratio' || doc.page === 'ic' || doc.page === 'feat' ? doc.page : doc.page === 'script' ? 'wall' : 'ic',
+        page: doc.page === 'wall' || doc.page === 'copies' || doc.page === 'ratio' || doc.page === 'ic' || doc.page === 'feat' || doc.page === 'community' ? doc.page : doc.page === 'script' ? 'wall' : 'ic',
         lang: (LANGS as readonly string[]).includes(doc.lang) ? doc.lang : 'en', fwName: doc.fwName, showAll: !!doc.showAll,
         previewMode: doc.previewMode === 'swatch' ? 'swatch' : 'photo', ratioBackdrop: doc.ratioBackdrop === 'gray' ? 'gray' : 'photo',
         // GR Mod 0.8 changed the power-off page: its tour (which now says where the pictures are chosen) shows once more
@@ -1659,7 +1659,8 @@ const packFamily = (s: State = state): 'gr3' | 'gr4' => (familyOf(s.model) === '
 /** Where recipes go: every film the firmware can have (GR III / IIIx), or GR IV's two Cinema slots. */
 const recipeSlots = (s: State = state): SlotId[] => (s.info ? s.info.slots.map((x) => x.id) : availableSlots(s));
 
-export async function exportRecipes(): Promise<void> {
+/** The open work as a recipe pack's text, or null when no film has anything. */
+function recipePackText(meta?: PackMeta): string | null {
   const s = state;
   const recipes: PackRecipe[] = availableSlots(s).map((id) => s.slots[id]).filter((x) => !slotEmpty(x)).map((x) => ({
     names: Object.fromEntries(Object.entries(x.names).filter(([, v]) => v && v.trim())) as Record<string, string>,
@@ -1668,16 +1669,25 @@ export async function exportRecipes(): Promise<void> {
     icon: { mode: x.icon.mode, text: x.icon.text, style: x.icon.style, ...(x.icon.image ? { image: x.icon.image } : {}) },
     ...(x.preset ? { preset: { fileName: x.preset.fileName, kind: x.preset.kind, text: x.preset.text } } : {}),
   }));
-  if (recipes.length === 0) { toast(t('packNothing'), 'info'); return; }
-  await saveFile(`GR Mod Film recipes${RECIPES_EXT}`, makeRecipePack(packFamily(s), recipes));
+  return recipes.length ? makeRecipePack(packFamily(s), recipes, meta) : null;
+}
+export async function exportRecipes(): Promise<void> {
+  const text = recipePackText();
+  if (!text) { toast(t('packNothing'), 'info'); return; }
+  await saveFile(`GR Mod Film recipes${RECIPES_EXT}`, text);
 }
 
-export async function importRecipes(): Promise<void> {
-  if (state.busy || !state.info) return;
-  const f = await pickFile(`${RECIPES_EXT},.json`);
-  if (!f) return;
+/** A recipe pack chosen by the user, or `text` (a pack of the community collection). */
+export async function importRecipes(text?: string): Promise<void> {
+  if (state.busy) return;
+  if (!state.info) { toast(t('packNeedFirmware'), 'info'); return; }
+  if (text === undefined) {
+    const f = await pickFile(`${RECIPES_EXT},.json`);
+    if (!f) return;
+    text = decodeText(new Uint8Array(await f.arrayBuffer()));
+  }
   let pack;
-  try { pack = readRecipePack(decodeText(new Uint8Array(await f.arrayBuffer()))); } catch (e) { toast(packProblem(e), 'error'); return; }
+  try { pack = readRecipePack(text); } catch (e) { toast(packProblem(e), 'error'); return; }
   if (pack.family !== packFamily()) { toast(t('packOtherCamera'), 'error'); return; }
   const slots = recipeSlots();
   const filled = availableSlots().filter((id) => !slotEmpty(state.slots[id])).length;
@@ -1718,17 +1728,25 @@ function applyRecipe(id: SlotId, r: PackRecipe): void {
   }
 }
 
-export async function exportRatios(): Promise<void> {
+function ratioPackText(meta?: PackMeta): string | null {
   const ratios = state.ratios.filter((r) => r.ratio.trim()).map((r) => ({ ratio: r.ratio.trim(), name: r.name }));
-  if (ratios.length === 0) { toast(t('packNothing'), 'info'); return; }
-  await saveFile(`GR Mod Film ratios${RATIOS_EXT}`, makeRatioPack(ratios));
+  return ratios.length ? makeRatioPack(ratios, meta) : null;
 }
-export async function importRatios(): Promise<void> {
+export async function exportRatios(): Promise<void> {
+  const text = ratioPackText();
+  if (!text) { toast(t('packNothing'), 'info'); return; }
+  await saveFile(`GR Mod Film ratios${RATIOS_EXT}`, text);
+}
+/** A ratio pack chosen by the user, or `text` (a pack of the community collection). */
+export async function importRatios(text?: string): Promise<void> {
   if (state.busy) return;
-  const f = await pickFile(`${RATIOS_EXT},.json`);
-  if (!f) return;
+  if (text === undefined) {
+    const f = await pickFile(`${RATIOS_EXT},.json`);
+    if (!f) return;
+    text = decodeText(new Uint8Array(await f.arrayBuffer()));
+  }
   let pack;
-  try { pack = readRatioPack(decodeText(new Uint8Array(await f.arrayBuffer()))); } catch (e) { toast(packProblem(e), 'error'); return; }
+  try { pack = readRatioPack(text); } catch (e) { toast(packProblem(e), 'error'); return; }
   const existing = state.ratios.filter((r) => r.ratio.trim());
   let mode: 'replace' | 'add' = 'replace';
   if (existing.length > 0) {
@@ -1746,4 +1764,42 @@ export async function importRatios(): Promise<void> {
   ratiosChanged(true);
   const added = mode === 'add' ? next.length - existing.length : next.length;
   toast(t('packRatiosDone', { n: added }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
+}
+
+// ------------------------------------------------------------------ the community collection (1.0)
+/** The repository's collection (community/ on GitHub), published with the site. */
+export const COMMUNITY_SITE = 'https://rollk2.github.io/Ricoh-GRModFilm/community/';
+const COMMUNITY_UPLOAD = 'https://github.com/rollk2/Ricoh-GRModFilm/upload/main/community/';
+/** Where the collection is read: beside the page on the site, from the site in the program. */
+const communityBase = (): string => (onWeb ? new URL('community/', location.href).href : COMMUNITY_SITE);
+export async function loadCommunity(): Promise<CommunityIndex> {
+  const r = await fetch(communityBase() + 'index.json', { cache: 'no-cache' });
+  if (!r.ok) throw new Error(String(r.status));
+  const doc = await r.json() as CommunityIndex;
+  return { v: 1, packs: Array.isArray(doc?.packs) ? doc.packs : [] };
+}
+/** Imports a pack of the collection (Replace or Add, as an import from a file). */
+export async function importCommunity(e: CommunityEntry): Promise<void> {
+  if (e.kind === 'recipes' && !state.info) { toast(t('packNeedFirmware'), 'info'); return; }
+  let text: string;
+  try {
+    const r = await fetch(communityBase() + e.file, { cache: 'no-cache' });
+    if (!r.ok) throw new Error(String(r.status));
+    text = await r.text();
+  } catch { toast(t('communityNetError'), 'error'); return; }
+  if (e.kind === 'recipes') await importRecipes(text); else await importRatios(text);
+}
+/** True when there is something to share of that kind. */
+export const canShare = (kind: 'recipes' | 'ratios'): boolean => !!(kind === 'recipes' ? recipePackText() : ratioPackText());
+/**
+ * Shares the open work: the pack (with its title, author, description and the collection's licence) is saved,
+ * then GitHub's upload page of the collection's folder opens, where the file is dropped and proposed.
+ */
+export async function sharePack(kind: 'recipes' | 'ratios', meta: { title: string; author: string; description: string }): Promise<void> {
+  const full: PackMeta = { ...meta, license: COMMUNITY_LICENSE };
+  const text = kind === 'recipes' ? recipePackText(full) : ratioPackText(full);
+  if (!text) { toast(t('packNothing'), 'info'); return; }
+  const slug = meta.title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'pack';
+  await saveFile(slug + (kind === 'recipes' ? RECIPES_EXT : RATIOS_EXT), text);
+  await host.openPage(COMMUNITY_UPLOAD + kind);
 }

@@ -1,0 +1,23 @@
+# GR Mod Film community collection: every pull request that touches community/ (a shared recipe or ratio pack)
+# has each pack read as the site reads it (tools/community.mjs, ui/src/packs.ts). A pack in the wrong folder,
+# with a wrong name, without a title or the CC0-1.0 licence, too large or unreadable fails the check, with the
+# reason in the log. The maintainer reviews only packs that pass.
+name: community
+
+on:
+  pull_request:
+    paths: ['community/**']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the packs
+        run: node --experimental-transform-types --no-warnings tools/community.mjs check

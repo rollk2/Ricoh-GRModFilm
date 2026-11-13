@@ -183,6 +183,8 @@ func New(opt Options) (*Server, error) {
 		"/api/update/page":     {http.MethodPost, s.handleUpdatePage},
 		"/api/update/state":    {http.MethodGet, s.handleUpdateState},
 		"/api/update/notes":    {http.MethodGet, s.handleUpdateNotes},
+
+		"/api/open-page": {http.MethodPost, s.handleOpenPage},
 	}
 	return s, nil
 }

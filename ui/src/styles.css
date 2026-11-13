@@ -564,3 +564,14 @@ html.look-grabbing, html.look-grabbing * { cursor: grabbing !important; }
 .feat { flex: 1; min-height: 0; overflow-y: auto; max-width: 720px; padding-right: 3px; }
 .hidden-settings { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 14px 12px 58px; border-top: 1px solid var(--line); }
 .hidden-settings .soft-text { align-self: stretch; }
+/* 1.0: the Community page */
+.community-intro { max-width: 720px; margin: -6px 0 14px; }
+.community-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; max-width: 720px; padding-right: 3px; }
+.community-pack { display: flex; align-items: flex-start; gap: 14px; padding: 12px 14px; }
+.community-pack .soft-text { gap: 4px; }
+.community-desc { color: var(--text); }
+.community-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.community-share label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; font-size: 13px; }
+.community-share textarea.input { height: auto; padding: 6px 8px; resize: vertical; font: inherit; }
+.community-share .community-own { flex-direction: row; align-items: flex-start; gap: 8px; }
+.community-share .community-own input { margin-top: 3px; }

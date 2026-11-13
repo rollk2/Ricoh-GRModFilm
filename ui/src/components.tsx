@@ -43,6 +43,7 @@ export const Ico = {
   flash: <svg viewBox="0 0 20 20" {...P}><path d="M11.8 2.6L5.4 11h4.2l-1.8 6.4 6.8-8.8h-4.4l1.6-6z" /></svg>,
   mono: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="7.2" /><path d="M10 2.8a7.2 7.2 0 0 1 0 14.4z" fill="currentColor" stroke="none" /></svg>,
   help: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="7.2" /><path d="M7.9 8a2.2 2.2 0 1 1 3.3 1.9c-.8.5-1.2 1-1.2 1.8" /><circle cx="10" cy="13.9" r="0.6" fill="currentColor" /></svg>,
+  users: <svg viewBox="0 0 20 20" {...P}><circle cx="7.5" cy="7" r="2.6" /><path d="M2.8 16c0-2.7 2.1-4.6 4.7-4.6s4.7 1.9 4.7 4.6" /><circle cx="13.6" cy="7.6" r="2.1" /><path d="M13.4 11.6c2.2 0 3.8 1.6 3.8 3.9" /></svg>,
   external: <svg viewBox="0 0 20 20" {...P}><path d="M8 5H5.5A1.5 1.5 0 0 0 4 6.5v8A1.5 1.5 0 0 0 5.5 16h8a1.5 1.5 0 0 0 1.5-1.5V12M11 4h5v5M16 4l-7 7" /></svg>,
 };
 

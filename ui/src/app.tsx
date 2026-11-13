@@ -6,6 +6,7 @@ import { host, onWeb } from './host';
 import { canPickFolder } from './webhost';
 import { LANG_LABEL, t } from './i18n';
 import type { Key } from './i18n';
+import { CommunityPage } from './community';
 import { CopiesPage } from './copies';
 import { BridgeBanner, BridgeDialog, FirmwareOnline, FirmwareRow, MODELS, modelLabel } from './firmware';
 import { CropEditor, FeaturesPage, ImageControlPage, RatioPage, WallpaperPage } from './pages';
@@ -30,6 +31,7 @@ function Sidebar() {
         <button className={`nav ${page === 'ratio' ? 'on' : ''}`} data-tour="nav-ratio" onClick={() => setPage('ratio')}>{Ico.ratio}<span>{t('navRatio')}</span></button>
         <button className={`nav ${page === 'feat' ? 'on' : ''}`} data-tour="nav-feat" onClick={() => setPage('feat')}>{Ico.film}<span>{t('navFeat')}</span></button>
         {(!isGr3(model) || menuPics || !info) && <button className={`nav ${page === 'wall' ? 'on' : ''}`} data-tour="nav-wall" onClick={() => setPage('wall')}>{Ico.image}<span>{t('navWall')}</span></button>}
+        <button className={`nav ${page === 'community' ? 'on' : ''}`} data-tour="nav-community" onClick={() => setPage('community')}>{Ico.users}<span>{t('navCommunity')}</span></button>
       </nav>
       <div className="grow" />
       {!onWeb && <button className={`nav low ${page === 'copies' ? 'on' : ''}`} data-tour="nav-copies" onClick={() => setPage('copies')}>{Ico.archive}<span>{t('navCopies')}</span></button>}
@@ -77,7 +79,7 @@ function OutputBar() {
   const s = useStore((x) => x);
   const vol = s.volumes.find((v) => v.id === s.volumeId);
   // Image Control (with its switches), the added ratios and the power-off images go into one firmware file: every page writes the same thing.
-  const isIC = s.page === 'ic' || s.page === 'ratio' || s.page === 'feat'; const isWall = s.page === 'wall';
+  const isIC = s.page === 'ic' || s.page === 'ratio' || s.page === 'feat' || s.page === 'community'; const isWall = s.page === 'wall';
   const can = !!s.info && s.info.models.includes(s.model) && (isIC ? s.info.capabilities.build : isWall ? (s.info.capabilities.wallpaper || s.info.capabilities.menuPictures) : s.info.capabilities.factoryEntry) && !s.busy && (isIC ? (pendingChanges(s).length + ratioSpecs(s).length > 0 || extrasOn(s) || (s.model !== 'MONO' && s.info.family !== 'gr3x' && s.extras.length > 0) || menuPictures(s).length > 0) && !hasNameErrors(s) && !hasRatioErrors(s) : isWall ? wallReady(s) && !hasNameErrors(s) && !hasRatioErrors(s) : true);
   const role: Key | '' = s.role === 'firmware' ? 'roleFirmware' : s.role === 'wallpaper' ? 'roleWallpaper' : s.role === 'mixed' ? 'roleMixed' : s.role === 'empty' ? 'roleEmpty' : '';
   // With the bridge firmware open the buttons stay live but offer the official download instead.
@@ -159,7 +161,7 @@ export function App() {
       <Sidebar />
       <main className="main">
         <BridgeBanner />
-        <div className="stage">{ready ? (page === 'ratio' ? <RatioPage /> : page === 'feat' ? <FeaturesPage /> : page === 'wall' && (!gr3 || menuPicsReady || !fwOpen) ? <WallpaperPage /> : page === 'copies' ? <CopiesPage /> : <ImageControlPage />) : <div className="page"><span className="spinner" /></div>}</div>
+        <div className="stage">{ready ? (page === 'ratio' ? <RatioPage /> : page === 'feat' ? <FeaturesPage /> : page === 'community' ? <CommunityPage /> : page === 'wall' && (!gr3 || menuPicsReady || !fwOpen) ? <WallpaperPage /> : page === 'copies' ? <CopiesPage /> : <ImageControlPage />) : <div className="page"><span className="spinner" /></div>}</div>
         <OutputBar />
       </main>
       <CropEditor />

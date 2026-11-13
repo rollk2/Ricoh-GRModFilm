@@ -33,6 +33,7 @@ export const TOURS: Record<TourId, Step[]> = {
     step('nav-feat', 'OvFeat'),
     step(['nav-ic', 'nav-ratio'], 'OvCombine'),
     step('nav-wall', 'OvWall'),
+    step('nav-community', 'OvCommunity'),
     step('nav-copies', 'OvCopies'),
     step('export', 'OvExport', 'top'),
     step('write', 'OvWrite', 'top'),
@@ -70,6 +71,9 @@ export const TOURS: Record<TourId, Step[]> = {
     step('wall-add', 'WallAdd'),
     step('wall-card', 'WallCard'),
     step('write', 'WallWrite', 'top'),
+  ],
+  community: [
+    step('nav-community', 'OvCommunity'),
   ],
   copies: [
     step('copies-tabs', 'CopiesTabs', 'bottom'),

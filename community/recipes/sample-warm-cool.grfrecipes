@@ -1,0 +1,51 @@
+{
+ "format": "grmod-film-recipes",
+ "v": 1,
+ "title": "Sample Warm and Cool",
+ "author": "GR Mod Film",
+ "description": "Two simple looks to try the film mode: a warm and a cool balance with a soft contrast curve.",
+ "license": "CC0-1.0",
+ "family": "gr3",
+ "recipes": [
+  {
+   "names": {
+    "en": "Sample Warm"
+   },
+   "code": "SWRM",
+   "halation": {
+    "on": true,
+    "preview": 0
+   },
+   "icon": {
+    "mode": "text",
+    "text": "SW",
+    "style": "film"
+   },
+   "preset": {
+    "fileName": "Sample-Warm.cube",
+    "kind": "cube",
+    "text": "# Sample Warm: sample LUT of the GR Mod Film community collection, CC0-1.0.\nTITLE \"Sample Warm\"\nLUT_1D_SIZE 17\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1 1 1\n0.000000 0.000600 0.002000\n0.047193 0.046377 0.044473\n0.096716 0.094414 0.089044\n0.150545 0.146628 0.137490\n0.210000 0.204300 0.191000\n0.275545 0.267878 0.249990\n0.346716 0.336914 0.314044\n0.422193 0.410127 0.381973\n0.500000 0.485600 0.452000\n0.577807 0.561073 0.522027\n0.653284 0.634286 0.589956\n0.724455 0.703322 0.654010\n0.790000 0.766900 0.713000\n0.849455 0.824572 0.766510\n0.903284 0.876786 0.814956\n0.952807 0.924823 0.859527\n1.000000 0.970600 0.902000\n"
+   }
+  },
+  {
+   "names": {
+    "en": "Sample Cool"
+   },
+   "code": "SCOL",
+   "halation": {
+    "on": true,
+    "preview": 0
+   },
+   "icon": {
+    "mode": "text",
+    "text": "SC",
+    "style": "film"
+   },
+   "preset": {
+    "fileName": "Sample-Cool.cube",
+    "kind": "cube",
+    "text": "# Sample Cool: sample LUT of the GR Mod Film community collection, CC0-1.0.\nTITLE \"Sample Cool\"\nLUT_1D_SIZE 17\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1 1 1\n0.001600 0.000400 0.000000\n0.045017 0.046649 0.047193\n0.090578 0.095181 0.096716\n0.140101 0.147934 0.150545\n0.194800 0.206200 0.210000\n0.255101 0.270434 0.275545\n0.320578 0.340181 0.346716\n0.390017 0.414149 0.422193\n0.461600 0.490400 0.500000\n0.533183 0.566651 0.577807\n0.602622 0.640619 0.653284\n0.668099 0.710366 0.724455\n0.728400 0.774600 0.790000\n0.783099 0.832866 0.849455\n0.832622 0.885619 0.903284\n0.878183 0.934151 0.952807\n0.921600 0.980400 1.000000\n"
+   }
+  }
+ ]
+}

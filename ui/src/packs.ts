@@ -16,9 +16,13 @@ export interface PackRecipe {
   icon?: PackIcon;
   preset?: { fileName: string; kind: 'xmp' | 'cube'; text: string };
 }
-export interface RecipePack { format: typeof RECIPES_FORMAT; v: 1; family: PackFamily; recipes: PackRecipe[] }
+/** 1.0: what a shared pack says of itself (the community collection, community/README.md). */
+export interface PackMeta { title?: string; author?: string; description?: string; license?: string }
+/** The licence of the community collection: public domain, the author's own work. */
+export const COMMUNITY_LICENSE = 'CC0-1.0';
+export interface RecipePack extends PackMeta { format: typeof RECIPES_FORMAT; v: 1; family: PackFamily; recipes: PackRecipe[] }
 export interface PackRatio { ratio: string; name: string }
-export interface RatioPack { format: typeof RATIOS_FORMAT; v: 1; ratios: PackRatio[] }
+export interface RatioPack extends PackMeta { format: typeof RATIOS_FORMAT; v: 1; ratios: PackRatio[] }
 
 export class PackError extends Error {
   code: 'not-a-pack' | 'other-kind' | 'newer' | 'empty';
@@ -29,6 +33,13 @@ const MAX_RECIPES = 40;
 const MAX_RATIOS = 40;
 const FILM_CODE = /^[A-Z0-9]{4}$/;
 const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.slice(0, max) : '');
+/** The meta fields kept: trimmed, bounded, only when not empty. */
+function cleanMeta(d: Record<string, unknown> | PackMeta | undefined): PackMeta {
+  const m = (d ?? {}) as Record<string, unknown>, out: PackMeta = {};
+  const title = str(m.title, 60).trim(), author = str(m.author, 40).trim(), description = str(m.description, 300).trim(), license = str(m.license, 20).trim();
+  if (title) out.title = title; if (author) out.author = author; if (description) out.description = description; if (license) out.license = license;
+  return out;
+}
 
 function parse(text: string, format: string): Record<string, unknown> {
   let doc: unknown;
@@ -68,8 +79,8 @@ export function emptyRecipe(r: PackRecipe): boolean {
   return Object.keys(r.names).length === 0 && !r.code && !r.preset && !(r.halation && r.halation.preview > 0) && !(r.icon && r.icon.mode !== 'keep');
 }
 
-export function makeRecipePack(family: PackFamily, recipes: PackRecipe[]): string {
-  const pack: RecipePack = { format: RECIPES_FORMAT, v: 1, family, recipes: recipes.map((r) => cleanRecipe(r)!).filter((r) => !emptyRecipe(r)) };
+export function makeRecipePack(family: PackFamily, recipes: PackRecipe[], meta?: PackMeta): string {
+  const pack: RecipePack = { format: RECIPES_FORMAT, v: 1, ...cleanMeta(meta), family, recipes: recipes.map((r) => cleanRecipe(r)!).filter((r) => !emptyRecipe(r)) };
   return JSON.stringify(pack, null, 1);
 }
 export function readRecipePack(text: string): RecipePack {
@@ -77,7 +88,7 @@ export function readRecipePack(text: string): RecipePack {
   const family: PackFamily = d.family === 'gr4' ? 'gr4' : 'gr3';
   const recipes = (Array.isArray(d.recipes) ? d.recipes : []).slice(0, MAX_RECIPES).map(cleanRecipe).filter((r): r is PackRecipe => !!r && !emptyRecipe(r));
   if (recipes.length === 0) throw new PackError('empty');
-  return { format: RECIPES_FORMAT, v: 1, family, recipes };
+  return { format: RECIPES_FORMAT, v: 1, ...cleanMeta(d), family, recipes };
 }
 
 const cleanRatio = (r: unknown): PackRatio | null => {
@@ -85,15 +96,15 @@ const cleanRatio = (r: unknown): PackRatio | null => {
   const ratio = str((r as Record<string, unknown>).ratio, 24).trim();
   return ratio ? { ratio, name: str((r as Record<string, unknown>).name, 80) } : null;
 };
-export function makeRatioPack(ratios: PackRatio[]): string {
-  const pack: RatioPack = { format: RATIOS_FORMAT, v: 1, ratios: ratios.map(cleanRatio).filter((r): r is PackRatio => !!r) };
+export function makeRatioPack(ratios: PackRatio[], meta?: PackMeta): string {
+  const pack: RatioPack = { format: RATIOS_FORMAT, v: 1, ...cleanMeta(meta), ratios: ratios.map(cleanRatio).filter((r): r is PackRatio => !!r) };
   return JSON.stringify(pack, null, 1);
 }
 export function readRatioPack(text: string): RatioPack {
   const d = parse(text, RATIOS_FORMAT);
   const ratios = (Array.isArray(d.ratios) ? d.ratios : []).slice(0, MAX_RATIOS).map(cleanRatio).filter((r): r is PackRatio => !!r);
   if (ratios.length === 0) throw new PackError('empty');
-  return { format: RATIOS_FORMAT, v: 1, ratios };
+  return { format: RATIOS_FORMAT, v: 1, ...cleanMeta(d), ratios };
 }
 
 /** The same ratio typed differently (« 65:24 », « 65 : 24 »). */
@@ -118,4 +129,40 @@ export function mergeRatios(existing: PackRatio[], incoming: PackRatio[], mode: 
  */
 export function placeRecipes(slots: readonly string[], isEmpty: (id: string) => boolean, count: number, mode: 'replace' | 'add'): string[] {
   return (mode === 'replace' ? [...slots] : slots.filter(isEmpty)).slice(0, count);
+}
+
+// ------------------------------------------------------------------ the community collection (1.0)
+/** The largest pack the collection takes (a few films with their .cube presets). */
+export const COMMUNITY_MAX_BYTES = 8_000_000;
+/** One pack of the collection as the site lists it (community/index.json). */
+export interface CommunityEntry {
+  kind: 'recipes' | 'ratios'; file: string; size: number;
+  title: string; author: string; description: string;
+  /** Recipes: the camera family, and each film's name (English, else the first given). */
+  family?: PackFamily; items: string[];
+}
+export interface CommunityIndex { v: 1; packs: CommunityEntry[] }
+
+/**
+ * A file of the collection checked as the site and the CI read it: its folder decides the kind, and it must be
+ * a valid pack of that kind, with a title and the collection's licence. Throws a message for the CI otherwise.
+ */
+export function communityEntry(path: string, text: string, size: number): CommunityEntry {
+  const m = /^(recipes|ratios)\/([A-Za-z0-9][A-Za-z0-9._-]{0,80})$/.exec(path);
+  if (!m) throw new Error(`${path}: a pack goes in recipes/ or ratios/, with a plain file name (letters, digits, . _ -)`);
+  const kind = m[1] as 'recipes' | 'ratios';
+  if (!m[2].endsWith(kind === 'recipes' ? RECIPES_EXT : RATIOS_EXT)) throw new Error(`${path}: a ${kind} pack ends with ${kind === 'recipes' ? RECIPES_EXT : RATIOS_EXT}`);
+  if (size > COMMUNITY_MAX_BYTES) throw new Error(`${path}: larger than ${COMMUNITY_MAX_BYTES / 1e6} MB`);
+  let pack: RecipePack | RatioPack;
+  try { pack = kind === 'recipes' ? readRecipePack(text) : readRatioPack(text); } catch (e) { throw new Error(`${path}: not a valid ${kind} pack (${e instanceof PackError ? e.code : 'unreadable'})`); }
+  if (!pack.title) throw new Error(`${path}: the pack has no title`);
+  if (pack.license !== COMMUNITY_LICENSE) throw new Error(`${path}: the collection takes ${COMMUNITY_LICENSE} packs only (licence: ${pack.license ?? 'none'})`);
+  const items = 'recipes' in pack
+    ? pack.recipes.map((r, i) => r.names.en || Object.values(r.names)[0] || r.code || `Film ${i + 1}`)
+    : pack.ratios.map((r) => (r.name ? `${r.ratio} ${r.name}` : r.ratio));
+  return { kind, file: path, size, title: pack.title, author: pack.author ?? '', description: pack.description ?? '', ...('family' in pack ? { family: pack.family } : {}), items };
+}
+/** The collection's index, packs sorted by kind then title. */
+export function communityIndex(entries: CommunityEntry[]): CommunityIndex {
+  return { v: 1, packs: [...entries].sort((a, b) => a.kind.localeCompare(b.kind) || a.title.localeCompare(b.title)) };
 }
