@@ -4092,3 +4092,7 @@ Memory « mémorisée ». Plan : T-HSET1 (ligne et écran), T-HSET2 (effet), T-H
 - **T-HSET1b** : après chaque changement de liste, ces deux fonctions sont rappelées sur l'écran,
   comme dans le constructeur. Sondes : `hide_menu_probe.py` (les deux appels, dans l'ordre, avec
   l'écran), `film_roll_check.py`, `hidden_probe.py`, `guard_probe.py`.
+- **Résultat T-HSET1b (2026-11-13), validé sur le boîtier** : « Hide Settings » sous Firmware
+  Info/Options, titre et 7 lignes justes ; deux cases cochées gardées en revenant et après extinction ;
+  Mode Memory normal (titre, lignes, coches) après passage par Hide Settings ; AF Point décoché puis
+  recoché sans effet sur nos cases.
