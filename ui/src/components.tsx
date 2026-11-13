@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { ICON_H, ICON_W, RATIO_ICON_H, RATIO_ICON_W } from '@grmod/core';
 import { uiScale } from './fit';
 import { rgbToCanvas, rgbaToCanvas } from './pixels';
-import { answerConfirm, dismissToast, useStore } from './store';
+import { answerConfirm, answerConfirmAlt, dismissToast, useStore } from './store';
 import { t } from './i18n';
 
 const P = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
@@ -298,6 +298,7 @@ export function ConfirmDialog() {
         <div className="dialog-actions">
           {/* writing the official firmware: Cancel has the focus, the red button must be clicked */}
           <button className="btn" autoFocus={!!c.reset} onClick={() => answerConfirm(false)}>{t('cancel')}</button>
+          {c.alt && <button className="btn" onClick={() => answerConfirmAlt()}>{c.alt}</button>}
           <button className={c.reset ? 'btn danger-solid' : 'btn primary'} autoFocus={!c.reset} onClick={() => answerConfirm(true)}>{c.ok}</button>
         </div>
       </div>

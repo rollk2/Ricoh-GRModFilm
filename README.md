@@ -106,6 +106,11 @@ built on your computer, in the browser; nothing is sent anywhere.
 3. In Chrome or Edge, « Choose the card… » writes the firmware to the memory card's root (choose the card's
    root folder). In Safari or Firefox, « Download firmware » downloads it: copy it to the card's root.
 
+Your work stays in the browser you use (not in a private window), and the site and the program keep theirs
+apart. To move or share it, use the packs: on the Image Control page, the ⋯ menu exports and imports a
+**recipe pack** (`.grfrecipes`: each film's names, film code, preset, icon and halation); on the Aspect ratio
+page, a **ratio pack** (`.grfratios`). An import asks whether to replace everything or add to what is there.
+
 What the site cannot do (the browser does not allow it): download Ricoh's file itself, list the cards,
 move the files already on the card aside, keep firmware copies. The program below does these.
 

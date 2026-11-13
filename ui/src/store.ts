@@ -5,6 +5,8 @@ import { engine, EngineError } from './engine';
 import { host, HostError, onWeb, sha256Hex } from './host';
 import { DOWNLOADS } from './webhost';
 import { firmwareFromZip, isZip } from './zip';
+import { emptyRecipe, makeRatioPack, makeRecipePack, mergeRatios, PackError, placeRecipes, RATIOS_EXT, readRatioPack, readRecipePack, RECIPES_EXT } from './packs';
+import type { PackRecipe } from './packs';
 import type { ParkedEntry, Volume } from './host';
 import { t } from './i18n';
 import type { Key } from './i18n';
@@ -58,7 +60,9 @@ export const TOUR_IDS: readonly TourId[] = ['overview', 'ic', 'ratio', 'feat', '
 /** The tour being shown: `steps` are the indices of its steps that have something to point at; a replay can be skipped. */
 export interface TourState { id: TourId; steps: number[]; index: number; replay: boolean }
 /** `reset`: the firmware written is the official one; the dialog asks in red whether the camera's settings were reset first. */
-export interface Confirm { title: string; warn?: string; reset?: boolean; lines: string[]; ok: string; resolve: (v: boolean) => void }
+export interface Confirm { title: string; warn?: string; reset?: boolean; lines: string[]; ok: string; resolve: (v: boolean) => void;
+  /** A second choice beside the main one (0.9.9: « Add » beside « Replace » when a pack is imported). */
+  alt?: string; onAlt?: () => void }
 export interface State {
   ready: boolean; page: Page;
   fwName?: string; fwBusy: boolean; info?: FirmwareInfo; raw?: Uint8Array;
@@ -161,6 +165,11 @@ function askOfficial(lines: string[]): Promise<boolean> {
   return ask(t('resetConfirmTitle'), lines, t('resetConfirmOk'), undefined, true);
 }
 export function answerConfirm(v: boolean): void { const c = state.confirm; set({ confirm: undefined }); c?.resolve(v); }
+export function answerConfirmAlt(): void { const c = state.confirm; set({ confirm: undefined }); c?.onAlt?.(); }
+/** Two choices and Cancel: 'ok', 'alt', or null. */
+function choose(title: string, lines: string[], ok: string, alt: string): Promise<'ok' | 'alt' | null> {
+  return new Promise((resolve) => set({ confirm: { title, lines, ok, alt, resolve: (v) => resolve(v ? 'ok' : null), onAlt: () => resolve('alt') } }));
+}
 function fail(e: unknown): void {
   const code = e instanceof HostError || e instanceof EngineError ? e.code : '';
   const msg = e instanceof Error ? e.message : String(e);
@@ -1619,4 +1628,122 @@ export async function writeCopy(): Promise<void> {
   } catch (e) { set({ busy: undefined }); fail(e); }
   await refreshCopies();
   void refreshVolumes();
+}
+
+// ------------------------------------------------------------------ packs (0.9.9)
+/** A file chosen by the user (the browser's file dialog), or null when cancelled. */
+function pickFile(accept: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = accept;
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.addEventListener('cancel', () => resolve(null));
+    input.click();
+  });
+}
+/** Saves a file the user keeps: downloaded on the web site, in a folder chosen in the program. */
+async function saveFile(name: string, text: string): Promise<void> {
+  const data = new TextEncoder().encode(text);
+  const root = onWeb ? DOWNLOADS : await host.pickDirectory(t('pickFolder'));
+  if (!root) return;
+  try {
+    await host.write(host.join(root, name), data);
+    toast(onWeb ? t('packDownloaded', { p: name }) : t('exported', { p: host.join(root, name) }), 'ok');
+  } catch (e) { fail(e); }
+}
+const packProblem = (e: unknown): string => t(e instanceof PackError ? (({ 'other-kind': 'packOtherKind', newer: 'packNewer', empty: 'packEmpty', 'not-a-pack': 'packBad' } as const)[e.code]) : 'packBad');
+
+/** A slot with nothing in it (no preset, name, film code, halation level or drawn icon). */
+const slotEmpty = (x: SlotState): boolean => !x.preset && !Object.values(x.names).some((n) => n && n.trim()) && !x.code && !(x.halation && x.halation.preview > 0) && x.icon.mode === 'keep';
+const packFamily = (s: State = state): 'gr3' | 'gr4' => (familyOf(s.model) === 'gr3' ? 'gr3' : 'gr4');
+/** Where recipes go: every film the firmware can have (GR III / IIIx), or GR IV's two Cinema slots. */
+const recipeSlots = (s: State = state): SlotId[] => (s.info ? s.info.slots.map((x) => x.id) : availableSlots(s));
+
+export async function exportRecipes(): Promise<void> {
+  const s = state;
+  const recipes: PackRecipe[] = availableSlots(s).map((id) => s.slots[id]).filter((x) => !slotEmpty(x)).map((x) => ({
+    names: Object.fromEntries(Object.entries(x.names).filter(([, v]) => v && v.trim())) as Record<string, string>,
+    ...(x.code ? { code: x.code } : {}),
+    ...(x.halation ? { halation: x.halation } : {}),
+    icon: { mode: x.icon.mode, text: x.icon.text, style: x.icon.style, ...(x.icon.image ? { image: x.icon.image } : {}) },
+    ...(x.preset ? { preset: { fileName: x.preset.fileName, kind: x.preset.kind, text: x.preset.text } } : {}),
+  }));
+  if (recipes.length === 0) { toast(t('packNothing'), 'info'); return; }
+  await saveFile(`GR Mod Film recipes${RECIPES_EXT}`, makeRecipePack(packFamily(s), recipes));
+}
+
+export async function importRecipes(): Promise<void> {
+  if (state.busy || !state.info) return;
+  const f = await pickFile(`${RECIPES_EXT},.json`);
+  if (!f) return;
+  let pack;
+  try { pack = readRecipePack(decodeText(new Uint8Array(await f.arrayBuffer()))); } catch (e) { toast(packProblem(e), 'error'); return; }
+  if (pack.family !== packFamily()) { toast(t('packOtherCamera'), 'error'); return; }
+  const slots = recipeSlots();
+  const filled = availableSlots().filter((id) => !slotEmpty(state.slots[id])).length;
+  let mode: 'replace' | 'add' = 'replace';
+  if (filled > 0) {
+    const c = await choose(t('packRecipesTitle'), [t('packRecipesLine', { n: pack.recipes.length, m: filled })], t('packReplace'), t('packAdd'));
+    if (!c) return;
+    mode = c === 'alt' ? 'add' : 'replace';
+  }
+  // « Add »: only the films shown count as taken, the ones beyond the film count are free.
+  const shown = new Set(availableSlots());
+  const targets = placeRecipes(slots, (id) => !shown.has(id as SlotId) || slotEmpty(state.slots[id as SlotId]), pack.recipes.length, mode) as SlotId[];
+  if (mode === 'replace') for (const id of slots) { if (!slotEmpty(state.slots[id])) clearSlot(id); }
+  else for (const id of targets) clearSlot(id);
+  targets.forEach((id, i) => applyRecipe(id, pack.recipes[i]));
+  if (filmCountChoosable()) {
+    const last = targets.length ? slots.indexOf(targets[targets.length - 1]) + 1 : 0;
+    setFilmCount(mode === 'replace' ? Math.max(1, last) : Math.max(state.filmCount, last));
+  }
+  if (targets[0]) setActiveSlot(targets[0]);
+  scheduleSave();
+  const skipped = pack.recipes.length - targets.length;
+  toast(t('packRecipesDone', { n: targets.length }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
+}
+function clearSlot(id: SlotId): void {
+  setSlot(id, emptySlot());
+  if (host.available) void host.storeDel(presetKey(id)).catch(() => undefined);
+}
+function applyRecipe(id: SlotId, r: PackRecipe): void {
+  if (emptyRecipe(r)) return;
+  const names = Object.fromEntries(Object.entries(r.names).filter(([k]) => (LANGS as readonly string[]).includes(k))) as Partial<Record<LangCode, string>>;
+  setSlot(id, { names, ...(r.code ? { code: r.code } : {}), ...(r.halation ? { halation: r.halation } : {}),
+    icon: r.icon ? { mode: r.icon.mode, text: r.icon.text, style: r.icon.style, ...(r.icon.image ? { image: r.icon.image } : {}) } : emptySlot().icon });
+  void renderIcon(id);
+  if (r.preset) {
+    if (host.available) void host.storeSet(presetKey(id), r.preset.text).catch(() => undefined);
+    void runPreset(id, r.preset.fileName, r.preset.kind, r.preset.text);
+  }
+}
+
+export async function exportRatios(): Promise<void> {
+  const ratios = state.ratios.filter((r) => r.ratio.trim()).map((r) => ({ ratio: r.ratio.trim(), name: r.name }));
+  if (ratios.length === 0) { toast(t('packNothing'), 'info'); return; }
+  await saveFile(`GR Mod Film ratios${RATIOS_EXT}`, makeRatioPack(ratios));
+}
+export async function importRatios(): Promise<void> {
+  if (state.busy) return;
+  const f = await pickFile(`${RATIOS_EXT},.json`);
+  if (!f) return;
+  let pack;
+  try { pack = readRatioPack(decodeText(new Uint8Array(await f.arrayBuffer()))); } catch (e) { toast(packProblem(e), 'error'); return; }
+  const existing = state.ratios.filter((r) => r.ratio.trim());
+  let mode: 'replace' | 'add' = 'replace';
+  if (existing.length > 0) {
+    const c = await choose(t('packRatiosTitle'), [t('packRatiosLine', { n: pack.ratios.length, m: existing.length })], t('packReplace'), t('packAdd'));
+    if (!c) return;
+    mode = c === 'alt' ? 'add' : 'replace';
+  }
+  const { ratios, skipped } = mergeRatios(existing.map((r) => ({ ratio: r.ratio, name: r.name })), pack.ratios, mode, maxRatios());
+  const kept = new Map(existing.map((r) => [r.ratio, r]));
+  const next: RatioItem[] = ratios.map((r) => {
+    const old = mode === 'add' ? kept.get(r.ratio) : undefined;
+    return old ?? { id: Math.random().toString(36).slice(2, 10), ratio: r.ratio, name: r.name };
+  });
+  set({ ratios: next, activeRatio: next[0]?.id });
+  ratiosChanged(true);
+  const added = mode === 'add' ? next.length - existing.length : next.length;
+  toast(t('packRatiosDone', { n: added }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
 }
