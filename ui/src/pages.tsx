@@ -662,7 +662,7 @@ function HalationProp({ k }: { k: SlotKey }) {
 }
 
 /** One switch of the firmware additions: icon, name, one line of detail. */
-/** GR III / IIIx film mode: the camera settings are hidden in the camera itself (0.9.8: Setup > Hide Settings). */
+/** GR III / IIIx film mode: the camera settings are hidden in the camera itself (0.9.7: Setup > Hide Settings). */
 function HiddenSettings() {
   return (
     <div className="hidden-settings">
