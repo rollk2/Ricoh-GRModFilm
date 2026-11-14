@@ -4316,3 +4316,24 @@ vitesse de l'AF et l'autonomie. Rien n'est construit ni flashé à ce stade.
   et risqué, non retenu pour l'instant.
 - Une console mesure le courant par organe (`"Time (sec)","Lap (sec)","Cis","Sd","Lens","Wlan","Batt"`) :
   piste pour mesurer l'effet d'un réglage, à étudier.
+
+### Limiteur de mise au point : ligne cachée et build T-AFR1 (2026-11-14)
+
+- Fiche de liste 7 (`0x53b3c880`, entre AF.C Setting, fiche 6 / ligne `0x02000063`, et MF Auto
+  Magnification, fiche 8 / ligne `0x02000065`), donc ligne **`0x02000064`** très probablement : nombre
+  `0x531b39dc` (3), choix → valeur par la table `0x53b590dc` (0, 1, 2), écrivain `0x532426b0`
+  (`strb` à `+0x13e`, rien d'autre : pas d'avis au moteur d'AF), contrôle `0x531b7d44`.
+- Indice défavorable : le texte « 10cm-∞ » existe en 21 langues, mais ni « 50cm-∞ » ni « 10cm-50cm » ; la
+  ligne n'a jamais été traduite pour le GR III (code partagé avec un autre modèle ?).
+- Lectures directes de `+0x13e` : copies de l'enregistrement (`0x5324719c`, `0x5326cdcc`), autres
+  structures (`0x53491880`, `0x533ff614`, `0x535a7008`, `0x5373f2f0`). Le moteur d'AF ne lit pas le champ
+  par l'accesseur ; une lecture par la table des propriétés reste possible. Seul le boîtier tranchera.
+- **Build T-AFR1** : le 1.0.0-RC1 GR III et `hiddenSettings: { afRange: 2 }` (entrée de test ajoutée au
+  tableau `GR3X_HIDEABLE` par le script de build, pas dans le dépôt) : 50 cm à l'infini écrit à chaque
+  chargement dans l'enregistrement en cours et les huit BOX. Conséquence : l'ancien mécanisme de 0.9.4
+  remplace la ligne Hide Settings du boîtier, absente de ce build.
+- Vérifié : `hidden_probe.py` (copie temporaire connaissant `afRange` : valeur écrite, lignes, touches et
+  ADJ inchangés), `film_roll_check.py`, `guard_probe.py`, `lock_probe.py`, `hold_probe.py`,
+  `wb_button_probe.py`. SHA-256 `bd355ea3…409e86`.
+- À voir sur le boîtier : refus de faire le point à 30 cm (si le limiteur agit), vitesse à 2 m et à
+  l'infini comparée au RC1.
