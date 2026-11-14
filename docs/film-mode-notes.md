@@ -4274,3 +4274,45 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
 - Vérifié : `settings_file_probe.py` sur un build complet 0.9.9 (enregistrement, chargement, 14 cas de
   refus), fichier produit relu par le lecteur TypeScript (GR III, 0.9.9, 9 enregistrements, 25 772 octets),
   tests (394).
+
+## Étude AF et autonomie, statique (2026-11-14)
+
+Demande de l'utilisateur : regarder, en parallèle des tests de la V1, ce que le logiciel peut faire pour la
+vitesse de l'AF et l'autonomie. Rien n'est construit ni flashé à ce stade.
+
+### Carte nommée de l'enregistrement des réglages (certitude : forte)
+
+- Le RTOS contient la liste des noms des propriétés, séparés par des virgules (`CommonTv,CommonAv,…`, 1 043
+  noms). Elle suit exactement l'ordre des 1 043 champs de `settings_layout_probe` : le champ 45 est
+  `StillFocusAreaCenter` à `+0x120`, déjà trouvé le 2026-11-02. Carte complète (indice, nom, décalage,
+  taille) : `tools/gr3x/fixtures/gr3-settings-named.json` (GR III 2.10).
+- Accesseurs : `ldr r3,[r0,#4]; ldrb r0,[r3,#déc]; bx lr`, un par champ ; les « imprimeurs » de la console
+  de débogage appellent l'accesseur puis affichent un texte par valeur, ce qui donne le nom des valeurs.
+
+### AF
+
+- AF hybride : détection de phase sur le capteur (« Zaf » : `ZafDefocus`, `ZafPredictor`, `ZafCorrelation`,
+  `HybridAfInfo`, `EnableZafDirection`, `EnableDefocusLowerLimit`), complétée par le contraste
+  (`ZafContrast`, `CafWobbling`, `GetContrastPeak`). Moteur : `AfLensDrive`, `LensFocusControl`.
+- **`StillAfRange` (`+0x13e`, accesseur `0x53244038`)** : 0 `10cmToInfinity`, 1 `10cmTo50cm`, 2
+  `50cmToInfinity` (textes `0x53b2e174`, `0x53b2e184`, `0x53b2e190`). Un limiteur de mise au point. Une ligne
+  de menu complète existe (descripteur `0x53b3c880`, identifiant `0x56`, contrôle `0x531b7d44`, table
+  `0x53b590dc` = 0, 1, 2) mais le GR III ne l'affiche pas. `MovieAfRange` (`+0x510`) pour la vidéo.
+  À vérifier : que le moteur d'AF lise bien ce champ (l'accesseur n'a que le menu et la console pour
+  appelants ; le moteur peut passer par la table des propriétés). Test proposé : forcer 2, essayer de faire
+  le point à 30 cm (refus attendu) et mesurer la vitesse à 2 m et à l'infini.
+- **`CommonReleasePermissionAfS` (`+0x116`)** : `InFocus`, `AfNotRunning`, `AllTime` ;
+  **`CommonReleasePermissionAfC` (`+0x118`)** : les mêmes et `Auto`. Lus par la logique de déclenchement
+  (`0x5328e450`, `0x5328e504`, `0x5328e464`, `0x5328e4d4`, `0x5323e148`) ; aucune ligne de menu.
+  `StillAfCActionPriority` (`+0x13c`) : `Focus` / `Release` (la ligne AF.C du menu).
+
+### Énergie
+
+- `SetupSleep` (`+0x9ac`) et `SetupAutoPowerOff` (`+0x9a4`) : Off, 1, 3, 5, 10, 30 min ;
+  `SetupMonitorPowerSaving` (`+0x9b4`) : Off / On ; `SetupBleMode` (`+0x991`) : `AlwaysOff`, `AlwaysOn`,
+  `LinkPowerState` ; `SetupLcdBrightness` (`+0x97b`) : M7 à P7 ; `SetupOutdoorMonitor` (`+0x983`).
+- La cadence de la visée (`LV_MODE`, `LV_INTEG_TIME`) n'apparaît que parmi les drapeaux de réglage d'usine :
+  la changer touche au capteur et à l'AF par contraste (une visée plus lente rend l'AF plus lent). Profond
+  et risqué, non retenu pour l'instant.
+- Une console mesure le courant par organe (`"Time (sec)","Lap (sec)","Cis","Sd","Lens","Wlan","Batt"`) :
+  piste pour mesurer l'effet d'un réglage, à étudier.
