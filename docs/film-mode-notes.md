@@ -4337,3 +4337,26 @@ vitesse de l'AF et l'autonomie. Rien n'est construit ni flashé à ce stade.
   `wb_button_probe.py`. SHA-256 `bd355ea3…409e86`.
 - À voir sur le boîtier : refus de faire le point à 30 cm (si le limiteur agit), vitesse à 2 m et à
   l'infini comparée au RC1.
+
+## Retours du 1.0.0-RC1 (2026-11-14)
+
+- Piste AF arrêtée par l'utilisateur : il ne veut pas de fonction nouvelle (limiteur) mais un AF existant
+  plus rapide et plus précis, surtout en basse lumière (« l'AF est mou »). T-AFR1 non testé, mis de côté.
+- **Bogue 1 : l'écran vibre avant la mise au point, pas toujours** (seuil de SR réglé sur une vitesse,
+  lumière faible). Cause (certitude forte) : la SR donnée au DSP est recalculée à chaque changement de la
+  vitesse de la visée (événement 0x82) ; en basse lumière la mesure fait osciller la vitesse autour du seuil,
+  la SR se coupe et se rallume, et chaque bascule recentre le capteur. Avec 1/4000 (toujours active), jamais.
+- **Correctif (choix de l'utilisateur : hystérésis)** : `srSpeed.hysteresis` (`sr-speed.ts`, recette
+  `srHyst`, mise par le moteur avec `srSpeed`) : SR coupée seulement à 2/3 d'IL au-dessus de la frontière
+  (`GR3X_SR_BAND`), rallumée sous la frontière ; entre les deux, l'état donné en dernier reste (octet RAM
+  `0x558043b7`, 1 On, 2 Off par la vitesse, 0 SR Off ; pris à la note de l'icône, diagnostic seulement :
+  les deux sont exclus). L'icône SR suit la même règle (lit l'état, ne l'écrit pas). Les builds sans `srHyst`
+  (RC1 et avant) se reconstruisent à l'identique (vérifié sur le 1.0.0-RC1 GR III et GR IIIx).
+- Vérifié : `sr_speed_probe.py` étendu (les trois états avant chaque cas, l'état après, la bande ; 6 384 cas
+  du menu ; l'icône ne modifie pas l'état) sur GR III et GR IIIx avec l'hystérésis, inchangé sur les RC1 ;
+  contre-épreuve : la sonde échoue si elle attend l'hystérésis sur un RC1 ; les 13 sondes sur les deux
+  boîtiers ; tests. Candidat **1.0.0-RC2** = RC1 + hystérésis.
+- **Bogue 2 : en U1 mode pellicule, allumage, déclenchement, pas de superposition ; la photo suivante a
+  fonctionné.** Détails à préciser (premier essai non retenu). Piste : l'allumage en U force la
+  multi-exposition après Mode Memory (V1-RC4) ; un réveil de veille ne passe pas par l'allumage ; à
+  reproduire.

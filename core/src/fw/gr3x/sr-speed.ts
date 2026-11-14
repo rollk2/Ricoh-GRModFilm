@@ -52,14 +52,23 @@ export const GR3X_SR_SPEEDS = [
 
 /** The boundary's order key (float bits, a negative one's other bits inverted) for a threshold given
  * as an exposure time in seconds (a speed of the list). */
-export function gr3xSrBoundary(seconds: number): number {
+export function gr3xSrBoundary(seconds: number, above = 1 / 6): number {
   const i = GR3X_SR_SPEEDS.findIndex(s => Math.abs(s / seconds - 1) < 1e-6);
   if (i < 0) fail(`threshold ${seconds} s is not a camera speed`);
   // The camera's third stops: Tv = 12 - i / 3 for 1/4000 (Tv 12) .. 30 s (Tv -5).
-  const tv = 12 - i / 3 + 1 / 6;
+  const tv = 12 - i / 3 + above;
   const bits = new Int32Array(new Float32Array([tv]).buffer)[0];
   return (bits < 0 ? bits ^ 0x7fffffff : bits) >>> 0;
 }
+/**
+ * 1.0 (`hysteresis`): SR goes Off only when the live speed is GR3X_SR_BAND above the threshold's boundary,
+ * and On again only below the boundary; in between, what was last given stays (RAM byte GR3X_SR_STATE: 1
+ * On, 2 Off by the speed, 0 SR Off or none yet). Before, the exposure's small changes around the threshold
+ * (dim light, before focusing) turned SR off and on again, and the sensor's re-centring shook the screen.
+ */
+export const GR3X_SR_BAND = 2 / 3;
+/** RAM: round 10's zero-filled byte after the roll's folder name, used before by the icon's diagnostic only. */
+export const GR3X_SR_STATE = 0x558043b7;
 
 export interface Gr3xSrSpeedProgram {
   code(source: string): number;
@@ -85,7 +94,8 @@ export const GR3X_SR_ICON_CHOOSER = 0x532a9ae0, GR3X_SR_ICON_CALL = 0x53170e30;
 /** RAM (icon diagnostic only): round 10's zero-filled byte after GR3X_SR_LAST. */
 export const GR3X_SR_ICON_LAST = 0x558043b7;
 
-export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | undefined, diag = false, srText = 0, icon: boolean | 'diag' = false) {
+export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | undefined, diag = false, srText = 0, icon: boolean | 'diag' = false, hysteresis = false) {
+  if (hysteresis && icon === 'diag') fail('the hysteresis takes the icon diagnostic\'s byte');
   const bl = (from: number, to: number) => branchWord(from, to, 14, true);
   for (const at of GR3X_SR_GET_CALLS) {
     if (p.u32(at) !== bl(at, GR3X_SR_GET)) fail(`SR getter call at ${at.toString(16)}`);
@@ -94,22 +104,31 @@ export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | unde
   // The getter: mutex, ldr r0,[r5,#0x518], bl 0x5355181c (ldrb r0,[r3,#0x7d3]); the speed's: the same with 0x535510bc.
   if (p.u32(GR3X_SR_GET + 0x28) !== 0xe5950518 || p.u32(GR3X_LIVE_TV + 0x2c) !== 0xe5950518) fail('live getters');
   const note = diag ? `push {r1};add r1,r6,#60;movw ip,#${lo(GR3X_SR_LAST)};movt ip,#${hi(GR3X_SR_LAST)};ldrb r0,[ip];add r2,r6,#61;cmp r0,r2;beq same;strb r2,[ip];${gr3xRingNote}same:pop {r1};` : '';
-  // The boundary in r1: fixed, or from the setting's byte (none: 1/4000 or below, no record).
+  // The boundary in r1: fixed, or from the setting's byte (none: 1/4000 or below, no record); with the
+  // hysteresis, the Off boundary in r2.
   let boundary: string;
   if (seconds !== undefined) {
-    const bound = gr3xSrBoundary(seconds);
-    boundary = `movw r1,#${lo(bound)};movt r1,#${hi(bound)};`;
+    const bound = gr3xSrBoundary(seconds), off = gr3xSrBoundary(seconds, 1 / 6 + GR3X_SR_BAND);
+    boundary = `movw r1,#${lo(bound)};movt r1,#${hi(bound)};` + (hysteresis ? `movw r2,#${lo(off)};movt r2,#${hi(off)};` : '');
   } else {
     if (!p.append || !srText) fail('the menu needs its texts and its table');
-    const table = p.append!(new Uint8Array(new Uint32Array(GR3X_SR_SPEEDS.map(gr3xSrBoundary)).buffer));
+    const table = p.append!(new Uint8Array(new Uint32Array(GR3X_SR_SPEEDS.map(s => gr3xSrBoundary(s))).buffer));
+    const offTable = hysteresis ? p.append!(new Uint8Array(new Uint32Array(GR3X_SR_SPEEDS.map(s => gr3xSrBoundary(s, 1 / 6 + GR3X_SR_BAND))).buffer)) : 0;
     boundary = `movw ip,#${lo(RECORD_POINTER)};movt ip,#${hi(RECORD_POINTER)};ldr ip,[ip];cmp ip,#0x40000000;blo out;cmp ip,#0xc0000000;bhs out;tst ip,#3;bne out;
       ldrb r1,[ip,#${SR_BYTE}];sub r1,r1,#1;cmp r1,#${GR3X_SR_SPEEDS.length};bhs out;cmp r1,#0;beq out;
-      movw ip,#${lo(table)};movt ip,#${hi(table)};ldr r1,[ip,r1,lsl #2];`;
+      ${hysteresis ? `movw ip,#${lo(offTable)};movt ip,#${hi(offTable)};ldr r2,[ip,r1,lsl #2];` : ''}movw ip,#${lo(table)};movt ip,#${hi(table)};ldr r1,[ip,r1,lsl #2];`;
   }
+  const S = GR3X_SR_STATE;
+  // The live speed's key (r0) against the boundaries: r1 alone, or the band r1..r2 that keeps the state.
+  const key = 'vmov r0,s0;cmp r0,#0;mvnlt r0,r0;eorlt r0,r0,#0x80000000;';
+  const decide = hysteresis
+    ? `${key}cmp r0,r2;bge srOff;cmp r0,r1;blt out;movw ip,#${lo(S)};movt ip,#${hi(S)};ldrb r3,[ip];cmp r3,#2;bne out;srOff:mov r5,#0;mov r6,#2;`
+    : `${key}cmp r0,r1;movge r5,#0;movge r6,#2;`;
+  const remember = hysteresis ? `movw ip,#${lo(S)};movt ip,#${hi(S)};strb r6,[ip];` : '';
   // r0 the live values; returns the SR value given (r1..r3, ip, s0 clobbered: a call's scratch).
   const get = p.code(`push {r4,r5,r6,lr};mov r4,r0;bl #${GR3X_SR_GET};mov r5,r0;mov r6,#0;cmp r5,#0;beq out;mov r6,#1;
-    push {r1};mov r0,r4;bl #${GR3X_LIVE_TV};pop {r1};${boundary}vmov r0,s0;cmp r0,#0;mvnlt r0,r0;eorlt r0,r0,#0x80000000;cmp r0,r1;movge r5,#0;movge r6,#2;
-    out:${note}mov r0,r5;pop {r4,r5,r6,pc};`);
+    push {r1};mov r0,r4;bl #${GR3X_LIVE_TV};pop {r1};${boundary}${decide}
+    out:${remember}${note}mov r0,r5;pop {r4,r5,r6,pc};`);
   for (const at of GR3X_SR_GET_CALLS) p.patch(at, bl(at, GR3X_SR_GET), bl(at, get), 'SR speed: the SR given to the DSP state follows the shutter speed');
   if (seconds !== undefined) return { srSpeedGet: get };
 
@@ -155,7 +174,10 @@ export function installGr3xSrSpeed(p: Gr3xSrSpeedProgram, seconds: number | unde
     movw ip,#${lo(GR3X_SR_ICON_LAST)};movt ip,#${hi(GR3X_SR_ICON_LAST)};ldrb r0,[ip];add r2,r1,#1;cmp r0,r2;beq same;strb r2,[ip];${gr3xRingNote}same:` : '';
   // The fifth argument stays at [sp]: everything pushed is popped before the jump to the chooser.
   const shown = p.code(`push {r0,r1,r2,r3,r4,lr};mov r4,#0;cmp r1,#0;bne keep;cmp r2,#0;beq keep;
-    bl #${LIVE_VALUES};ldr r0,[r0];bl #${GR3X_LIVE_TV};${keep}vmov r0,s0;cmp r0,#0;mvnlt r0,r0;eorlt r0,r0,#0x80000000;cmp r0,r1;movge r4,#1;
+    bl #${LIVE_VALUES};ldr r0,[r0];bl #${GR3X_LIVE_TV};${keep}${hysteresis
+      // The same rule as the SR given (the band keeps the state last given), the state only read here.
+      ? `${key}cmp r0,r2;movge r4,#1;bge keep;cmp r0,r1;blt keep;movw ip,#${lo(S)};movt ip,#${hi(S)};ldrb r3,[ip];cmp r3,#2;moveq r4,#1;`
+      : `${key}cmp r0,r1;movge r4,#1;`}
     keep:${icon === 'diag' ? `ldr r0,[sp,#4];ldr r2,[sp,#8];ldr r3,[sp,#12];${iconNote}` : ''}cmp r4,#0;pop {r0,r1,r2,r3,r4,lr};movne r2,#0;b #${GR3X_SR_ICON_CHOOSER};`);
   p.patch(at, bl(at, GR3X_SR_ICON_CHOOSER), bl(at, shown), 'SR speed: the shooting screen\'s SR icon follows the shutter speed');
   return { srSpeedGet: get, srSpeedDraw: draw, srSpeedSet: set, srSpeedCurrent: current, srSpeedShown: shown, srSpeedText: srText };

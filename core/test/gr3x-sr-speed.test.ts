@@ -6,7 +6,7 @@ import { buildGr3xAdjResearch } from '../src/fw/gr3x/adj';
 import { encodeGr3xRatioRecipe, readGr3xBuildRecipe } from '../src/fw/gr3x/ratio-recipe';
 import { GR3X_FORMAT_CALL } from '../src/fw/gr3x/film-format';
 import { planGr3xMenu } from '../src/fw/gr3x/geometry';
-import { GR3X_SR_GET_CALLS, GR3X_SR_GETTER, GR3X_SR_ICON_CALL, GR3X_SR_LIST, GR3X_SR_LIVE_LOAD, GR3X_SR_SPEEDS, gr3xSrBoundary, gr3xSrSpeedText } from '../src/fw/gr3x/sr-speed';
+import { GR3X_SR_GET_CALLS, GR3X_SR_GETTER, GR3X_SR_ICON_CALL, GR3X_SR_LIST, GR3X_SR_LIVE_LOAD, GR3X_SR_SPEEDS, gr3xSrBoundary, gr3xSrSpeedText, GR3X_SR_BAND } from '../src/fw/gr3x/sr-speed';
 
 const f32 = (key: number) => new Float32Array(new Int32Array([(key >> 0) < 0 ? (key >> 0) ^ 0x7fffffff : key >> 0]).buffer)[0];
 
@@ -43,6 +43,12 @@ describe('SR by shutter speed', () => {
       expect(Math.log2(1 / GR3X_SR_SPEEDS[i - 1])).toBeGreaterThan(b);
     }
   });
+  it('puts the hysteresis\' Off boundary 2/3 stop above the On boundary', () => {
+    for (let i = 0; i < GR3X_SR_SPEEDS.length; i++) {
+      const on = f32(gr3xSrBoundary(GR3X_SR_SPEEDS[i])), off = f32(gr3xSrBoundary(GR3X_SR_SPEEDS[i], 1 / 6 + GR3X_SR_BAND));
+      expect(off - on).toBeCloseTo(2 / 3, 5);
+    }
+  });
 });
 
 describe('SR by shutter speed in the build recipe', () => {
@@ -53,6 +59,10 @@ describe('SR by shutter speed in the build recipe', () => {
     expect(plain).toMatchObject({ srSpeed: true });
     expect(plain.srIcon).toBeUndefined();
     expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: { icon: true } }))).toMatchObject({ srSpeed: true, srIcon: true });
+    // 1.0: the hysteresis, apart too (RC1 and older rebuild without it), only with the icon.
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: { icon: true } }))!.srHyst).toBeUndefined();
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: { icon: true, hysteresis: true } }))).toMatchObject({ srSpeed: true, srIcon: true, srHyst: true });
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: { hysteresis: true } }))!.srHyst).toBeUndefined();
     // Formatting rewinds every roll (T-FMT1): recorded with the film mode only.
     expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, filmMode: { codes: {} }, formatRewind: true }))).toMatchObject({ formatRewind: true });
     expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, formatRewind: true }))!.formatRewind).toBeUndefined();
