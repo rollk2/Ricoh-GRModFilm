@@ -34,5 +34,7 @@ Expliquer la démarche, les termes nouveaux et ce qui est fait, sans noyer.
   et `GRMOD_GR3X_FIRMWARE` (fwdc243b.bin, 1.60). Ils ne sont pas dans le dépôt : les tests qui en
   dépendent sont sautés sans eux.
 - Tests : `npm test`. Application : `shell/build.sh mac`.
+- Bogues de la campagne V1 : `docs/V1-TESTS.md` (protocole) et `docs/V1-BUGS.md` (bogues collectés, tests de
+  vérification faits à la fin, décision du 2026-11-15).
 - Site web (sans le programme) : `cd ui && npx vite build --mode web` ; accès aux fichiers du navigateur dans
   `ui/src/webhost.ts` (dossier choisi sous Chrome et Edge, téléchargement ailleurs), zip Ricoh lu par `ui/src/zip.ts`.
