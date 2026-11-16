@@ -4384,3 +4384,39 @@ vitesse de l'AF et l'autonomie. Rien n'est construit ni flashé à ce stade.
 - Outil : le code de l'amont importe des types sans `import type` ; les scripts de build hors Vitest passent
   par `esbuild` (`npx esbuild script.mjs --bundle --platform=node --format=esm`).
 - Version 1.1.0 (`GRFILM.SET` écrit « 1.1.0 » ; `settings_file_probe.py` repassé).
+
+## GR IV Monochrome : « No movie », étude statique (2026-11-17)
+
+Décision de l'utilisateur (2026-11-16) : après la 1.1, supprimer la vidéo du GR IV Monochrome est le premier
+chantier GR IV, avant le mode pellicule. Adresses du **GR IV 1.20 = Monochrome 1.10** (`fwdc248b.bin`, SHA-256
+de l'archive Ricoh `bde05b3b…8af12`) ; le 1.21 / Monochrome 1.11 a le code décalé de 0x1800 (à vérifier avec
+les cartes de portage de `tools/port`). Base du RTOS `0x53000000`. Rien n'est construit.
+
+- **Même cadre logiciel que le GR III** : cinq onglets de menu (photo, vidéo, lecture, personnalisation,
+  réglages) construits une fois par `TopMenuController` (`0x531b5494`, documenté par l'amont dans
+  `gr4v120/aspect/menuwide.ts`) à partir de cinq descripteurs listés en RAM à `0x55001e78`. Descripteur de
+  l'onglet vidéo : **`0x53dc7bd0`** (6 lignes ; lecture `0x53dc783c`, personnalisation `0x53dc6b38`, réglages
+  `0x53dc7110`).
+- **Pièce 1, onglet vidéo (certitude forte, lu dans le code)** : le premier mot de chaque descripteur est
+  un pointeur de méthode de visibilité (`0x531b1084`, `0x531b108c`, `0x531b1094`, `0x531b109c` : chacune
+  `mov r0,#1 ; bx lr`), comme sur le GR III. Le constructeur le recopie dans le contrôleur
+  (`this + 0x230 + onglet × 0x38c`) ; le démarrage (`0x531b3cdc`) choisit l'onglet enregistré, appelle sa
+  visibilité et passe au suivant tant qu'elle rend 0. Masquer l'onglet vidéo : faire pointer le premier mot de
+  `0x53dc7bd0` vers une fonction qui rend 0. Attention : le code de l'amont élargit les descripteurs
+  (`menuwide.ts`, copies de 42 lignes) : la copie de l'onglet vidéo doit porter la même méthode.
+- **Pièce 2, blocage du mode vidéo (certitude forte pour l'octet, moyenne pour les chemins)** : l'octet
+  photo / vidéo `CommonStillMovie` est à **`+0xb76`** de l'objet des réglages (`CommonStillMovieBackup` à
+  `+0xb77`), lu par **`0x5329b310`** (`ldrb r0,[r0,#0xb76]`, 56 appelants ; trouvé par la chaîne
+  `userDataModel->GetCommonStillMovie() == UserData::StillMovie_Still`). Écrivain : **`0x532790ac(modèle,
+  valeur)`**, écriture en `0x532790b8`, puis avis de changement (propriété `0x162`, élément `0xf`) ; son seul
+  appelant direct, `0x532aeb10`, est une routine qui applique un bloc de réglages. Même crochet que
+  T20-VID2 : à l'entrée, toute valeur non nulle devient 0. Risque connu : 13 autres écritures de `+0xb76`
+  (`0x532add94`, `0x5354cc1c`, `0x53550220`, `0x5355a7a0`, `0x5355e1fc`, `0x535652b8`, `0x53568950`,
+  `0x5357307c`, `0x53576b2c`, `0x5357dbc0`, `0x5358126c`, `0x5358b874`, `0x5358f294`) sont des recopies de
+  blocs, qui contournent l'écrivain (un boîtier éteint en mode vidéo, un réglage rechargé).
+- **Pièces 3 et 4 (à faire)** : lignes « Still/Movie » (menu photo et menu vidéo) et « Movie Edit » (menu
+  lecture) à retrouver par identifiant ; fonctions des touches « Still/Movie » (`ToggleStillMovie`) et
+  « Framerate » à retirer des listes ; textes de la touche latérale à renommer (21 langues). Le Monochrome
+  partage le fichier du GR IV : mêmes adresses.
+- Outils (hors dépôt) : extraction du RTOS (`Firmware` + `sectionsOf`), `armdis.py` (capstone, base
+  `0x53000000`), références de chaînes et d'appels par motifs de mots.
