@@ -1,7 +1,10 @@
 import { makeWebHost } from './webhost';
-// The platform behind the page. On Windows and macOS this is the GRMod shell's local HTTP API; another
-// platform (Android) would provide the same interface with its own implementation.
-export interface HostInfo { kind: string; token: string; version: string; os: string }
+// The platform behind the page. On Windows and macOS this is the GRMod shell's local HTTP API; the Android app
+// provides the same interface with its own implementation (host-android.ts).
+import { androidHost, isMobile, useHostError } from './host-android';
+
+/** `notes`: the version whose release notes are this one's (the phone app shows the desktop releases' notes). */
+export interface HostInfo { kind: string; token: string; version: string; os: string; notes?: string }
 export interface Volume { id: string; root: string; label: string; fs: string; total: number; free: number; removable: boolean; bus: string }
 export interface DirEntry { name: string; dir: boolean; size: number; mtime: number }
 /** A file below `GRMOD\parked-*` on a card, or below the backups folder on the computer; `path` is relative to that. */
@@ -10,7 +13,7 @@ export interface ParkedFailure { path: string; error: string }
 /** The firmware update Ricoh's site currently offers for a model. `page` is the model's download page there. */
 export interface FirmwareRelease {
   model: string; name: string; applies: string; version: string; date: string; page: string; file: string; size: number;
-  /** The release this program supports, when the site offers another version (still on Ricoh's site). */
+  /** Next supported alternative. Older hosts provide at most one. */
   fallback?: FirmwareRelease;
 }
 
@@ -35,6 +38,7 @@ export class HostError extends Error {
   code: string;
   constructor(code: string, message: string) { super(message); this.code = code; }
 }
+useHostError(HostError);
 
 const info = (globalThis as unknown as { __GRMOD_HOST__?: HostInfo }).__GRMOD_HOST__;
 
@@ -57,7 +61,7 @@ async function call(method: string, path: string, body?: BodyInit | null, json =
 const q = (s: string): string => encodeURIComponent(s);
 const post = async <T>(path: string, body: unknown): Promise<T> => (await call('POST', path, JSON.stringify(body))).json() as Promise<T>;
 
-const shellHost = {
+const desktopHost = {
   available: !!info,
   info,
   sep: info && info.os === 'windows' ? '\\' : '/',
@@ -102,7 +106,7 @@ const shellHost = {
     try { return (await call('GET', '/api/firmware/latest?model=' + q(model))).json(); }
     catch (e) { if (e instanceof HostError && e.code === 'not-found') return null; throw e; }
   },
-  /** `version`: the supported release (a `fallback`); omitted for the site's current one. */
+  /** `version`: which release (the site's current one or its `fallback`); omitted for the current one. */
   async firmwareDownload(model: string, version?: string, signal?: AbortSignal): Promise<{ name: string; version: string; data: Uint8Array }> {
     const res = await call('POST', '/api/firmware/download', JSON.stringify(version ? { model, version } : { model }), true, signal);
     let data: Uint8Array;
@@ -124,6 +128,11 @@ const shellHost = {
   async updateState(): Promise<UpdateState> { return (await call('GET', '/api/update/state')).json(); },
   /** The published releases with their text, newest first. */
   async updateNotes(): Promise<UpdateState & { releases: ReleaseNote[] }> { return (await call('GET', '/api/update/notes')).json(); },
+  /** The acknowledgements file (credits.json) from the project's site; null when it cannot be had. */
+  async credits(): Promise<unknown> {
+    try { return ((await (await call('GET', '/api/credits')).json()) as { credits?: unknown }).credits ?? null; }
+    catch { return null; }
+  },
   /** Show a release's page in the browser. */
   async releasePage(version: string): Promise<void> { try { await post('/api/update/page', { version }); } catch { /* no browser */ } },
   /** 1.0: a page of the project (the community collection's upload page) in the browser. */
@@ -135,9 +144,11 @@ const shellHost = {
   },
 };
 
-/** The web site's build (vite --mode web, VITE_WEB=1): the browser's own host when no shell serves the page. */
 const WEB = import.meta.env.VITE_WEB === '1' && !info;
-export const host: typeof shellHost = WEB ? makeWebHost(__APP_VERSION__) as unknown as typeof shellHost : shellHost;
+export const host: typeof desktopHost = isMobile ? androidHost
+  // The web site's build (vite --mode web, VITE_WEB=1): the browser's own host when no shell serves the page.
+  : WEB ? makeWebHost(__APP_VERSION__) as unknown as typeof desktopHost : desktopHost;
+export { isMobile };
 /** True on the web site (no shell): what the page offers changes a little (webhost.ts). */
 export const onWeb = WEB;
 

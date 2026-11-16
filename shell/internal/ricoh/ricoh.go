@@ -62,10 +62,11 @@ func baseModelFor(model string) string {
 	return "GR IV"
 }
 
-// pinned are the exact releases GR Mod's GR III / IIIx support is built on. Ricoh's current
-// release for these cameras (GR III 2.20, GR IIIx 1.70, October 2026) is a different program
-// with every address moved, so the latest file must not be offered for them: these older
-// archives are fetched by name instead (the engine checks the SHA-256 of the file inside).
+// pinned are the earlier releases GR Mod's GR III / IIIx support is built on (GR III 2.10,
+// GR IIIx 1.60). The site's pages list only the current one (GR III 2.21, GR IIIx 1.71, November
+// 2026, which GR Mod supports as well, as 2.20 / 1.70 in Others), so these older archives are fetched by name; the server
+// offers them as the fallback next to the current release (the engine checks the SHA-256 of the
+// file inside).
 var pinned = map[string]Release{
 	"GR3_HDF": {Name: "GR III", Applies: "RICOH GR III / GR III Street Edition / GR III Diary Edition / GR III HDF",
 		Version: "2.10", Date: "2025/10/23", File: "gr3_v210.zip",
@@ -134,10 +135,25 @@ type Archive struct {
 	Page string
 }
 
-// Supported is the release this program builds on: GR IV / GR IV HDF 1.11
-// (2026/02/13). Checked 2026-10-21: still served at this address, whose
-// archive holds the fwdc248b.bin with SHA-256 a2f664df…655f.
+// Supported is the newest GR IV / GR IV HDF release this program builds on,
+// 1.21. Checked 2026-11-14: served at this address, whose archive holds
+// the fwdc248b.bin with SHA-256 bf4d6c35…5c99.
 var Supported = Archive{
+	Version: "1.21",
+	Date:    "2026/11/10",
+	Path:    "/resources/japan/support/download/digital/FIRMWARE/gr4_v121.zip",
+	Size:    34697047,
+	SHA256:  "ace9fc65f6e4fa3b1096d590ba4bddad4f4814e075a4d85a973cb943f166da73",
+	Models:  []string{"STANDARD", "HDF"},
+	Applies: "RICOH GR IV / RICOH GR IV HDF",
+	Page:    "/english/support/digital/gr4_s.html",
+}
+
+// Earlier is the oldest GR IV release this program builds on, which Ricoh still serves at a
+// fixed address; it is offered next to Supported and 1.20 (in Others). It is what the program
+// built on before 1.20 was added here, so a camera still on 1.11 stays reachable. 1.11 (2026/02/13)
+// still serves the fwdc248b.bin with SHA-256 a2f664df…655f.
+var Earlier = Archive{
 	Version: "1.11",
 	Date:    "2026/02/13",
 	Path:    "/resources/japan/support/download/digital/FIRMWARE/gr4_v111.zip",
@@ -146,6 +162,57 @@ var Supported = Archive{
 	Models:  []string{"STANDARD", "HDF"},
 	Applies: "RICOH GR IV / RICOH GR IV HDF",
 	Page:    "/english/support/digital/gr4_s.html",
+}
+
+// Others are the remaining releases this program builds on, still served at fixed addresses
+// once the site's pages list a newer one. Checked 2026-11-14 (archive size and SHA-256; the files
+// inside are the ones the engine accepts):
+//   - GR IV 1.20 and GR IV Monochrome 1.10 (fwdc248b.bin 7563d7e4…650d);
+//   - GR IV Monochrome 1.11 (2026/11/10, the same fwdc248b.bin as GR IV 1.21, bf4d6c35…5c99);
+//   - GR III 2.21 (2026/11/10, fwdc239b.bin 7522c36b…4bd9) and 2.20 (5c53760b…793e);
+//   - GR IIIx 1.71 (2026/11/10, fwdc243b.bin 7d7e9d81…edc9) and 1.70 (aa8e3ae1…1592).
+//
+// The same archives the mobile app pins.
+var Others = []Archive{
+	{
+		Version: "1.20", Date: "2026/10/21", Path: "/resources/japan/support/download/digital/FIRMWARE/gr4_v120.zip",
+		Size: 34702809, SHA256: "dcc1b6fb004f0d855bb46b30a529da894c7b717501276fec2d198b3d7eb76a59",
+		Models: []string{"STANDARD", "HDF"}, Applies: "RICOH GR IV / RICOH GR IV HDF", Page: "/english/support/digital/gr4_s.html",
+	},
+	{
+		Version: "1.11", Date: "2026/11/10", Path: "/resources/japan/support/download/digital/FIRMWARE/gr4_mono_v111.zip",
+		Size: 34697047, SHA256: "8f9aa64711384e5dcf12ce0fd1174f51c06aaee43b3651bbbe3a793703b71b44",
+		Models: []string{"MONO"}, Applies: "RICOH GR IV Monochrome", Page: "/english/support/digital/gr-4-mono_s.html",
+	},
+	{
+		Version: "1.10", Path: "/resources/japan/support/download/digital/FIRMWARE/gr4_mono_v110.zip",
+		Size: 34702809, SHA256: "bde05b3bf56a29c272284556d6795cb772eaccbbd0091d433fd52368d4d8af12",
+		Models: []string{"MONO"}, Applies: "RICOH GR IV Monochrome", Page: "/english/support/digital/gr-4-mono_s.html",
+	},
+	{
+		Version: "2.21", Date: "2026/11/10", Path: "/resources/japan/support/download/digital/FIRMWARE/gr3_v221.zip",
+		Size: 28611788, SHA256: "39fff62978cbd2e98d93b9adf1c9e44c98cf9501dc977819ca05d6e78dda3ca4",
+		Models:  []string{"GR3", "GR3_HDF"},
+		Applies: "RICOH GR III / GR III Street Edition / GR III Diary Edition / GR III HDF", Page: "/english/support/digital/gr3_s.html",
+	},
+	{
+		Version: "2.20", Path: "/resources/japan/support/download/digital/FIRMWARE/gr3_v220.zip",
+		Size: 28599247, SHA256: "7b19f9c03f2448c2b674fb919f6a86d22d6d83801521a9c1226a0e20cf0b5a2f",
+		Models:  []string{"GR3", "GR3_HDF"},
+		Applies: "RICOH GR III / GR III Street Edition / GR III Diary Edition / GR III HDF", Page: "/english/support/digital/gr3_s.html",
+	},
+	{
+		Version: "1.71", Date: "2026/11/10", Path: "/resources/japan/support/download/digital/FIRMWARE/gr3x_v171.zip",
+		Size: 28611733, SHA256: "f379a37e19cc2bf5c390c857564a80bf80773c71b6da0c77de0a2d8b1f350011",
+		Models:  []string{"GR3X", "GR3X_HDF"},
+		Applies: "RICOH GR IIIx / GR IIIx Urban Edition / GR IIIx HDF", Page: "/english/support/digital/gr3x_s.html",
+	},
+	{
+		Version: "1.70", Path: "/resources/japan/support/download/digital/FIRMWARE/gr3x_v170.zip",
+		Size: 28599250, SHA256: "6a028e90b4f23c9e9af968b03bca5032b71f460be85fd2c49f4078366a71dc6d",
+		Models:  []string{"GR3X", "GR3X_HDF"},
+		Applies: "RICOH GR IIIx / GR IIIx Urban Edition / GR IIIx HDF", Page: "/english/support/digital/gr3x_s.html",
+	},
 }
 
 // Client talks to the site.
@@ -157,6 +224,55 @@ type Client struct {
 	HTTP *http.Client
 	// Pinned replaces Supported (tests).
 	Pinned *Archive
+	// PinnedEarlier replaces Earlier (tests).
+	PinnedEarlier *Archive
+	// PinnedOthers replaces Others (tests); a Pinned or PinnedEarlier of their own suppresses
+	// Others so that the existing fixtures keep their pinned releases.
+	PinnedOthers []Archive
+}
+
+func (c *Client) others() []Archive {
+	if c.PinnedOthers != nil {
+		return c.PinnedOthers
+	}
+	if c.Pinned != nil || c.PinnedEarlier != nil {
+		return nil
+	}
+	return Others
+}
+
+// OthersFor resolves the releases of Others that are for the model, except latest's version.
+func (c *Client) OthersFor(model string, latest *Release) ([]*Release, error) {
+	var out []*Release
+	for i := range c.others() {
+		a := c.others()[i]
+		rel, err := c.archiveFor(&a, model, latest)
+		if err != nil {
+			return nil, err
+		}
+		if rel != nil {
+			out = append(out, rel)
+		}
+	}
+	return out, nil
+}
+
+// VersionLess orders release versions numerically ("1.9" < "1.20").
+func VersionLess(a, b string) bool {
+	x, y := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(x) || i < len(y); i++ {
+		var p, q int
+		if i < len(x) {
+			p, _ = strconv.Atoi(x[i])
+		}
+		if i < len(y) {
+			q, _ = strconv.Atoi(y[i])
+		}
+		if p != q {
+			return p < q
+		}
+	}
+	return false
 }
 
 func (c *Client) pinned() *Archive {
@@ -164,6 +280,25 @@ func (c *Client) pinned() *Archive {
 		return c.Pinned
 	}
 	return &Supported
+}
+
+// earlier is the release offered as the fallback; nil when it is not for the
+// model or when there is none. Tests replace it with PinnedEarlier, and a
+// Pinned of their own suppresses it so that the existing fixtures keep one
+// pinned release.
+func (c *Client) earlier() *Archive {
+	if c.PinnedEarlier != nil {
+		return c.PinnedEarlier
+	}
+	if c.Pinned != nil {
+		return nil
+	}
+	return &Earlier
+}
+
+// EarlierFor resolves the previous supported GR IV archive when it differs from latest.
+func (c *Client) EarlierFor(model string, latest *Release) (*Release, error) {
+	return c.archiveFor(c.earlier(), model, latest)
 }
 
 func (c *Client) base() (*url.URL, error) {
@@ -372,12 +507,6 @@ func IsPinned(model string) bool {
 	return ok
 }
 
-// PinnedVersion is the version of a pinned model's release (the only one downloaded for it).
-func PinnedVersion(model string) (string, bool) {
-	p, ok := pinned[model]
-	return p.Version, ok
-}
-
 // Current reads the release the site's pages list for a model now, also for a pinned model
 // (whose newer release is shown, as GR IV's, with a warning but never downloaded).
 func (c *Client) Current(ctx context.Context, model string) (*Release, error) {
@@ -449,7 +578,13 @@ func (c *Client) current(ctx context.Context, base *url.URL, model, name string)
 // another version, or offers nothing (latest == nil); nil when the model is
 // not one the supported release is for, or when latest is that release.
 func (c *Client) Fallback(model string, latest *Release) (*Release, error) {
-	a := c.pinned()
+	return c.archiveFor(c.pinned(), model, latest)
+}
+
+func (c *Client) archiveFor(a *Archive, model string, latest *Release) (*Release, error) {
+	if a == nil {
+		return nil, nil
+	}
 	covered := false
 	for _, m := range a.Models {
 		covered = covered || m == model
@@ -464,6 +599,9 @@ func (c *Client) Fallback(model string, latest *Release) (*Release, error) {
 	fileURL := base.ResolveReference(&url.URL{Path: a.Path})
 	page := base.ResolveReference(&url.URL{Path: a.Page}).String()
 	name := baseModelFor(model)
+	if model == "MONO" {
+		name = Models[model]
+	}
 	if latest != nil {
 		page = latest.Page
 	}

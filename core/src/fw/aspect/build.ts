@@ -31,8 +31,10 @@ import { installAdjSoftFocus } from './softfocus';
 import { installDirectFlash } from './directflash';
 import { installDirectFlashMenu } from './directflash-menu';
 import { DATESTAMP_BYTE, installDateStamp, lookNames } from './datestamp';
-import { installDateStampMenu } from './datestamp-menu';
+import { HDR_SWITCH_BYTE, installHdrGainMap } from './hdrgain';
+import { hdrTopDraw, installDateStampMenu, installHdrMenu, installHdrStillLine } from './datestamp-menu';
 import { installMonoUnlock } from './monounlock';
+import { installBrightAuto } from './brightauto';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { halationLight } from './halation';
 import type { HalationLook } from './halation';
@@ -41,6 +43,7 @@ import type { LookLayout } from './looks';
 import type { ExtraSlotSpec } from './slots';
 import { installShutdownMenu } from './shutdown';
 import { FIRST_ADDED_LOOK, installSettingsGuard } from './guard';
+import { installAdjSlots } from './adjslots';
 import { LOOK_STASH, installLookStash, monoLook, monoTable, styleColour } from './lookstash';
 import type { ShutdownPictureSpec } from './shutdown';
 
@@ -114,6 +117,8 @@ export const BUILD_REVISION: BuildRevision = 2;
 
 /** Additions of this program that are not aspect ratios. */
 export interface ExtensionFeatures {
+  /** Rear LCD Auto curve; absent/false keeps stock, true selects bright. */
+  brightAuto?: boolean | 'bright' | 'balanced';
   /** Soft focus as a function of the ADJ lever (see `softfocus.ts`). */
   adjSoftFocus?: boolean;
   /** Date imprint on the JPEG (see `datestamp.ts`). */
@@ -138,6 +143,17 @@ export interface ExtensionFeatures {
   guard?: boolean;
   /** Direct Flash, a fifth Flash Mode (0.8.4, see `directflash.ts`); the guide number is chosen in the camera. */
   directFlash?: boolean;
+  /** An HDR gain map in every JPEG (test builds of 0.8.6, see `hdrgain.ts`). */
+  hdrGainMap?: boolean;
+  /** ADJ lever slots, 6 to 8 (see `adjslots.ts`); absent or 5: the camera's five. */
+  adjSlots?: number;
+  /**
+   * 0.8.11, GR IV 1.20 only (`fw/gr4v120/aspect/exposure.ts`; not built on 1.11): exposure preview
+   * as a camera setting, On / Off with Direct Flash / Always Off, in the still menu and on the ADJ lever.
+   */
+  exposurePreview?: boolean;
+  /** 0.8.11, GR IV 1.20 only (not built on 1.11): soft focus (with `adjSoftFocus`) also a line of the still menu. */
+  softFocusMenu?: boolean;
 }
 
 /** For test builds only: a fixed setting byte (1 short, 3 long style) instead of the camera menu. */
@@ -147,6 +163,8 @@ export interface TestOptions {
   dateStampDiag?: boolean;
   /** Direct Flash diagnostics: the planner records what it saw, the date imprint prints it on the 720x480 picture. */
   directFlashDiag?: boolean;
+  /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
+  hdrDiag?: boolean;
 }
 
 export interface AspectResult {
@@ -1021,7 +1039,8 @@ export function installExtensions(rtos: Uint8Array, iconbin: Uint8Array, ratios:
   const slots = features.extraSlots ?? [];
   const shutdown = features.shutdown && features.shutdown.pictures.length > 0 ? features.shutdown : undefined;
   const cinema = (['CY', 'CG'] as const).filter((id) => features.cinemaHalation?.[id] === true);
-  const extra = !!features.adjSoftFocus || !!features.dateStamp || !!features.monoUnlock || slots.length > 0 || !!shutdown || !!features.guard || cinema.length > 0 || !!features.directFlash;
+  const adjSlots = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
+  const extra = !!features.brightAuto || !!features.adjSoftFocus || !!features.dateStamp || !!features.monoUnlock || slots.length > 0 || !!shutdown || !!features.guard || cinema.length > 0 || !!features.directFlash || adjSlots > 0 || !!features.hdrGainMap;
   if (extra) revision = 3;
   if (revision !== 1 && revision !== 2 && revision !== 3) fail('internal', 'unknown build revision');
   if (rtos.length !== OFFICIAL_RTOS_LENGTH || iconbin.length !== OFFICIAL_ICONBIN_LENGTH) fail('unexpected-layout', 'RTOS or ICONBIN does not have the official length');
@@ -1030,6 +1049,7 @@ export function installExtensions(rtos: Uint8Array, iconbin: Uint8Array, ratios:
   ratios.forEach((r, i) => {
     if (r.id !== FIRST_CUSTOM_ID + i) fail('internal', 'ratio identities must be consecutive');
   });
+  if (features.brightAuto !== undefined && ![true, false, 'bright', 'balanced'].includes(features.brightAuto)) fail('bad-edit', 'brightAuto must be boolean, bright or balanced');
   const patch = new Patch(rtos);
   const ramCopy = new DataView(patch.read(BASE + 0x450, 12).buffer);
   if (ramCopy.getUint32(0, true) !== RAM.source || ramCopy.getUint32(4, true) !== RAM.destination || ramCopy.getUint32(8, true) !== RAM.length) {
@@ -1052,14 +1072,17 @@ export function installExtensions(rtos: Uint8Array, iconbin: Uint8Array, ratios:
   // Before the date imprint's menu, which copies the list table with Flash Mode's records.
   if (features.directFlash) icons = installDirectFlash(patch, icons, !!test.directFlashDiag);
   if (features.monoUnlock) installMonoUnlock(patch);
+  // 0.8.9: the HDR gain map's line in the still menu (one descriptor per model, with the date imprint's).
+  const hdrDraw = features.hdrGainMap ? hdrTopDraw(patch, HDR_SWITCH_BYTE) : 0;
   if (features.dateStamp) {
     const fixed = test.dateStampFixed;
     // From 0.8.2 (builds with the guard) the imprint goes by the picture's look.
     const look = features.guard ? { stash: LOOK_STASH, monoLooks: monoTable(patch, slots.map((x) => monoLook(x.matrixQ13, x.curves, x.postQ9)), FIRST_ADDED_LOOK), names: lookNames(patch, slots.map((x) => x.name)) } : undefined;
     installDateStamp(patch, fixed ? patch.append([fixed, 0, 0, 0], 4) : DATESTAMP_BYTE, test.directFlashDiag && features.directFlash ? 'df' : !!test.dateStampDiag, look);
-    if (!fixed) icons = installDateStampMenu(patch, icons);
+    if (!fixed) icons = installDateStampMenu(patch, icons, hdrDraw);
     if (look && slots.length === 0) installLookStash(patch);
   }
+  if (hdrDraw && (!features.dateStamp || test.dateStampFixed)) installHdrStillLine(patch, hdrDraw);
   // Halation: added slots that have it, Cinema slots with a preset that are asked to.
   const halation: HalationLook[] = [];
   slots.forEach((x, k) => {
@@ -1080,12 +1103,19 @@ export function installExtensions(rtos: Uint8Array, iconbin: Uint8Array, ratios:
     installFactoryHidden(patch, features.lookLayout.hidden);
   }
   if (halation.length > 0) icons = installHalation(patch, icons, halation);
+  // After halation and the date imprint: wraps the JPEG step they hook at its entry.
+  if (features.hdrGainMap) installHdrGainMap(patch, !!test.hdrDiag);
   if (shutdown) icons = installShutdownMenu(patch, icons, shutdown.pictures, shutdown.factory);
   // After every other addition that copies the submenu or list table.
   if (features.directFlash) icons = installDirectFlashMenu(patch, icons);
+  // The HDR line's list: after the additions that copy the list table first.
+  if (features.hdrGainMap) installHdrMenu(patch, HDR_SWITCH_BYTE);
+  // ADJ lever slots: after the other additions that copy the submenu or list table (it adds records the same way).
+  if (adjSlots > 0) installAdjSlots(patch, adjSlots);
   // Last: wraps every other settings save/load and user-mode recall hook.
-  if (features.guard) installSettingsGuard(patch, { slots: slots.length, ratios: ratios.length > 0, adjSoftFocus: !!features.adjSoftFocus, ...(features.lookLayout ? { hiddenLooks: features.lookLayout.hidden } : {}) });
+  if (features.guard) installSettingsGuard(patch, { slots: slots.length, ratios: ratios.length > 0, adjSoftFocus: !!features.adjSoftFocus, ...(features.lookLayout ? { hiddenLooks: features.lookLayout.hidden } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.hdrGainMap ? { hdr: true } : {}) });
+  if (features.brightAuto) installBrightAuto(patch, features.brightAuto === 'balanced' ? 'balanced' : 'bright');
   if (patch.length % 4 !== 0) fail('internal', 'image length is not a multiple of 4');
   if (BASE + patch.length >= APPEND_LIMIT) fail('too-many-ratios', 'the appended area would reach the RAM area');
-  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}) } };
+  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { ...(features.brightAuto ? { brightAuto: features.brightAuto === 'balanced' ? 'balanced' as const : 'bright' as const } : {}), adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}), ...(features.hdrGainMap ? { hdrGainMap: true } : {}), ...(adjSlots > 0 ? { adjSlots } : {}) } };
 }

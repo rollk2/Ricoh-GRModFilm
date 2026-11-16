@@ -213,7 +213,7 @@ func (s *Server) handleUpdatePage(w http.ResponseWriter, r *http.Request) error 
 }
 
 // ReleasePagePrefix + "v1.2.3" is a release's page.
-const ReleasePagePrefix = "https://github.com/Maxwooow/Ricoh-GRMod/releases/tag/"
+const ReleasePagePrefix = "https://github.com/rollk2/Ricoh-GRModFilm/releases/tag/"
 
 var releaseTag = regexp.MustCompile(`^[0-9]{1,5}(\.[0-9]{1,5}){0,3}$`)
 

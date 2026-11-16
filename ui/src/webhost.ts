@@ -8,7 +8,7 @@ export const WEB_RELEASES = 'https://github.com/rollk2/Ricoh-GRModFilm/releases'
 
 /** The model's download page on Ricoh's site (with the licence): the site cannot fetch the file itself (no CORS). */
 export const ricohPage = (model: string): string => `https://www.ricoh-imaging.co.jp/english/support/digital/${
-  model.startsWith('GR3X') ? 'gr3x_s' : model.startsWith('GR3') ? 'gr3_s' : 'gr4_s'}.html`;
+  model.startsWith('GR3X') ? 'gr3x_s' : model.startsWith('GR3') ? 'gr3_s' : model === 'MONO' ? 'gr-4-mono_s' : 'gr4_s'}.html`;
 
 export class WebHostError extends Error {
   code: string;

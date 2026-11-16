@@ -219,6 +219,15 @@ SPECIAL = {
 # Hooks whose displaced instruction is conditional: include the instruction(s) before it, which set the flags.
 LEAD = {0x5364DEE4: 1, 0x5364E484: 1, 0x5388BE10: 1}
 
+# More ADJ lever slots (core/src/fw/aspect/adjslots.ts), when the build has them: the views' binding,
+# SlotFunction past slot 5, the strip, the touchable icons, the taps and the slot last used go to
+# functions of N slots on purpose. Their behaviour is checked function by function, with five slots
+# against the official image and with 6..8 against the rules, by tools/adjslots/check.py.
+ADJ_SLOTS_ENTRY = (0x531C0528, 0x531BD5AC, 0x531BFA3C, 0x531BD6BC, 0x531BBB40, 0x531BEE84, 0x531BEECC, 0x531BEF60,
+                   # ADJ Mode Setting's lines 6..N (SubMenuController's list builder, OK on a line): checked with
+                   # SubMenuController's own code, every submenu against the official image, by the same check.py
+                   0x531E2588, 0x531E25A0, 0x531E25BC, 0x531E20E8)
+
 
 def hooks_of(official, patched):
     """Addresses in the official part whose word changed into a B/BL to the appended area."""
@@ -228,7 +237,9 @@ def hooks_of(official, patched):
             continue
         address = BASE + offset
         word = struct.unpack_from('<I', patched, offset)[0]
-        if word & 0x0E000000 == 0x0A000000 and branch_target(address, word) >= BASE + OFFICIAL_LEN:
+        # The target must lie in the appended area of this image: changed data (an edited preset's
+        # tone curve, say) can look like a branch, but to an address past the end of the image.
+        if word & 0x0E000000 == 0x0A000000 and BASE + OFFICIAL_LEN <= branch_target(address, word) < BASE + len(patched):
             hooks.append(address)
         else:
             data.append(address)
@@ -338,6 +349,7 @@ def check_transparent(official, patched, hooks, runs=40, seed=1, lead=None):
                     # r4 points at the user data; its ratio byte (+0x49F) holds a menu ratio.
                     state['regs'][4] = REGIONS[0] + 0x1000
                     poke(state, REGIONS[0] + 0x1000 + 0x49F, bytes([rng.choice([0, 1, 2, 3])]))
+                    guard_valid(state, REGIONS[0] + 0x1000, rng)
             state = random_state(rng, tweak)
             mp.reset(state)
             left = [False]
@@ -553,6 +565,29 @@ def check_menu(official, patched):
     return count, order
 
 
+# The settings guard (guard.ts, in every build) puts looks, ADJ functions and ratios the firmware
+# does not know back to factory ones on load, save and user-mode recall; tools/looks/looks_check.py
+# checks that rule. Here the guarded bytes hold values every build keeps (factory looks 0..30, ADJ
+# functions 0..0x14 but soft focus's 0x0A), so the guard leaves them alone and the rest is compared.
+GUARD_LOOKS = (0x153, 0x154, 0x155, 0x156, 0x515, 0x516, 0x517, 0x518)
+GUARD_ADJ = (0x920, 0x921, 0x922, 0x923, 0x924)
+# More ADJ lever slots (adjslots.ts): slots 6..8 (0x48D..0x48F; 0 is valid whatever their number) and
+# the camera's remembered slot 0x91E (0..4), which the guard of such a build also puts back.
+GUARD_ADJ_EXTRA = (0x48D, 0x48E, 0x48F)
+GUARD_ADJ_POSITION = 0x91E
+
+
+def guard_valid(state, settings, rng, adjust=0):
+    """Settings at `settings` (CURRENT() layout minus `adjust`) with guard-proof looks and ADJ functions."""
+    for off in GUARD_LOOKS:
+        poke(state, settings + off - adjust, bytes([rng.choice(range(11, 25))]))
+    for off in GUARD_ADJ:
+        poke(state, settings + off - adjust, bytes([rng.choice([n for n in range(0x15) if n != 0x0A])]))
+    for off in GUARD_ADJ_EXTRA:
+        poke(state, settings + off - adjust, bytes([0]))
+    poke(state, settings + GUARD_ADJ_POSITION - adjust, bytes([rng.randrange(5)]))
+
+
 def check_settings(official, patched, order):
     """Settings save / load / user-mode recall: pass through to the native functions untouched,
     and only reset a ratio byte that is not a menu ratio."""
@@ -575,6 +610,10 @@ def check_settings(official, patched, order):
                 poke(state, pointer + 0x49B, bytes([value]))
         poke(state, current + 0x49B, bytes([ids[10]]))
         poke(state, user + 0x49F, bytes([ids[11]]))
+        for pointer in snapshots + [current]:
+            if pointer:
+                guard_valid(state, pointer, rng, adjust=4)
+        guard_valid(state, user, rng)
         state['regs'][0] = mode
         state['regs'][1] = current
         arrived = {}
@@ -894,6 +933,9 @@ def run(official, patched, icon_bytes, official_icons, quiet=False):
             'identical for heights that are multiples of 8; callee-saved registers, stack and memory as after the official call' % cases)
     else:
         say('build revision 1: no decode buffer change')
+    for a in ADJ_SLOTS_ENTRY:
+        if a in hooks:
+            SPECIAL[a] = 'entry'
     unknown = [hex(a) for a in SPECIAL if a not in hooks]
     assert not unknown, 'SPECIAL lists addresses that are not hooks: %s' % unknown
     tested, failures, notes = check_transparent(official, patched, hooks, lead=LEAD)

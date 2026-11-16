@@ -62,6 +62,12 @@ func newFakeSite(t *testing.T) *fakeSite {
 		fmt.Fprint(w, `<table><tr><th>Applied product</th><td>RICOH GR IV / RICOH GR IV HDF</td></tr><tr><th>Release date</th><td>2026/02/13</td></tr></table>
 			<a href="/resources/FIRMWARE/gr4_v111.zip">Download</a>`)
 	})
+	mux.HandleFunc("/resources/FIRMWARE/gr4_v120.zip", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprint(len(archive)))
+		if r.Method != http.MethodHead {
+			w.Write(archive)
+		}
+	})
 	mux.HandleFunc("/resources/FIRMWARE/gr4_v111.zip", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", fmt.Sprint(len(archive)))
 		if r.Method == http.MethodHead {
@@ -302,6 +308,45 @@ func TestFirmwareFallback(t *testing.T) {
 	}
 }
 
+// The site lists a release newer than the program knows (1.21): the supported 1.20 is offered
+// with 1.11 as the fallback, so a camera still on 1.11 stays reachable.
+func TestFirmwareLatestNewerThanKnown(t *testing.T) {
+	site := newFakeSite(t)
+	site.version = "1.21"
+	e := newEnv(t, site.option, site.pin(site.sum()), func(o *Options) {
+		o.FirmwareEarlier = o.FirmwareArchive
+		newer := *o.FirmwareEarlier
+		newer.Version = "1.20"
+		newer.Path = "/resources/FIRMWARE/gr4_v120.zip"
+		o.FirmwareArchive = &newer
+	})
+	for _, model := range []string{"STANDARD", "HDF"} {
+		t.Run(model, func(t *testing.T) {
+			rec := e.do("GET", "/api/firmware/latest?model="+model, nil)
+			var got firmwareLatest
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 {
+				t.Fatalf("%d %s", rec.Code, rec.Body)
+			}
+			rel := &got
+			for _, version := range []string{"1.21", "1.20", "1.11"} {
+				if rel == nil || rel.Version != version {
+					t.Fatalf("expected %s in release list: %s", version, rec.Body)
+				}
+				rel = rel.Fallback
+			}
+			if rel != nil {
+				t.Fatalf("unexpected extra release: %s", rec.Body)
+			}
+			for _, version := range []string{"1.20", "1.11"} {
+				rec = e.do("POST", "/api/firmware/download", map[string]string{"model": model, "version": version})
+				if rec.Code != 200 || rec.Header().Get(HeaderFirmwareVersion) != version || !bytes.Equal(rec.Body.Bytes(), site.firmware) {
+					t.Errorf("download %s: status %d, headers %v", version, rec.Code, rec.Header())
+				}
+			}
+		})
+	}
+}
+
 func TestFirmwareFallbackChecksum(t *testing.T) {
 	site := newFakeSite(t)
 	site.version = "1.20"
@@ -324,8 +369,8 @@ func TestFirmwareUnlisted(t *testing.T) {
 	wantStatus(t, e.do("GET", "/api/firmware/latest?model=MONO", nil), 404, codeNotFound)
 }
 
-// GR III / IIIx are built on pinned releases: a newer release the site lists is shown with the
-// pinned one as the fallback (as GR IV's 1.20 with 1.11); without one, the pinned release alone.
+// GR III / IIIx: a newer release the site lists is offered with the pinned earlier one as the
+// fallback (as GR IV's 1.20 with 1.11); without one, the pinned release alone.
 func TestFirmwareLatestPinnedNewer(t *testing.T) {
 	for _, listed := range []bool{true, false} {
 		mux := http.NewServeMux()
@@ -352,19 +397,31 @@ func TestFirmwareLatestPinnedNewer(t *testing.T) {
 		})
 		srv := httptest.NewServer(mux)
 		e := newEnv(t, func(o *Options) { o.FirmwareSite = srv.URL })
-		// Only the release this program builds on is downloaded, whatever the page asks for.
-		wantStatus(t, e.do("POST", "/api/firmware/download", map[string]string{"model": "GR3", "version": "2.20"}), 404, codeNotFound)
-		e.do("POST", "/api/firmware/download", map[string]string{"model": "GR3"})
-		mu.Lock()
-		for _, p := range got {
-			if strings.Contains(p, "v220") {
-				t.Errorf("listed=%v: the unsupported release was downloaded: %v", listed, got)
+		// Both releases can be downloaded, each by its version; without one, the site's.
+		last := func() string {
+			mu.Lock()
+			defer mu.Unlock()
+			if len(got) == 0 {
+				return ""
 			}
+			return got[len(got)-1]
 		}
-		if len(got) == 0 || !strings.HasSuffix(got[len(got)-1], "gr3_v210.zip") {
-			t.Errorf("listed=%v: the pinned release was not downloaded: %v", listed, got)
+		e.do("POST", "/api/firmware/download", map[string]string{"model": "GR3", "version": "2.10"})
+		if !strings.HasSuffix(last(), "gr3_v210.zip") {
+			t.Errorf("listed=%v: 2.10 was not downloaded: %v", listed, got)
 		}
-		mu.Unlock()
+		e.do("POST", "/api/firmware/download", map[string]string{"model": "GR3"})
+		if want := map[bool]string{true: "gr3_v220.zip", false: "gr3_v210.zip"}[listed]; !strings.HasSuffix(last(), want) {
+			t.Errorf("listed=%v: the site's release was not downloaded: %v", listed, got)
+		}
+		if listed {
+			e.do("POST", "/api/firmware/download", map[string]string{"model": "GR3", "version": "2.20"})
+			if !strings.HasSuffix(last(), "gr3_v220.zip") {
+				t.Errorf("2.20 was not downloaded: %v", got)
+			}
+		} else {
+			wantStatus(t, e.do("POST", "/api/firmware/download", map[string]string{"model": "GR3", "version": "2.20"}), 404, codeNotFound)
+		}
 		for _, model := range []string{"GR3", "GR3_HDF"} {
 			rec := e.do("GET", "/api/firmware/latest?model="+model, nil)
 			if rec.Code != 200 {
@@ -388,5 +445,82 @@ func TestFirmwareLatestPinnedNewer(t *testing.T) {
 			}
 		}
 		srv.Close()
+	}
+}
+
+// Ricoh's newer releases of 2026/11/10 (GR III 2.21, GR IV Monochrome 1.11) are listed and shown;
+// the pinned releases this program builds on stay offered after them, newest first, each
+// downloaded from its own address and checked against its SHA-256.
+func TestFirmwareOthers(t *testing.T) {
+	site := newFakeSite(t)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, _ := zw.Create("fwdc239b.bin")
+	w.Write(site.firmware)
+	zw.Close()
+	archive := buf.Bytes()
+	sum := sha256.Sum256(archive)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/english/support/download_digital.html", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<table><tr><td>GR III</td><td><a href="digital/gr3_s.html">Windows / Mac OS</a></td><td>2.21</td></tr>
+			<tr><td>GR IV Monochrome</td><td><a href="digital/gr-4-mono_s.html">Windows / Mac OS</a></td><td>1.11</td></tr></table>`)
+	})
+	mux.HandleFunc("/english/support/digital/gr3_s.html", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<table><tr><th>Applied product</th><td>RICOH GR III / RICOH GR III HDF</td></tr><tr><th>Release date</th><td>2026/11/10</td></tr></table>
+			<a href="/resources/FIRMWARE/gr3_v221.zip">Download</a>`)
+	})
+	mux.HandleFunc("/english/support/digital/gr-4-mono_s.html", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<table><tr><th>Applied product</th><td>RICOH GR IV Monochrome</td></tr><tr><th>Release date</th><td>2026/11/10</td></tr></table>
+			<a href="/resources/FIRMWARE/gr4_mono_v111.zip">Download</a>`)
+	})
+	serve := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprint(len(archive)))
+		if r.Method != http.MethodHead {
+			w.Write(archive)
+		}
+	}
+	for _, p := range []string{"gr3_v221.zip", "gr3_v220.zip", "gr3_v210.zip", "gr4_mono_v111.zip", "gr4_mono_v110.zip"} {
+		mux.HandleFunc("/resources/FIRMWARE/"+p, serve)
+	}
+	mux.HandleFunc("/resources/japan/support/download/digital/FIRMWARE/gr3_v210.zip", serve)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	e := newEnv(t, func(o *Options) {
+		o.FirmwareSite = srv.URL
+		o.FirmwareOthers = []ricoh.Archive{
+			{Version: "1.10", Path: "/resources/FIRMWARE/gr4_mono_v110.zip", Size: int64(len(archive)), SHA256: hex.EncodeToString(sum[:]),
+				Models: []string{"MONO"}, Applies: "RICOH GR IV Monochrome", Page: "/english/support/digital/gr-4-mono_s.html"},
+			{Version: "2.20", Path: "/resources/FIRMWARE/gr3_v220.zip", Size: int64(len(archive)), SHA256: hex.EncodeToString(sum[:]),
+				Models: []string{"GR3", "GR3_HDF"}, Applies: "RICOH GR III", Page: "/english/support/digital/gr3_s.html"},
+		}
+	})
+	for model, want := range map[string][]string{"GR3": {"2.21", "2.20", "2.10"}, "GR3_HDF": {"2.21", "2.20", "2.10"}, "MONO": {"1.11", "1.10"}} {
+		rec := e.do("GET", "/api/firmware/latest?model="+model, nil)
+		var got firmwareLatest
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 {
+			t.Fatalf("%s: %d %s", model, rec.Code, rec.Body)
+		}
+		var versions []string
+		for rel := &got; rel != nil; rel = rel.Fallback {
+			versions = append(versions, rel.Version)
+		}
+		if strings.Join(versions, " ") != strings.Join(want, " ") {
+			t.Errorf("%s: releases %v, want %v", model, versions, want)
+		}
+		for _, v := range want[1:] {
+			rec = e.do("POST", "/api/firmware/download", map[string]string{"model": model, "version": v})
+			if rec.Code != 200 || rec.Header().Get(HeaderFirmwareVersion) != v || !bytes.Equal(rec.Body.Bytes(), site.firmware) {
+				t.Errorf("%s %s: status %d %s", model, v, rec.Code, rec.Header())
+			}
+		}
+	}
+	if rec := e.do("GET", "/api/firmware/latest?model=MONO", nil); !strings.Contains(rec.Body.String(), `"name":"GR IV Monochrome"`) {
+		t.Errorf("MONO name: %s", rec.Body)
+	}
+}
+
+func TestVersionOrder(t *testing.T) {
+	if !ricoh.VersionLess("1.9", "1.20") || !ricoh.VersionLess("1.11", "1.20") || ricoh.VersionLess("2.21", "2.20") || ricoh.VersionLess("1.20", "1.20") {
+		t.Error("VersionLess")
 	}
 }
