@@ -4360,3 +4360,27 @@ vitesse de l'AF et l'autonomie. Rien n'est construit ni flashé à ce stade.
   fonctionné.** Détails à préciser (premier essai non retenu). Piste : l'allumage en U force la
   multi-exposition après Mode Memory (V1-RC4) ; un réveil de veille ne passe pas par l'allumage ; à
   reproduire.
+
+## Version 1.1 : fusion de GR Mod 0.8.15+ (2026-11-16)
+
+- Demande de l'utilisateur : son GR IV Monochrome arrive ; fusionner l'amont (Maxwooow) pour pouvoir le
+  mettre à jour avec un firmware custom au plus tôt.
+- Fusion de `Maxwooow/ricoh-grmod` (`9d73fff`, 2026-11-16 ; point commun `8b4ca5e`, 0.8.5) : 16 fichiers en
+  conflit, 47 blocs. Choix : la structure de l'amont (un programme par firmware du boîtier, `this.gr3` /
+  `this.g4` dans le moteur ; applications Android et iOS ; textes revus ; langue de l'application seule), et
+  tout ce que GR Mod Film ajoute (mode pellicule, pages Features et Community, packs, site web, programme qui
+  ne se met jamais à jour lui-même, notre page de releases).
+- Mode pellicule limité aux programmes 2.10 / 1.60 : `filmModeChoosable` vérifie la version, le moteur ne
+  passe les options du mode pellicule qu'au programme 2.10 (`Gr3Program210`) ; le lecteur de recette de ce
+  programme les relit (les portages ne les enregistrent pas).
+- Retirés avec l'amont : le firmware passerelle 1.12 (`outputBridge`) ; trois tests de `gr3x-ui.test.mjs`
+  adaptés.
+- Corrigé au passage : `ReleasePagePrefix` (page d'une release) pointait vers les releases de l'amont.
+- Vérifié : les 1.0.0-RC2 GR III et GR IIIx se reconstruisent octet pour octet avec le code fusionné ;
+  tests (496, avec les fichiers GR III 2.10, GR IIIx 1.60, GR IV 1.20 et 1.21 = GR IV Monochrome 1.10 et
+  1.11, téléchargés chez Ricoh, SHA-256 conformes) ; `go test` ; les 13 sondes du mode pellicule sur GR III
+  et GR IIIx (build 1.1.0) ; GR IV Monochrome 1.11 et 1.10 : firmwares construits par le moteur, 22 contrôles
+  et relecture vérifiée ; le site construit un firmware Monochrome depuis le zip Ricoh (vérifié à la relecture).
+- Outil : le code de l'amont importe des types sans `import type` ; les scripts de build hors Vitest passent
+  par `esbuild` (`npx esbuild script.mjs --bundle --platform=node --format=esm`).
+- Version 1.1.0 (`GRFILM.SET` écrit « 1.1.0 » ; `settings_file_probe.py` repassé).

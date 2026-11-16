@@ -2,14 +2,21 @@
 
 GR Mod Film is a fork of [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod) by Maxwooow that adds a
 **film mode** to the Ricoh GR III (firmware 2.10) and GR IIIx (firmware 1.60). Everything GR Mod
-does for these cameras is kept. Not a Ricoh product, not an official GR Mod release.
+does is kept (version 1.1 follows GR Mod 0.8.15). Not a Ricoh product, not an official GR Mod release.
 
-> **GR IV: not supported by GR Mod Film.** The GR IV is out of scope: nothing has been developed or
-> tested for it here. GR IV owners should use [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod).
-> (GR Mod's GR IV code is still in this repository, untouched, because the program is shared.)
+| Camera | Official firmware | GR Mod features | Film mode |
+| --- | --- | --- | --- |
+| GR III / GR III HDF | 2.10 | yes | **yes** (camera-tested) |
+| GR IIIx / GR IIIx HDF | 1.60 | yes | **yes** (same program as the GR III 2.10, not camera-tested) |
+| GR III / GR IIIx | 2.20, 2.21 / 1.70, 1.71 | yes | not yet (planned) |
+| GR IV / GR IV HDF | 1.21, 1.20, 1.11 | yes | not yet (planned) |
+| GR IV Monochrome | 1.11, 1.10 (the GR IV 1.21 and 1.20 files) | yes | not yet (planned) |
 
-Version 0.9.9 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page). Camera-tested on a GR III 2.10. The GR IIIx 1.60 is the same program (same
-addresses, same emulator checks) but has **not been tested on a camera**.
+GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx firmwares are GR Mod's own,
+camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
+firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
+
+Version 1.1.0 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
 
 ## What the film mode does (GR III / IIIx)
 
