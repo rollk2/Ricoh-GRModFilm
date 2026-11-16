@@ -239,6 +239,24 @@ Décisions des 2026-11-10 et 2026-11-11.
 Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre est permis, en citant chaque auteur dans le README (section Thanks) et dans les messages de commit.
 
 18. Firmwares GR III 2.20 et GR IIIx 1.70 (priorité, pour les bêta-testeurs dont le boîtier est déjà à jour). Source : Maxwooow, GR Mod 0.9.0 (testé sur boîtiers). Fusionner la base amont, puis reporter toutes les adresses de GR Mod Film sur 2.20 / 1.70. Garder 2.10 / 1.60 en parallèle. Chaque fonction revalidée en émulateur puis sur boîtier.
+    **Mise à jour du 2026-11-15** (décision : chantier de la 1.1, après la V1) : l'amont (0.8.15 du 2026-11-14) gère
+    GR III **2.21** et GR IIIx **1.71** (un seul programme), firmwares Ricoh du 2026-11-10, par des **portages
+    générés** (`core/src/fw/gr3x171`, `tools/port/gr3-p3.json` : carte d'adresses 2.10 → 2.21, surcharges,
+    retouches à la main ; constantes des sondes dans `tools/gr3x171`). Ces outils portent ses fonctions, pas
+    celles de GR Mod Film (rouleau, Rewind, Hide Settings, GRFILM.SET, SR par vitesse, Hold, etc.), à porter
+    ensuite avec sa carte. Fusion : 128 commits amont depuis le point commun (`8b4ca5e`, 2026-10-25), 16 fichiers
+    en conflit (surtout l'interface : `store.ts`, `pages.tsx`, `i18n.ts`, `app.tsx`). L'amont a aussi une
+    application Android (envoi du firmware par Wi-Fi et Bluetooth, **GR IV seulement** ; pour le GR III, le
+    protocole est inconnu, à rechercher) ; l'auto-mise à jour du programme est un sujet séparé (notre clé, nos
+    releases).
+    **Décision du 2026-11-15** : l'utilisateur a un GR IV Monochrome. Ordre après la V1 : (1) fusion de l'amont
+    (1.1 : GR IV 1.20 / 1.21 et Monochrome 1.10 / 1.11, mêmes fichiers ; les fonctions de GR Mod dans GR Mod
+    Film), (2) **mode pellicule sur GR IV et GR IV Monochrome, avant** (3) le portage du mode pellicule en
+    GR III 2.21 / IIIx 1.71. Constat statique (GR IV 1.11) : même cadre logiciel Ricoh que le GR III
+    (multi-exposition native `StillMultiExposureSaveProcess`, `StillDriveMode`, `SetFilePath`, Shake
+    Reduction, liste nommée des réglages) ; toutes les adresses à retrouver. Sur le Monochrome : pas de
+    recettes (créneaux couleur absents), le rouleau s'appuie sur ses looks noir et blanc (code par look,
+    grain).
 
 19. Levier ADJ jusqu'à 8 réglages sur GR III / IIIx. Source : Maxwooow, GR Mod 0.8.9 (adjslots). Porter sur GR III : réglages 6 à 8 dans ADJ Mode Setting, valeurs protégées par le garde-fou. Vérifier la compatibilité avec le verrou du rouleau (cases ADJ lues Off pendant un rouleau).
 

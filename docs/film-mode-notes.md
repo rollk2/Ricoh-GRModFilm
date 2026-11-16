@@ -4274,3 +4274,89 @@ rouleaux rembobinés) ; GR Mod Film ouvre le fichier et l'applique au premier al
 - Vérifié : `settings_file_probe.py` sur un build complet 0.9.9 (enregistrement, chargement, 14 cas de
   refus), fichier produit relu par le lecteur TypeScript (GR III, 0.9.9, 9 enregistrements, 25 772 octets),
   tests (394).
+
+## Étude AF et autonomie, statique (2026-11-14)
+
+Demande de l'utilisateur : regarder, en parallèle des tests de la V1, ce que le logiciel peut faire pour la
+vitesse de l'AF et l'autonomie. Rien n'est construit ni flashé à ce stade.
+
+### Carte nommée de l'enregistrement des réglages (certitude : forte)
+
+- Le RTOS contient la liste des noms des propriétés, séparés par des virgules (`CommonTv,CommonAv,…`, 1 043
+  noms). Elle suit exactement l'ordre des 1 043 champs de `settings_layout_probe` : le champ 45 est
+  `StillFocusAreaCenter` à `+0x120`, déjà trouvé le 2026-11-02. Carte complète (indice, nom, décalage,
+  taille) : `tools/gr3x/fixtures/gr3-settings-named.json` (GR III 2.10).
+- Accesseurs : `ldr r3,[r0,#4]; ldrb r0,[r3,#déc]; bx lr`, un par champ ; les « imprimeurs » de la console
+  de débogage appellent l'accesseur puis affichent un texte par valeur, ce qui donne le nom des valeurs.
+
+### AF
+
+- AF hybride : détection de phase sur le capteur (« Zaf » : `ZafDefocus`, `ZafPredictor`, `ZafCorrelation`,
+  `HybridAfInfo`, `EnableZafDirection`, `EnableDefocusLowerLimit`), complétée par le contraste
+  (`ZafContrast`, `CafWobbling`, `GetContrastPeak`). Moteur : `AfLensDrive`, `LensFocusControl`.
+- **`StillAfRange` (`+0x13e`, accesseur `0x53244038`)** : 0 `10cmToInfinity`, 1 `10cmTo50cm`, 2
+  `50cmToInfinity` (textes `0x53b2e174`, `0x53b2e184`, `0x53b2e190`). Un limiteur de mise au point. Une ligne
+  de menu complète existe (descripteur `0x53b3c880`, identifiant `0x56`, contrôle `0x531b7d44`, table
+  `0x53b590dc` = 0, 1, 2) mais le GR III ne l'affiche pas. `MovieAfRange` (`+0x510`) pour la vidéo.
+  À vérifier : que le moteur d'AF lise bien ce champ (l'accesseur n'a que le menu et la console pour
+  appelants ; le moteur peut passer par la table des propriétés). Test proposé : forcer 2, essayer de faire
+  le point à 30 cm (refus attendu) et mesurer la vitesse à 2 m et à l'infini.
+- **`CommonReleasePermissionAfS` (`+0x116`)** : `InFocus`, `AfNotRunning`, `AllTime` ;
+  **`CommonReleasePermissionAfC` (`+0x118`)** : les mêmes et `Auto`. Lus par la logique de déclenchement
+  (`0x5328e450`, `0x5328e504`, `0x5328e464`, `0x5328e4d4`, `0x5323e148`) ; aucune ligne de menu.
+  `StillAfCActionPriority` (`+0x13c`) : `Focus` / `Release` (la ligne AF.C du menu).
+
+### Énergie
+
+- `SetupSleep` (`+0x9ac`) et `SetupAutoPowerOff` (`+0x9a4`) : Off, 1, 3, 5, 10, 30 min ;
+  `SetupMonitorPowerSaving` (`+0x9b4`) : Off / On ; `SetupBleMode` (`+0x991`) : `AlwaysOff`, `AlwaysOn`,
+  `LinkPowerState` ; `SetupLcdBrightness` (`+0x97b`) : M7 à P7 ; `SetupOutdoorMonitor` (`+0x983`).
+- La cadence de la visée (`LV_MODE`, `LV_INTEG_TIME`) n'apparaît que parmi les drapeaux de réglage d'usine :
+  la changer touche au capteur et à l'AF par contraste (une visée plus lente rend l'AF plus lent). Profond
+  et risqué, non retenu pour l'instant.
+- Une console mesure le courant par organe (`"Time (sec)","Lap (sec)","Cis","Sd","Lens","Wlan","Batt"`) :
+  piste pour mesurer l'effet d'un réglage, à étudier.
+
+### Limiteur de mise au point : ligne cachée et build T-AFR1 (2026-11-14)
+
+- Fiche de liste 7 (`0x53b3c880`, entre AF.C Setting, fiche 6 / ligne `0x02000063`, et MF Auto
+  Magnification, fiche 8 / ligne `0x02000065`), donc ligne **`0x02000064`** très probablement : nombre
+  `0x531b39dc` (3), choix → valeur par la table `0x53b590dc` (0, 1, 2), écrivain `0x532426b0`
+  (`strb` à `+0x13e`, rien d'autre : pas d'avis au moteur d'AF), contrôle `0x531b7d44`.
+- Indice défavorable : le texte « 10cm-∞ » existe en 21 langues, mais ni « 50cm-∞ » ni « 10cm-50cm » ; la
+  ligne n'a jamais été traduite pour le GR III (code partagé avec un autre modèle ?).
+- Lectures directes de `+0x13e` : copies de l'enregistrement (`0x5324719c`, `0x5326cdcc`), autres
+  structures (`0x53491880`, `0x533ff614`, `0x535a7008`, `0x5373f2f0`). Le moteur d'AF ne lit pas le champ
+  par l'accesseur ; une lecture par la table des propriétés reste possible. Seul le boîtier tranchera.
+- **Build T-AFR1** : le 1.0.0-RC1 GR III et `hiddenSettings: { afRange: 2 }` (entrée de test ajoutée au
+  tableau `GR3X_HIDEABLE` par le script de build, pas dans le dépôt) : 50 cm à l'infini écrit à chaque
+  chargement dans l'enregistrement en cours et les huit BOX. Conséquence : l'ancien mécanisme de 0.9.4
+  remplace la ligne Hide Settings du boîtier, absente de ce build.
+- Vérifié : `hidden_probe.py` (copie temporaire connaissant `afRange` : valeur écrite, lignes, touches et
+  ADJ inchangés), `film_roll_check.py`, `guard_probe.py`, `lock_probe.py`, `hold_probe.py`,
+  `wb_button_probe.py`. SHA-256 `bd355ea3…409e86`.
+- À voir sur le boîtier : refus de faire le point à 30 cm (si le limiteur agit), vitesse à 2 m et à
+  l'infini comparée au RC1.
+
+## Retours du 1.0.0-RC1 (2026-11-14)
+
+- Piste AF arrêtée par l'utilisateur : il ne veut pas de fonction nouvelle (limiteur) mais un AF existant
+  plus rapide et plus précis, surtout en basse lumière (« l'AF est mou »). T-AFR1 non testé, mis de côté.
+- **Bogue 1 : l'écran vibre avant la mise au point, pas toujours** (seuil de SR réglé sur une vitesse,
+  lumière faible). Cause (certitude forte) : la SR donnée au DSP est recalculée à chaque changement de la
+  vitesse de la visée (événement 0x82) ; en basse lumière la mesure fait osciller la vitesse autour du seuil,
+  la SR se coupe et se rallume, et chaque bascule recentre le capteur. Avec 1/4000 (toujours active), jamais.
+- **Correctif (choix de l'utilisateur : hystérésis)** : `srSpeed.hysteresis` (`sr-speed.ts`, recette
+  `srHyst`, mise par le moteur avec `srSpeed`) : SR coupée seulement à 2/3 d'IL au-dessus de la frontière
+  (`GR3X_SR_BAND`), rallumée sous la frontière ; entre les deux, l'état donné en dernier reste (octet RAM
+  `0x558043b7`, 1 On, 2 Off par la vitesse, 0 SR Off ; pris à la note de l'icône, diagnostic seulement :
+  les deux sont exclus). L'icône SR suit la même règle (lit l'état, ne l'écrit pas). Les builds sans `srHyst`
+  (RC1 et avant) se reconstruisent à l'identique (vérifié sur le 1.0.0-RC1 GR III et GR IIIx).
+- Vérifié : `sr_speed_probe.py` étendu (les trois états avant chaque cas, l'état après, la bande ; 6 384 cas
+  du menu ; l'icône ne modifie pas l'état) sur GR III et GR IIIx avec l'hystérésis, inchangé sur les RC1 ;
+  contre-épreuve : la sonde échoue si elle attend l'hystérésis sur un RC1 ; les 13 sondes sur les deux
+  boîtiers ; tests. Candidat **1.0.0-RC2** = RC1 + hystérésis.
+- **Bogue 2 : en U1 mode pellicule, allumage, déclenchement, pas de superposition ; la photo suivante a
+  fonctionné.** Détails à préciser (premier essai non retenu). Piste : l'allumage en U force la
+  multi-exposition après Mode Memory (V1-RC4) ; un réveil de veille ne passe pas par l'allumage ; à
+  reproduire.

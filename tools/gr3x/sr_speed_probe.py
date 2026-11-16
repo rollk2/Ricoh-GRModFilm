@@ -30,6 +30,16 @@ LV=0x6304b000;HOLDER=0x6304b800;REC=0x6304c000;RING=0x558043a8;LAST=0x558043b6;L
 def r_(u,n):return u.reg_read(getattr(reg,'UC_ARM_REG_R%d'%n))
 def verify(data,manifest):
     sr=manifest.get('srSpeed');assert sr is not None;diag=bool(sr.get('diag'));menu='seconds' not in sr
+    # 1.0 hysteresis: Off from 2/3 stop above the On boundary, the band between keeping the state (RAM 0x558043b7).
+    hyst=bool(sr.get('hysteresis'));STATE=0x558043b7;BAND=2/3
+    def rule(srv,f,on,state):
+        # (SR given, state after) for a live Tv f with the On boundary `on` (None: no rule)
+        if srv==0:return 0,0
+        if on is None or f<on:return srv,1
+        if not hyst:return 0,2
+        if f>=on+BAND or state==2:return 0,2
+        return srv,1
+    states=(0,1,2) if hyst else (None,)
     if not menu:assert sr['seconds']>0
     tv0=round(math.log2(1/sr.get('seconds',SPEEDS[23]))*3)/3  # the camera's third stops
     p=RollProbe(data,manifest);c=p.uc;cases={}
@@ -53,14 +63,17 @@ def verify(data,manifest):
         assert c.reg_read(reg.UC_ARM_REG_PC)==at+4 and c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[4:12]==regs[4:12],(hex(at),[hex(x) for x in got])
         return got[0]
     third=1/3
-    tvs=[tv0-2,tv0-third,tv0,tv0+0.16,tv0+0.18,tv0+third,tv0+3,12,-5,0.0,-0.0,0.5]
+    tvs=[tv0-2,tv0-third,tv0,tv0+0.16,tv0+0.18,tv0+third,tv0+0.8,tv0+0.85,tv0+3,12,-5,0.0,-0.0,0.5]
     notes=[]
     for at in CALLS:
         for srv in (0,1,2):
             for tv in tvs:
+              for st in states:
+                if st is not None:c.mem_write(STATE,bytes([st]))
                 f=struct.unpack('<f',struct.pack('<f',tv))[0]
-                want=srv if (srv==0 or f<tv0+1/6) else 0
-                got=run(at,srv,tv);assert got==want,(hex(at),srv,tv,got)
+                want,after=rule(srv,f,tv0+1/6,st)
+                got=run(at,srv,tv);assert got==want,(hex(at),srv,tv,st,got)
+                if hyst:assert c.mem_read(STATE,1)[0]==after,(hex(at),srv,tv,st,c.mem_read(STATE,1)[0]);count('state %d->%d'%(st,after))
                 code=60 if srv==0 else (61 if want else 62)
                 if not notes or notes[-1]!=code:notes.append(code)
                 count('on' if want else ('off by speed' if srv else 'off'))
@@ -69,13 +82,15 @@ def verify(data,manifest):
         for at in CALLS[:2]:
             for raw in list(range(0,54))+[60,0xff]:
                 for srv in (0,1):
-                    for k in (raw-2,raw-1,raw) if 1<=raw-1<52 else (0,23,51):
+                    for k in (raw-4,raw-3,raw-2,raw-1,raw) if 1<=raw-1<52 else (0,23,51):
                         for d in (-0.15,0.15):
+                          for st in states:
                             if not 0<=k<52:continue
+                            if st is not None:c.mem_write(STATE,bytes([st]))
                             tv=12-k/3+d;f=struct.unpack('<f',struct.pack('<f',tv))[0]
-                            rule=2<=raw<=52
-                            want=srv if (srv==0 or not rule or f<12-(raw-1)/3+1/6) else 0
-                            got=run(at,srv,tv,raw);assert got==want,(hex(at),raw,srv,tv,got);count('menu '+('on' if want else 'off'))
+                            want,after=rule(srv,f,12-(raw-1)/3+1/6 if 2<=raw<=52 else None,st)
+                            got=run(at,srv,tv,raw);assert got==want,(hex(at),raw,srv,tv,st,got);count('menu '+('on' if want else 'off'))
+                            if hyst:assert c.mem_read(STATE,1)[0]==after,(hex(at),raw,srv,tv,st);count('menu state')
         for bad in (0,0x30000000,0x6304d002):
             c.mem_write(0x55063f34,struct.pack('<I',bad))
             assert run(CALLS[0],1,11.0,9)==1;count('no record')
@@ -120,17 +135,20 @@ def verify(data,manifest):
             hl=c.hook_add(UC_HOOK_CODE,lambda u,a_,s_,d:(u.reg_write(reg.UC_ARM_REG_R0,LVC),u.reg_write(reg.UC_ARM_REG_PC,u.reg_read(reg.UC_ARM_REG_LR))),begin=0x53525d5c,end=0x53525d5c)
             for raw in (0,1,24,38,52,60):
                 c.mem_write(SET+0x4f6,bytes([raw]))
-                for k in (0,23,24,37,51):
+                for k in (0,20,21,22,23,24,37,51):
                     for d_ in (-0.15,0.15):
+                      for st in states:
+                        if st is not None:c.mem_write(STATE,bytes([st]))
                         tv=12-k/3+d_;c.mem_write(REC+0x4bc,struct.pack('<f',tv));f=struct.unpack('<f',struct.pack('<f',tv))[0]
                         for a1,a2,a3 in ((0,1,0),(0,1,1),(0,0,0),(0,0,1),(1,1,0),(2,1,1)):
-                            off=a1==0 and a2!=0 and 2<=raw<=52 and not f<12-(raw-1)/3+1/6
+                            off=a1==0 and a2!=0 and rule(1,f,12-(raw-1)/3+1/6 if 2<=raw<=52 else None,st)[0]==0
                             got_args.clear();regs=[0x5000+j for j in range(13)];regs[:4]=[0x7700,a1,a2,a3]
                             for j,v in enumerate(regs):c.reg_write(getattr(reg,'UC_ARM_REG_R%d'%j),v)
                             c.reg_write(reg.UC_ARM_REG_SP,STACK-16);c.mem_write(STACK-16,struct.pack('<I',0xabcd))
                             c.reg_write(reg.UC_ARM_REG_LR,LR);c.emu_start(sh,LR,count=3000)
                             assert c.reg_read(reg.UC_ARM_REG_PC)==LR and c.reg_read(reg.UC_ARM_REG_SP)==STACK-16 and r_(c,0)==0x1b0
                             assert [r_(c,j) for j in range(4,12)]==regs[4:12]
+                            if hyst:assert c.mem_read(STATE,1)[0]==st  # the icon reads the state, never writes it
                             assert got_args==[(0x7700,a1,0 if off else a2,a3,0xabcd,STACK-16)],(raw,tv,a1,a2,a3,got_args)
                             count('icon off' if off else 'icon as given')
                             if sr.get('icon')=='diag':
