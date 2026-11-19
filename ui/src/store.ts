@@ -1095,13 +1095,15 @@ export const FILM_CODE = /^[A-Z0-9]{4}$/;
 // GR Mod Film 1.1: the film mode is built on GR III 2.10 / GR IIIx 1.60 only (not ported to 2.20 / 2.21 yet).
 export const filmModeChoosable = (s: State = state): boolean => s.info?.family === 'gr3x' && (s.info.version === '2.10' || s.info.version === '1.60') && !!s.info.features.dateStamp && filmCountChoosable(s);
 export function filmModeOn(s: State = state): boolean { return !!s.filmMode && filmModeChoosable(s); }
-export function noMovieOn(s: State = state): boolean { return !!s.noMovie && filmModeChoosable(s); }
+/** No movie: the GR III 2.10 / GR IIIx 1.60 file, or the GR IV Monochrome 1.11 (GR IV 1.21) file (GR Mod Film 1.2). */
+export const noMovieChoosable = (s: State = state): boolean => filmModeChoosable(s) || !!s.info?.features.noMovie;
+export function noMovieOn(s: State = state): boolean { return !!s.noMovie && noMovieChoosable(s); }
 export function setFilmMode(filmMode: boolean): void {
   if (filmMode && !filmModeChoosable()) return;
   set({ filmMode }); scheduleSave();
 }
 export function setNoMovie(noMovie: boolean): void {
-  if (noMovie && !filmModeChoosable()) return;
+  if (noMovie && !noMovieChoosable()) return;
   set({ noMovie }); scheduleSave();
 }
 export function rearDialOffOn(s: State = state): boolean { return !!s.rearDialOff && filmModeChoosable(s); }

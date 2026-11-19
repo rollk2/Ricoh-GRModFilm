@@ -154,6 +154,8 @@ export interface ExtensionFeatures {
   exposurePreview?: boolean;
   /** 0.8.11, GR IV 1.20 only (not built on 1.11): soft focus (with `adjSoftFocus`) also a line of the still menu. */
   softFocusMenu?: boolean;
+  /** GR Mod Film 1.2: the movie taken out (GR IV 1.21 only, `gr4v121/aspect/nomovie.ts`; ignored by this program). */
+  noMovie?: boolean;
 }
 
 /** For test builds only: a fixed setting byte (1 short, 3 long style) instead of the camera menu. */
