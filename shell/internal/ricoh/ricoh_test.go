@@ -392,12 +392,41 @@ func TestFallback(t *testing.T) {
 
 func TestSupported(t *testing.T) {
 	a := Supported
-	if a.Version != "1.11" || len(a.SHA256) != 64 || a.Size <= 0 || !strings.HasSuffix(a.Path, "/gr4_v111.zip") || !strings.HasPrefix(a.Path, "/") {
+	if a.Version != "1.21" || len(a.SHA256) != 64 || a.Size <= 0 || !strings.HasSuffix(a.Path, "/gr4_v121.zip") || !strings.HasPrefix(a.Path, "/") {
 		t.Errorf("%+v", a)
+	}
+	b := Earlier
+	if b.Version != "1.11" || len(b.SHA256) != 64 || b.Size <= 0 || !strings.HasSuffix(b.Path, "/gr4_v111.zip") || !strings.HasPrefix(b.Path, "/") {
+		t.Errorf("earlier: %+v", b)
+	}
+	if a.Models == nil || b.Models == nil || strings.Join(a.Models, ",") != strings.Join(b.Models, ",") {
+		t.Errorf("Supported and Earlier must be for the same models: %v %v", a.Models, b.Models)
 	}
 	for _, m := range a.Models {
 		if _, ok := Models[m]; !ok {
 			t.Errorf("unknown model %q", m)
+		}
+	}
+}
+
+func TestOthers(t *testing.T) {
+	seen := map[string]string{}
+	pins := map[string][]string{}
+	for _, a := range Others {
+		if len(a.SHA256) != 64 || a.Size <= 0 || !strings.HasPrefix(a.Path, "/") || a.Page == "" {
+			t.Errorf("%+v", a)
+		}
+		for _, m := range a.Models {
+			if _, ok := Models[m]; !ok {
+				t.Errorf("unknown model %q", m)
+			}
+			seen[m] = a.Version
+			pins[m] = append(pins[m], a.Version)
+		}
+	}
+	for m, v := range map[string]string{"STANDARD": "1.20", "HDF": "1.20", "MONO": "1.11,1.10", "GR3": "2.21,2.20", "GR3_HDF": "2.21,2.20", "GR3X": "1.71,1.70", "GR3X_HDF": "1.71,1.70"} {
+		if got := strings.Join(pins[m], ","); got != v {
+			t.Errorf("%s: pinned %q, want %s", m, got, v)
 		}
 	}
 }

@@ -18,7 +18,12 @@
  * case their number follows in one more byte; bit 4: power-off pictures, their number follows in
  * one more byte; the data of both is read back from the image itself; bit 5: the settings guard;
  * bit 6 (0.8.4): an Image Control menu order / hidden looks (`looks.ts`): u8 n, the n styles in
- * menu order, u8 h, the h hidden styles; bit 7 (0.8.4): Direct Flash (`directflash.ts`)).
+ * menu order, u8 h, the h hidden styles; bit 7 (0.8.4): Direct Flash (`directflash.ts`)). Then
+ * (0.8.6) one more byte of additions, where earlier builds have their zero padding: bit 0, the HDR
+ * gain map (`hdrgain.ts`); bit 1, ADJ lever slots (`adjslots.ts`), their number (6..8) follows in
+ * one more byte. Bit 2: a following bright-Auto curve byte (1 bright, 2 balanced).
+ * A build without them reads as before; earlier programs do not take a record with
+ * this byte set.
  *
  * Power-off pictures (`shutdown.ts`) also add files to the RES section, the last one: their records
  * (two container frames each) are inserted after RES_ANCHOR, and the section's file count grows.
@@ -30,6 +35,7 @@ import type { Range } from '../types';
 import { MAX_CUSTOM_RATIOS, OFFICIAL_ICONBIN_LENGTH, OFFICIAL_RTOS_LENGTH } from './build';
 import type { AspectResult, BuildRevision, ExtensionFeatures, RatioSpec } from './build';
 import { MAX_EXTRA_SLOTS } from './slots';
+import { ADJ_SLOTS_MAX } from './adjslots';
 import { RES_ANCHOR, SHUTDOWN_MAX_PICTURES, shutdownFiles } from './shutdown';
 import { readRes, resRecords } from './res';
 
@@ -63,6 +69,13 @@ const FEATURE_GUARD = 32;
 const FEATURE_LOOK_LAYOUT = 64;
 /** Direct Flash (`directflash.ts`), 0.8.4. */
 const FEATURE_DIRECT_FLASH = 128;
+/** Second feature byte (0.8.6). */
+const FEATURE2_HDR_GAIN_MAP = 1;
+
+/** Second feature byte: bit 1, ADJ lever slots (`adjslots.ts`; bit 0 is the HDR gain map's). */
+const FEATURE2_ADJ_SLOTS = 2;
+/** A following byte selects 1 = bright or 2 = balanced. */
+const FEATURE2_BRIGHT_AUTO = 4;
 
 /**
  * `u8 count, then per ratio: u8 length + ratio text, u8 length + name`, (revision 3: `u8 features`),
@@ -90,6 +103,14 @@ function encodeRecord(specs: readonly RatioSpec[], revision: BuildRevision, feat
     bytes.push(layout.order.length, ...layout.order, layout.hidden.length, ...layout.hidden);
   }
   if (features.directFlash && revision < 3) fail('internal', 'Direct Flash needs revision 3');
+  if (features.brightAuto || features.hdrGainMap || (features.adjSlots && features.adjSlots > 5)) {
+    if (revision < 3) fail('internal', 'the HDR gain map and ADJ slots need revision 3');
+    const adj = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
+    if (adj && !(Number.isInteger(adj) && adj <= ADJ_SLOTS_MAX)) fail('internal', 'ADJ slots cannot be recorded');
+    bytes.push((features.hdrGainMap ? FEATURE2_HDR_GAIN_MAP : 0) | (adj ? FEATURE2_ADJ_SLOTS : 0) | (features.brightAuto ? FEATURE2_BRIGHT_AUTO : 0));
+    if (adj) bytes.push(adj);
+    if (features.brightAuto) bytes.push(features.brightAuto === 'balanced' ? 2 : 1);
+  }
   while (bytes.length % 4) bytes.push(0);
   return Uint8Array.from(bytes);
 }
@@ -177,7 +198,24 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
       features.lookLayout = { order, hidden };
     }
     if (f & FEATURE_DIRECT_FLASH) features.directFlash = true;
-    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash) return null;
+    if (p < rec.length) {
+      const f2 = rec[p++];
+      if ((f2 & ~(FEATURE2_HDR_GAIN_MAP | FEATURE2_ADJ_SLOTS | FEATURE2_BRIGHT_AUTO)) !== 0) return null;
+      if (f2 & FEATURE2_HDR_GAIN_MAP) features.hdrGainMap = true;
+      if (f2 & FEATURE2_ADJ_SLOTS) {
+        if (p >= rec.length) return null;
+        const n = rec[p++];
+        if (!(n > 5 && n <= ADJ_SLOTS_MAX)) return null;
+        features.adjSlots = n;
+      }
+      if (f2 & FEATURE2_BRIGHT_AUTO) {
+        if (p >= rec.length) return null;
+        const mode = rec[p++];
+        if (mode !== 1 && mode !== 2) return null;
+        features.brightAuto = mode === 2 ? 'balanced' : 'bright';
+      }
+    }
+    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.brightAuto) return null;
   }
   for (; p < rec.length; p++) if (rec[p] !== 0) return null;
   return { specs: out, features, extraSlots, shutdownPictures };

@@ -4360,3 +4360,307 @@ vitesse de l'AF et l'autonomie. Rien n'est construit ni flashé à ce stade.
   fonctionné.** Détails à préciser (premier essai non retenu). Piste : l'allumage en U force la
   multi-exposition après Mode Memory (V1-RC4) ; un réveil de veille ne passe pas par l'allumage ; à
   reproduire.
+
+## Version 1.1 : fusion de GR Mod 0.8.15+ (2026-11-16)
+
+- Demande de l'utilisateur : son GR IV Monochrome arrive ; fusionner l'amont (Maxwooow) pour pouvoir le
+  mettre à jour avec un firmware custom au plus tôt.
+- Fusion de `Maxwooow/ricoh-grmod` (`9d73fff`, 2026-11-16 ; point commun `8b4ca5e`, 0.8.5) : 16 fichiers en
+  conflit, 47 blocs. Choix : la structure de l'amont (un programme par firmware du boîtier, `this.gr3` /
+  `this.g4` dans le moteur ; applications Android et iOS ; textes revus ; langue de l'application seule), et
+  tout ce que GR Mod Film ajoute (mode pellicule, pages Features et Community, packs, site web, programme qui
+  ne se met jamais à jour lui-même, notre page de releases).
+- Mode pellicule limité aux programmes 2.10 / 1.60 : `filmModeChoosable` vérifie la version, le moteur ne
+  passe les options du mode pellicule qu'au programme 2.10 (`Gr3Program210`) ; le lecteur de recette de ce
+  programme les relit (les portages ne les enregistrent pas).
+- Retirés avec l'amont : le firmware passerelle 1.12 (`outputBridge`) ; trois tests de `gr3x-ui.test.mjs`
+  adaptés.
+- Corrigé au passage : `ReleasePagePrefix` (page d'une release) pointait vers les releases de l'amont.
+- Vérifié : les 1.0.0-RC2 GR III et GR IIIx se reconstruisent octet pour octet avec le code fusionné ;
+  tests (496, avec les fichiers GR III 2.10, GR IIIx 1.60, GR IV 1.20 et 1.21 = GR IV Monochrome 1.10 et
+  1.11, téléchargés chez Ricoh, SHA-256 conformes) ; `go test` ; les 13 sondes du mode pellicule sur GR III
+  et GR IIIx (build 1.1.0) ; GR IV Monochrome 1.11 et 1.10 : firmwares construits par le moteur, 22 contrôles
+  et relecture vérifiée ; le site construit un firmware Monochrome depuis le zip Ricoh (vérifié à la relecture).
+- Outil : le code de l'amont importe des types sans `import type` ; les scripts de build hors Vitest passent
+  par `esbuild` (`npx esbuild script.mjs --bundle --platform=node --format=esm`).
+- Version 1.1.0 (`GRFILM.SET` écrit « 1.1.0 » ; `settings_file_probe.py` repassé).
+
+## GR IV Monochrome : « No movie », étude statique (2026-11-17)
+
+Décision de l'utilisateur (2026-11-16) : après la 1.1, supprimer la vidéo du GR IV Monochrome est le premier
+chantier GR IV, avant le mode pellicule. Adresses du **GR IV 1.20 = Monochrome 1.10** (`fwdc248b.bin`, SHA-256
+de l'archive Ricoh `bde05b3b…8af12`) ; le 1.21 / Monochrome 1.11 a le code décalé de 0x1800 (à vérifier avec
+les cartes de portage de `tools/port`). Base du RTOS `0x53000000`. Rien n'est construit.
+
+- **Même cadre logiciel que le GR III** : cinq onglets de menu (photo, vidéo, lecture, personnalisation,
+  réglages) construits une fois par `TopMenuController` (`0x531b5494`, documenté par l'amont dans
+  `gr4v120/aspect/menuwide.ts`) à partir de cinq descripteurs listés en RAM à `0x55001e78`. Descripteur de
+  l'onglet vidéo : **`0x53dc7bd0`** (6 lignes ; lecture `0x53dc783c`, personnalisation `0x53dc6b38`, réglages
+  `0x53dc7110`).
+- **Pièce 1, onglet vidéo (certitude forte, lu dans le code)** : le premier mot de chaque descripteur est
+  un pointeur de méthode de visibilité (`0x531b1084`, `0x531b108c`, `0x531b1094`, `0x531b109c` : chacune
+  `mov r0,#1 ; bx lr`), comme sur le GR III. Le constructeur le recopie dans le contrôleur
+  (`this + 0x230 + onglet × 0x38c`) ; le démarrage (`0x531b3cdc`) choisit l'onglet enregistré, appelle sa
+  visibilité et passe au suivant tant qu'elle rend 0. Masquer l'onglet vidéo : faire pointer le premier mot de
+  `0x53dc7bd0` vers une fonction qui rend 0. Attention : le code de l'amont élargit les descripteurs
+  (`menuwide.ts`, copies de 42 lignes) : la copie de l'onglet vidéo doit porter la même méthode.
+- **Pièce 2, blocage du mode vidéo (certitude forte pour l'octet, moyenne pour les chemins)** : l'octet
+  photo / vidéo `CommonStillMovie` est à **`+0xb76`** de l'objet des réglages (`CommonStillMovieBackup` à
+  `+0xb77`), lu par **`0x5329b310`** (`ldrb r0,[r0,#0xb76]`, 56 appelants ; trouvé par la chaîne
+  `userDataModel->GetCommonStillMovie() == UserData::StillMovie_Still`). Écrivain : **`0x532790ac(modèle,
+  valeur)`**, écriture en `0x532790b8`, puis avis de changement (propriété `0x162`, élément `0xf`) ; son seul
+  appelant direct, `0x532aeb10`, est une routine qui applique un bloc de réglages. Même crochet que
+  T20-VID2 : à l'entrée, toute valeur non nulle devient 0. Risque connu : 13 autres écritures de `+0xb76`
+  (`0x532add94`, `0x5354cc1c`, `0x53550220`, `0x5355a7a0`, `0x5355e1fc`, `0x535652b8`, `0x53568950`,
+  `0x5357307c`, `0x53576b2c`, `0x5357dbc0`, `0x5358126c`, `0x5358b874`, `0x5358f294`) sont des recopies de
+  blocs, qui contournent l'écrivain (un boîtier éteint en mode vidéo, un réglage rechargé).
+- **Pièces 3 et 4 (à faire)** : lignes « Still/Movie » (menu photo et menu vidéo) et « Movie Edit » (menu
+  lecture) à retrouver par identifiant ; fonctions des touches « Still/Movie » (`ToggleStillMovie`) et
+  « Framerate » à retirer des listes ; textes de la touche latérale à renommer (21 langues). Le Monochrome
+  partage le fichier du GR IV : mêmes adresses.
+- Outils (hors dépôt) : extraction du RTOS (`Firmware` + `sectionsOf`), `armdis.py` (capstone, base
+  `0x53000000`), références de chaînes et d'appels par motifs de mots.
+
+## GR IV Monochrome 1.11 : « No movie », lignes et fonctions Fn (2026-11-20)
+
+Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo/vidéo). Code : `core/src/fw/gr4v121/aspect/nomovie.ts`.
+
+- **Lignes Still/Movie et Movie Edit** (certitude forte, lues dans les descripteurs, émulées). Descripteur Still `0x53dc8b18`
+  ligne 18 (id `0x02000082`), Playback `0x53dc8ea4` ligne 16 (id `0x04000033`). La visibilité d'une ligne est un pointeur
+  de méthode à `descripteur + 0x254 + 8 * ligne` (nul : toujours visible) ; on y met une méthode qui répond 0
+  (`mov r0,#0 ; bx lr`). La ligne 8 du descripteur Movie n'a pas besoin de traitement : l'onglet entier est caché.
+- **Fonctions Fn** (certitude forte). Trois listes d'octets (`0x53de6764` 39 fonctions, `0x53de67fc` 35, `0x53de695c` 37 ;
+  constructeurs `0x531dd108`, `0x531dd188`, `0x531dd20c`) passent chaque fonction au même filtre `0x531d7be0(f)` (0 :
+  non listée). Seuls appelants du filtre : ces trois constructeurs.
+  - Texte des fonctions : `0x5339045c(this, f)` (43 valeurs distinctes sur f = 0..45) donne un numéro de texte ;
+    la ligne anglaise du tableau de textes est en RAM `0x55003cf4` (désignation : entrée = rangée + 4 * numéro).
+    Résultat : **18 = Framerate, 19 = Still/Movie** (0 Off, 1 Focus, 12 File Format, 15 Aspect Ratio, 30 White Balance,
+    31 Image Control, 32 Shake Reduction, 36 Enable Sleep Mode, 37 Airplane Mode, 43 Touch AF, 44 HDF, 45 Red Filter ...).
+    Sur le GR III les numéros étaient 16 et 17 : la liste du GR IV a deux fonctions de plus avant eux (Focus Limiter, Switch Record Memory).
+  - Patch : le premier mot du filtre (`sub r0,r0,#0x19`) est remplacé par un saut vers un relais qui répond 0 pour 18 et 19,
+    puis refait le `sub` et revient en `0x531d7be4`. Les ids 25, 30, 44 et 45 ont des conditions propres (état du boîtier) : inchangées.
+- **Vérification** : `tools/gr4v121/nomovie_probe.py` (émulation Unicorn) : lignes, onglet, filtre (18 et 19 refusées, les 38
+  autres fonctions comme le fichier officiel), lecteur, écrivain ; `core/test/gr4-nomovie.test.ts` (construction, auto-contrôle, relecture).
+- Pas encore trouvé : les noms du bouton latéral (équivalent du renommage T20-VID4 du GR III) : à voir avec les touches (P2).
+
+## GR IV Monochrome 1.11 : touches et appuis longs, état des lieux (2026-11-20, statique)
+
+- Réglages natifs de touches (liste des noms de réglages) : `CustomSwitchFn`, `CustomSwitchLeft`, `CustomSwitchRight`,
+  `CustomSwitchDown`, `CustomSwitchWLanShort`, `CustomSwitchWLanLong`, `CustomSwitchFocusSetting`, `CustomSwitchAeLockHold`,
+  `CustomSwitchMModeOnePushAE` (et `CustomAdjMode1..5` pour le levier ADJ). Pas de « Up » (ISO du GR III) ni de lignes Hold pour Fn
+  et le pavé : seul le Wireless a un appui long natif.
+- Écran « Fn Button Setting » : contrôleur `FnButtonCustomController` + `FnListController`. Sept lignes de choix de fonction
+  dessinées par `0x531d3690 ... 0x531d3928` (même fonction de texte `0x5339045c(modèle, f)`) : cinq sur la liste `+0x1b4` (39 fonctions),
+  une sur `+0x1c0` (35), une sur `+0x1cc` (37) ; mapping probable : Fn, Left, Right, Down, WLan court = `+0x1b4`, WLan long = `+0x1c0`,
+  Focus = `+0x1cc` (à confirmer par l'émulation du dessin). Les textes des fonctions (ligne anglaise `0x55003cf4`) : voir la section No movie.
+- À établir ensuite : le champ de chaque réglage dans l'enregistrement, l'exécution d'une fonction (équivalent de `GetEventCustomize` et
+  `GetEventSwitchWlan` du GR III), la traduction des événements de touches (équivalent de `0x532231e4`), les octets libres.
+- Appuis longs, premiers repères (2026-11-20, statique, certitude moyenne) : la traduction des événements matériels en codes de
+  touches (équivalent du `0x532231e4` du GR III) est en **`0x5325825c`** sur la 1.21 (même structure : `ldrh r3,[r1]`, types `0x1b` Fn,
+  `0x20` à `0x24` pavé et molette) ; son seul renvoi est la table de méthodes `0x53de5288` (celle du `0x53b4dcf8` du GR III). Le point
+  d'entrée de type `OnEvent` (fonction qui aiguille selon l'écran courant, `bl 0x5325eec0`) est probablement `0x532568c0`. À confirmer
+  par émulation, puis par un build de diagnostic des codes de touches (équivalent de T-HOLD0) avant d'écrire les lignes Hold.
+- **Build de diagnostic des touches (2026-11-20)** : `keydiag.ts` (option de test `keyDiag`). Point d'entrée des codes de touches de la 1.21
+  confirmé : `0x53258098` (la traduction `0x5325825c` y saute avec le code dans `r1`, comme `0x532231e4` vers `0x53221a1c` sur le GR III ;
+  première instruction `mov ip,sp`). Anneau de 7 codes + octet d'indice à `0x55839038` (le mot FRAME_LOOK et le suivant : build sans
+  garde-fou), imprimé par la datation sur les images de 720 pixels (`{ words }`, comme le diagnostic de la halation) ; les codes du
+  déclenchement 5 à 8 et une répétition immédiate sont omis. Vérifié par `tools/gr4v121/keydiag_probe.py` (anneau, registres, `sp`) et
+  `nomovie_probe.py` sur le même fichier. Pas encore testé sur le boîtier.
+
+## GR IV Monochrome 1.11 : exécuteurs de fonctions et listes Fn étendues (2026-11-20, test)
+
+- Correction de lecture : pour `ldrls pc,[pc,r0,lsl #2]`, la table commence deux mots **après** l'instruction suivante (`b défaut`) ; un index
+  de table = numéro de fonction + 1 quand l'appelant passe `f + 1`. Les analyses de défauts ci-dessous en tiennent compte.
+- `GetEventSwitchWlan` = `0x53398320` (table `0x53398488`) : assertion (message `GetEventSwitchWlan`, sans effet) pour les fonctions
+  5, 6, 7, 33, ce qui explique les listes B et C sans elles. `GetEventCustomize` = `0x53399990` (table `0x533999bc`) : toutes les
+  fonctions 0 à 44 ont un traitement. Les six fonctions de texte d'aide par touche (`0x5351ca64`, `cdb4`, `d104`, `d454`, `d7a4`, `dab4`)
+  répondent 0 sans effet pour 23 et 37.
+- `fnlists.ts` (option de test `fnAll`) : 23 Flash Exposure Comp. et 37 Airplane Mode ajoutées aux listes A et B, 23 à C (tables
+  recopiées plus longues, constructeurs `0x531dd108/188/20c` repointés). Vérifié : tables relues dans le fichier construit. 5, 6, 7, 33
+  restent exclues de B et C (leur exécuteur les refuse). Pas testé sur le boîtier.
+- À faire : retirer Framerate de la liste ADJ ; étendre l'ADJ ; fonctions nouvelles.
+- (2026-11-20, suite) La liste C (septième ligne de Fn Button Setting, réglage `CustomSwitchFocusSetting`) n'est plus modifiée :
+  l'utilisateur la règle comme il veut aujourd'hui. `fnAll` n'ajoute que 23 et 37 aux listes A et B.
+- **Liste ADJ Mode Setting** : table d'octets `0x53de6790`, 19 fonctions `[0,1,2,3,4,5,19,6,7,8,9,11,12,13,14,15,16,20,17]` (constructeur
+  `0x531dce2c`, sans filtre de modèle) : **18 Framerate et 10 (Flash Exposure Comp., repris par le flou de GR Mod) n'y sont pas** ; rien
+  à retirer pour Framerate. **Red Filter n'est pas une fonction ADJ** (fonctions 0 à 20).
+- Enregistrement d'une fonction ADJ (table `0x53dcb494`, 0x5c octets) : cinq méthodes (nom `+0x10`, dessin `+0x18`, « est courante » `+0x20`,
+  fixer `+0x28`, nombre de valeurs `+0x30`). Exemple Touch AF (20) : table d'octets des valeurs `0x53de6d7c`, nombre 5 (`0x531bbcec`), dessin
+  par les aides générales `0x53391ba8` (icône) et `0x533900f4` (texte) de la valeur, lecture `0x532a0d94`, écriture par l'objet `0x53241240`.
+  Chaque nouvelle fonction demande son lecteur, son écrivain et ses valeurs (énumérations globales) : à lire réglage par réglage.
+
+## GR IV Monochrome 1.11 : Red Filter sur le levier ADJ, à la place de Framerate (2026-11-20, test)
+
+Module `adjredfilter.ts` (option de test `adjRedFilter`), sonde `tools/gr4v121/adjredfilter_probe.py`.
+- Même principe que le flou du GR III (`gr3x/adj-softfocus.ts`) : la table des fonctions ADJ garde ses 21 enregistrements (agrandie, elle
+  a figé le boîtier chez GR Mod) ; l'enregistrement 18 (Framerate, absent de la liste ADJ Mode Setting) devient celui de Crop avec quatre
+  gestionnaires : nombre = 2, « est courante » = celui de la liste du menu Red Filter (`0x531d7a28`), « fixer » = celui de cette liste
+  (`0x531d5f80`, queue `b 0x53346338` qui appelle l'écrivain `0x53346260` de l'octet `0x9b4`), dessin = texte de la valeur par
+  `0x533907e0` (comme la liste) posé sur la ligne de la bande (`0x5359468c` puis `0x535a1a60`). Valeurs 0 et 1 de la table `0x53de6eb8`.
+  Lecteur `0x532a0eec` (octet `0x9b4` de l'objet des réglages). Menu photo : ligne Red Filter (id `0x02000135`, ligne 23, Mono seulement).
+- Nom : texte 155 (« Red Filter », celui des listes Fn) ; icône : 40 x 40 dessinée (anneau et demi-disque), numéro 738.
+- Liste d'ADJ Mode Setting (`0x53de6790`) recopiée avec 18 en dernier ; sa longueur est fixée par un petit relais à l'endroit de
+  `add r6,r4,#0x13` (`0x531dce68`) : 20 sur le Monochrome (numéro de modèle 2), 19 ailleurs.
+- Limite : les relais du nom et de l'icône de la fonction 18 valent pour tous les modèles du fichier (le Framerate du GR IV non Mono
+  n'a plus de nom dans l'ADJ) ; incompatible, pour l'instant, avec l'aperçu d'exposition (mêmes points d'accroche, la construction
+  échoue franchement) : à fusionner avant d'en faire une option du produit.
+- Vérifié en émulation : enregistrement 18 seul changé, gestionnaires (compte, courante, fixer, dessin et au-delà), nom et icône (autres
+  fonctions comme l'officiel), longueur de liste (3 modèles, registres conservés), liste. Pas testé sur le boîtier.
+
+### Résultats sur le boîtier : build de test 4 (Mono 1.11, 2026-11-20, rapportés par l'utilisateur)
+
+- Levier ADJ : s'ouvre normalement, sans gel. **Red Filter** proposée dans ADJ Mode Setting et fonctionnelle une fois affectée (nom, icône, Off/On).
+- Suppression de la vidéo : onglet Movie absent, lignes Still/Movie et Movie Edit absentes, Framerate et Still/Movie absentes des listes Fn. Aucun reste de vidéo signalé.
+- Listes Fn étendues : Flash Exposure Comp. et Airplane Mode proposées et actives (Fn, pavé, Wireless).
+- Diagnostic des codes de touches : le texte s'affiche (date et codes lus en haut à gauche de l'image en lecture).
+
+### Codes de touches du Mono 1.11 : relevé sur le boîtier (build de test 4, 2026-11-20)
+
+Lecture : le diagnostic imprime deux mots, chacun octet de poids fort en premier ; l'anneau se lit octets 0 à 6, le dernier octet est
+la prochaine case ; ordre chronologique : à partir de cette case. Décimal. Les gestes ne sont pas notés par l'utilisateur : l'ordre
+est reconstruit (à confirmer).
+
+| Touche | Appui court | Appui long | Certitude |
+|---|---|---|---|
+| Bas | 29, 31 | 29, **30**, 31 | forte (vu seul) |
+| Gauche | 32, 34 | 32, **33**, 34 | forte |
+| Droite | 35, 37 | 35, **36**, 37 | forte |
+| Haut (Macro) | 26, 28 | 26, **22**, 28 | moyenne (code de maintien 22, vu deux fois) |
+| OK | 50, 53 | 50, **51**, 52 | moyenne |
+| Fn | 24, 25 (probable) | 24, 25, sans code de maintien (probable) | faible |
+| Molette avant | 9, 10 | | probable (comme le GR III) |
+| ADJ enfoncé ? | 13 | | faible |
+
+Les touches du pavé gardent les numéros du GR III (haut 26/27/28, bas 29/30/31, gauche 32/33/34, droite 35/36/37) ; le maintien répété
+n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le 22 de la touche haut.
+
+### Appuis longs GR IV Mono : plan (2026-11-20, décision de l'utilisateur : réglage dans le menu du boîtier)
+
+- Ordre des gestes confirmé par l'utilisateur (un geste, une photo, une photo à blanc) : molette avant, Fn court, Fn long, haut court,
+  haut long, bas court, bas long, gauche court, gauche long, droite court, droite long, OK court, OK long, puis ADJ (seul 13 apparaît :
+  probablement ADJ enfoncé). Fn = 24 (appui) et 25 (relâchement), sans code de maintien ; molette avant = 9 et 10.
+- Écran « Fn Button Setting » : les lignes sont des enregistrements de 0x4c octets d'une table commune (`0x53dd007c`, premier titre 0x1f9),
+  une ligne de sous-menu par réglage ; ajouter cinq lignes à ce sous-menu revient à ce qu'`adjslots` a dû faire (un enregistrement de
+  sous-menu ne tient que cinq lignes) : trop lourd pour un premier pas.
+- Piste retenue : cinq lignes « Hold » dans l'onglet Customize (même mécanisme que les lignes Exposure Preview et Soft Focus du menu photo :
+  `addListRecords`, `hookControllerFactory`), une liste de fonctions par touche (les fonctions des listes Fn, filtrées par modèle).
+- Exécution : filtre à l'entrée d'`OnEvent` (`0x53258098`) comme `gr3x/hold.ts` ; la fonction Hold est exécutée par un appui et un relâchement
+  de Fn injectés (Fn = 24 / 25) avec le réglage de Fn (`obj + 0x1468`, getter `0x5329f50c`) échangé le temps de l'appel : la touche haut n'a
+  pas de réglage propre, Fn sert de porteur pour les cinq. Fn court ne change pas sans Hold ; Fn long = durée entre 24 et 25 (`tk_get_otm`).
+
+### Appuis longs : moteur de test (2026-11-20) : `holdbuttons.ts`, option de test `holdTest`
+
+- Fn = 24 appui / 25 relâchement : confirmé par la lecture de la traduction (`0x5325825c`, type brut `0x1b`, état 2 puis sous-état 0 -> 24, état 1 -> 25).
+- Port de `gr3x/hold.ts` : filtre à l'entrée d'`OnEvent` (`0x53258098`, chaîné après le diagnostic des touches), vue en direct seulement (contrôleur
+  `0x08000000` / `0x08000002`, lu par `0x53240cac`, `0x53240e20`, `ldr r0,[r0]`), horloge `tk_get_otm` = `0x53067d94` (vérifié : mêmes mots que
+  `0x53050b7c` du GR III), état et heure dans les mots libres `0x55839030` et `0x55839020`. La fonction Hold est exécutée par un appui et un
+  relâchement de Fn injectés (24 / 25) avec l'octet de fonction de Fn (objet des réglages + `0x1000` + `0x468`, getter `0x5329f50c`) échangé
+  le temps de l'appel : la touche haut n'a pas de réglage, Fn sert de porteur. Seuil de Fn : 600 ms. Appui court : le filtre rejoue l'appui puis
+  laisse passer le relâchement. Fonctions de ce build (octets dans le fichier) : Fn 21 (ISO), haut 45 (Red Filter), bas 32 (Shake Reduction),
+  gauche 15 (Aspect Ratio), droite 26 (Drive Mode).
+- Vérifié en émulation (`tools/gr4v121/holdbuttons_probe.py`, 37 cas : passage des touches sans Hold, hors vue en direct, court / long de chaque
+  touche, champ de Fn restauré, pile intacte, seuil de Fn à 599 et 600 ms). Pas testé sur le boîtier.
+- Restent : les cinq lignes « Hold » dans Fn Button Setting (décision de l'utilisateur, comme sur GR III) et les octets de réglage à la place de la
+  table ; pas de garde « le pavé déplace le point AF » (analogue du GR III non trouvé, sans effet tant qu'aucun Hold n'est réglé).
+- Test 5 sur le boîtier : **aucun appui long ne fonctionne** (2026-11-20). Cause probable : la garde « vue en direct » (contrôleur `0x08000000` ou
+  `0x08000002`, valeurs du GR III) ne correspond pas au GR IV : seul `0x08000000` a une table de touches (`0x53243ec4`, entrées Fn 24, haut
+  26 à 28, bas 29 à 31, ...), les ids `0x0800000c/e/10/12/16/17/18` ont d'autres gestionnaires. Test 6 : garde élargie à toute la famille
+  `0x08xxxxxx` et mesure de l'identité du contrôleur (octet bas) à chaque événement d'une touche à Hold, imprimée par la datation (option
+  `holdDiag`). Remarque : les codes 21, 22, 23 sont produits par la traduction (`0x53258790`, `0x53258968`, `0x5325863c`) pour un autre type
+  brut : le 22 vu avec la touche haut longue n'est peut-être pas le maintien de la touche haut mais cet autre événement.
+- Test 6 sur le boîtier : bande `00000000 03000000` après cinq appuis courts (10 événements) : l'identité du contrôleur a toujours l'octet bas 0
+  (`0x08000000`) : **la garde n'est pas en cause**. L'objet des réglages (`0x53241240` : `0x550832a8`) est bien dans la plage testée. Hypothèse
+  suivante : les codes de maintien ne viennent plus (ou pas) quand l'appui est retenu : test 7 déclenche aussi par la durée à tous les
+  relâchements (comme Fn), et la bande note les étapes du filtre (0x10 + touche appui, 0x20 maintien, 0x30 relâchement, 0x40 appui rejoué,
+  0x80 fonction lancée, 0xA0 retour ; touches 0 Fn, 1 haut, 2 bas, 3 gauche, 4 droite). Émulation : 45 cas.
+- Test 7 sur le boîtier (marqueurs de la bande, 5 photos) : le filtre détecte et lance sur les cinq touches (`80`/`A0` Fn, `81`/`A1` haut par la
+  durée ; `A2`, `A3` bas et gauche avec une rafale de codes de maintien `22`, `23`, `24` ; droite idem) mais aucune fonction ne s'exécute.
+  Cause : l'octet échangé était **`0x1468`**, qui n'est pas le réglage de Fn. Les getters des réglages de touches sont contigus
+  (`0x5329f500 + 0xc * k`, octets `0x1468 + k`) ; `0x5329f50c` (octet **`0x1469`**) est celui que lisent les gestionnaires de Fn
+  (`0x5339c22c`, `0x5339eb9c`, `0x533a0448`, l'aide `0x5351ca60`), `0x5329f53c` / `0x5329f548` (`0x146d` / `0x146e`) ceux du Wireless court et long
+  (`GetEventSwitchWlan`), `0x5329f554` (`0x146f`) celui de Focus. Le champ `0x1468` n'est lu que par l'aide `0x5351c8b4` (une ligne avant Fn).
+  Correction : `FN_OFFSET = 0x469`. Build de test 8.
+
+### Lignes Hold dans Fn Button Setting : étude statique (2026-11-20)
+
+Les appuis longs du test 8 fonctionnent sur le boîtier (l'utilisateur, 2026-11-20). Étude de l'écran « Fn Button Setting » du GR IV :
+- Contrôleur `FnButtonCustomController` : table de méthodes `0x53dd42c8` (destructeur `0x531e97d0`, **constructeur `0x531ea034`**), `FnListController`
+  `0x53dcc900`. Le constructeur crée 7 widgets de l'écran depuis la table `0x53dd40d4` (descripteurs de 0x18 octets : panneau, titre, liste ...),
+  puis `0x531e9d20` met en place la **liste de 6 lignes** (`mov r2,#6`, six octets de type `0x22`, `0x5359453c(liste, types, 6, 0x3a)`, comme
+  `0x53394610(liste, types, 8, 0x3a)` du GR III), `0x531e9c04` (valeurs / aide), titre `0x1f7`.
+- Lignes (elements de 0x4c octets, `0x53dd007c ...`, titre en `+0x3c`) : Fn Button 0x1f9, ISO Button 0x1ff, Drive Button 0x201, White Balance Button 0x203,
+  Image Control Button 0x205, Movie Button 0x207, Hold Movie Button 0x209, Focus Settings 0x2c, Keep AE Lock 0x20b, One Push AE in M Mode 0x20f,
+  Shutter Button Setting 0x211 (la liste visible a 6 lignes, genres 0 à 5 : table d'octets `0x53dd4310`).
+- Ouverture d'une ligne : `0x531e9b14` : genre -> identifiant de contrôleur `0x020000e5` (0), `e6` (1), `e7` (2), `e8` / `e9` (3, selon `0x5340171c` : Mono),
+  `ea` (4), `eb` (5) ; valeurs / aide aux sites `0x531ea0e0`, `0x531ea19c`, `0x531ea534` (tables de sauts à 6 cas), boucles `cmp r4,#6` en `0x531ea634`,
+  `0x531ea6b4`, `0x531eadb4`, `0x531eaf94`, arrêt de la dernière ligne `0x531ea35c` / `0x531ea444`.
+- Pour ajouter cinq lignes (Hold Fn, haut, bas, gauche, droite) : agrandir les six octets de types, les tables de genres et d'éléments, un cas de plus
+  à chacun de ces ~10 sites, cinq identifiants de contrôleur et cinq enregistrements de liste (celui d'une ligne existante avec nos « fixer » et « est courant »
+  qui lisent les octets Hold). Même chantier que `wb-button.ts` du GR III.
+
+### Ligne « Hold Fn » dans Fn Button Setting : étape 1 (2026-11-20, test)
+
+`holdlines.ts` (option de test `holdLines`, avec `holdTest`), sonde `tools/gr4v121/holdlines_probe.py` (45 cas). Une ligne, « Hold Fn Button », sous les six lignes :
+- Écran : 7 lignes de type `0x22` (`0x531ea084` appelle notre mise en place), genre 6 (octet `0x53dd4316`, mot `0x53dd4314`), boucles `cmp r4,#6` -> 7
+  (`0x531ea634`, `0x531ea6b4`), valeur dessinée pour le genre <= 6 (`0x531ea684`), dernière ligne `0x531ea444` -> 6 ; titre `0x531ea524` (texte 1040),
+  valeur courante `0x531ea18c` (l'octet Hold), ouverture `0x531e9b14` (contrôleur `0x020000ec`, qui tombe dans le défaut de l'usine `0x53187df8`
+  = le FnListController mis en cache), description `0x531ea0b8` (le genre 6 lit comme le 0).
+- Liste : enregistrement 127 = celui de Fn Button (73) avec nos « fixer » et « est courante » sur l'octet Hold ; SetCurrentMenu fait le lien.
+- Les réglages des lignes natives : Fn `0x925`, ISO `0x926`, Drive `0x927`, WB / Image Control `0x928`, Movie `0x929`, Hold Movie `0x92a`, Focus `0x92b`,
+  Keep AE Lock `0x92c` (getters `0x532a0dfc + 8 k`, octets de l'objet des réglages) ; le réglage « vivant » lu par les exécuteurs est `0x146x` (Fn `0x1469`).
+- L'octet Hold est en RAM (`0x55839032`, non sauvegardé : Off à chaque allumage) : les octets sauvegardés viendront ensuite.
+
+### Lignes Hold : étape 2, cinq lignes rangées par touche, octets sauvegardés (2026-11-20, test)
+
+Étape 1 validée sur le boîtier (la ligne « Hold Fn Button » s'affiche, s'ouvre et enregistre, l'appui long de Fn la lit). Étape 2 (`holdlines.ts`, 201 cas
+dans `holdlines_probe.py`, `holdbuttons_probe.py` repassée sur le fichier) :
+- Onze lignes, dans l'ordre demandé par l'utilisateur : Fn Button, Hold Fn Button, ISO Button, Hold ISO Button, Drive Button, Hold Drive Button, (White Balance /
+  Image Control) Button, Hold (White Balance / Image Control) Button, Hold Macro Button, Movie Button, Hold Movie Button. La table des genres (11 octets, nouvelle,
+  cinq lecteurs repointés) donne l'ordre ; boucles, dernière ligne, valeurs jusqu'au genre 10.
+- Correspondance Hold -> touche à confirmer sur le boîtier : ISO = gauche, Drive = droite, la quatrième ligne = bas, Macro = haut (celle du GR III).
+- Octets des réglages : lancement `UserDataInitValue` (`0x5354754c`, bloc par défaut `0x5508ba28`) émulé (`/scratchpad/initwrites.py`) : les décalages d'enregistrement
+  jamais écrits sont ceux déjà pris par GR Mod (`0x109..0x10b`, `0x489..0x48b`, `0x90f`, `0x94b`, `0x99a`, `0x99b`) et d'autres : retenus `0xf9`, `0xfa`, `0xfb`, `0xe6`, `0xe7`
+  (aucun accesseur ne les lit), soit `0x550832ac + décalage` ; ils suivent l'enregistrement (U1 à U3, Save / Load Settings). Valeur lue au delà de 45 : Off.
+- Les contrôleurs `0x020001e0 .. 0x020001e4` sont remplacés par `0x020000ec` pour l'usine seulement (`hookControllerFactory`) : elle rend le FnListController en cache ;
+  SetCurrentMenu les relie aux enregistrements 127 à 131 (copies de l'enregistrement 73, nos « fixer » et « est courante »).
+
+## GR IV Mono : ligne « Macro Button » et fonction « Macro Mode » (2026-11-20)
+
+- Fonction 46 = « Macro Mode » : appui court natif de la touche haut (codes 26 puis 28 réinjectés par le filtre de touches `orig`).
+  Texte : le 184 du boîtier (« Macro Mode »), icône : fleur dessinée, n° 739 (`installMacroIcon`). Ajoutée à la liste A seulement
+  (`fnlists.ts`, paramètre `macro`). Le filtre des fonctions 0x531d7be0 l'accepte. Preuve : sondes `holdlines_probe.py` (247 contrôles),
+  texte et icône identiques au firmware officiel pour les autres fonctions.
+- Ligne « Macro Button » (genre 11) dans Fn Button Setting, entre « Hold Image Control/WB Button » et « Hold Macro Button » (12 lignes).
+  Octet propre : enregistrement + 0x7a (`MACRO_BYTE`) : 0 = Macro Mode (natif), 255 = Off, sinon la fonction. Liste de contrôleur 0x020001e5.
+- `holdbuttons.ts` : la touche haut exécute sa fonction propre (octet 0x7a) ; les autres touches avec la fonction 46 (octet vivant ou Hold)
+  injectent 26 puis 28. Sonde `holdbuttons_probe.py` (48 contrôles) : défaut natif, fonction, Off, 46 sur Fn / bas / gauche / droite, Hold 46.
+- Non vérifié : si le réglage natif des lignes Fn / ISO / Drive / 4e accepte la valeur 46 et si le miroir vivant la suit (à voir sur le boîtier).
+
+## GR IV Mono : les boutons personnalisés deviennent une fonction du produit (2026-11-20)
+
+- Les options de test `fnAll`, `holdTest`, `holdLines` et `adjRedFilter` sont remplacées par une seule fonction `customButtons`
+  (`ExtensionFeatures.customButtons`, option moteur `customButtons`, case « Custom buttons » de la page Features).
+  Elle comprend : toutes les fonctions sur toutes les touches (`fnlists.ts`), les lignes Hold et la ligne Macro Button
+  (`holdlines.ts`), le filtre des touches avec appuis longs (`holdbuttons.ts`, réglages lus en direct dans l'enregistrement
+  des réglages) et ADJ Red Filter (`adjredfilter.ts`).
+- Enregistrement dans le micrologiciel : octet de fonctions n° 2, bit 64 (`package.ts`), relu par `inspect`.
+- Ordre d'installation (contraintes trouvées en combinant avec les autres fonctions) :
+  1. listes Fn, filtre des touches, icône Macro, icône Red Filter : avant les menus ;
+  2. lignes Hold et Macro Button : après le tampon date, l'aperçu d'exposition et le menu HDR, car l'usine de contrôleurs
+     (0x531871bc) n'accepte qu'un seul premier accroc attendu par `installDateStampMenu`, et la table des listes est copiée
+     par plusieurs ajouts ;
+  3. ADJ Red Filter : après l'aperçu d'exposition. `installAdjRedFilter(patch, table)` travaille sur la table copiée par
+     l'aperçu, chaîne ses accroches de nom et d'icône à celles déjà posées, et relit longueur et contenu de la liste.
+- Preuves : sondes d'émulation sur le build « boutons seuls » et sur le build avec toutes les autres fonctions
+  (`holdlines_probe.py` 247 contrôles, `holdbuttons_probe.py` 48, `adjredfilter_probe.py` avec `--official` pointant sur un build
+  de référence sans boutons personnalisés, `nomovie_probe.py`), test `core/test/gr4-custombuttons.test.ts`.
+- Un seul fichier firmware sert le GR IV, le GR IV HDF et le Monochrome : la fonction est proposée pour les trois, mais seul le
+  Monochrome a été essayé sur boîtier. Les libellés sont en anglais (21 langues du boîtier), l'interface en zh et en.
+
+### Images de description de Fn Button Setting (2026-11-20)
+- La description sous la liste (fonction 0x531ea0b8) affiche deux images : en haut une image 340 x 160 de la place du bouton
+  (icônes 622 Fn, 695 ISO, 696 Drive, 697 4e bouton, 74 Movie), en dessous la vue de côté 120 x 160 (88 ou 372).
+- Les lignes Hold lisent maintenant le genre de leur touche (Hold ISO : 695, Hold Drive : 696, Hold Image Control : 697).
+- Macro Button et Hold Macro : image n° 740 fabriquée (`drawMacroPicture`, holdlines.ts) : celle de Drive, dont la pastille
+  (pixels qui diffèrent entre les images ISO et Drive) est déplacée de 18 pixels vers la gauche et 17 vers le haut, au sommet de la croix.
+  Preuves : image rendue et relue dans le fichier construit, sonde `holdlines_probe.py` (260 contrôles, id d'image par ligne).

@@ -1,7 +1,7 @@
 // Updates of GR Mod itself: an optional check at start, "Check for updates" in the ? menu, and a
 // dialog that downloads the new version, has the shell verify it against the signed manifest and
 // then replace and restart the program (see shell/internal/update).
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Ico, Switch } from './components';
 import { host, HostError } from './host';
 import type { ReleaseNote, UpdateInfo } from './host';
@@ -9,6 +9,7 @@ import { Markdown } from './markdown';
 import { t } from './i18n';
 import type { Key } from './i18n';
 import { toast } from './store';
+import builtinCredits from '../../credits.json';
 
 const SETTINGS_KEY = 'update-settings.json';
 const lang = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
@@ -210,7 +211,7 @@ async function loadNotes(): Promise<void> {
 
 /** Show what changed: this version's release text, earlier ones a click away. `from`: just updated from it. */
 export function openWhatsNew(from?: string): void {
-  const current = host.info?.version || '';
+  const current = host.info?.notes || host.info?.version || '';
   wnPut({ open: true, from, pick: current });
   if (!wn.releases.length && !wn.loading) void loadNotes();
 }
@@ -226,7 +227,7 @@ function WhatsNewDialog() {
     return () => window.removeEventListener('keydown', key);
   }, [s.open]);
   if (!s.open) return null;
-  const current = host.info?.version || '';
+  const current = host.info?.notes || host.info?.version || '';
   const close = (): void => wnPut({ open: false });
   // The releases up to this version (a newer one is shown by the update dialog).
   const list = s.releases.filter((r) => r.version === current || !Newer(r.version, current));
@@ -253,7 +254,8 @@ function WhatsNewDialog() {
         )}
         {shown?.date && <div className="muted small wn-date">{shown.date}</div>}
         <div className="wn-body">{body}</div>
-        <p className="muted small wn-about">{t('aboutBody')} {t('aboutCredits')}</p>
+        <p className="muted small wn-about">{t('aboutBody')}</p>
+        <Credits />
         <div className="dialog-actions spread">
           {shown && <button type="button" className="btn ghost" onClick={() => { void host.releasePage(shown.version); }}>{t('wnGitHub')}{Ico.external}</button>}
           <span className="grow" />
@@ -272,4 +274,72 @@ function Newer(a: string, b: string): boolean {
     if (p !== q) return p > q;
   }
   return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Acknowledgements (0.8.11): credits.json, kept on GitHub (main branch) so names can be added without
+// a release; the shell fetches it (GET /api/credits). The list built into this version is shown
+// first, then the last one fetched (kept in the store), then the fetched one when it arrives.
+
+interface CreditsPerson { name: string; note?: Record<string, string>; url?: string }
+interface CreditsSection { title: Record<string, string>; people: CreditsPerson[] }
+interface CreditsFile { version: number; updated?: string; sections: CreditsSection[] }
+
+const CREDITS_KEY = 'credits.json';
+let credits: CreditsFile | null = asCredits(builtinCredits);
+let creditsFetched = false;
+const creditSubs = new Set<() => void>();
+function setCredits(c: CreditsFile): void { credits = c; creditSubs.forEach((f) => f()); }
+
+/** A credits file as the page can show it, or null (anything else is ignored). */
+function asCredits(x: unknown): CreditsFile | null {
+  const o = x as CreditsFile;
+  if (!o || typeof o !== 'object' || o.version !== 1 || !Array.isArray(o.sections) || o.sections.length === 0) return null;
+  const text = (m: unknown): m is Record<string, string> => !!m && typeof m === 'object' && Object.values(m as object).every((v) => typeof v === 'string');
+  const sections = o.sections.filter((s) => s && text(s.title) && Array.isArray(s.people)).map((s) => ({
+    title: s.title,
+    people: s.people.filter((p) => p && typeof p.name === 'string' && p.name.trim() !== '').map((p) => ({ name: p.name.trim(), ...(text(p.note) ? { note: p.note } : {}) })),
+  })).filter((s) => s.people.length > 0);
+  return sections.length ? { version: 1, ...(typeof o.updated === 'string' ? { updated: o.updated } : {}), sections } : null;
+}
+
+async function loadCredits(): Promise<void> {
+  if (creditsFetched) return;
+  creditsFetched = true;
+  try {
+    const raw = await host.storeGet(CREDITS_KEY);
+    const kept = raw ? asCredits(JSON.parse(new TextDecoder().decode(raw))) : null;
+    if (kept && (!credits?.updated || !kept.updated || kept.updated >= credits.updated)) setCredits(kept);
+  } catch { /* the built-in list */ }
+  const got = asCredits(await host.credits());
+  if (!got) { creditsFetched = false; return; }
+  setCredits(got);
+  try { await host.storeSet(CREDITS_KEY, JSON.stringify(got)); } catch { /* shown anyway */ }
+}
+
+function pick(m: Record<string, string> | undefined): string {
+  if (!m) return '';
+  return m[lang] || (lang === 'zh' ? m['zh-CN'] || m['zh-TW'] : '') || m.en || m.zh || Object.values(m)[0] || '';
+}
+
+function Credits() {
+  const c = useSyncExternalStore((f) => { creditSubs.add(f); return () => creditSubs.delete(f); }, () => credits);
+  useEffect(() => { void loadCredits(); }, []);
+  // "more below": the list fades out at the bottom while it can still be scrolled
+  const box = useRef<HTMLDivElement>(null);
+  const edge = (): void => { const el = box.current; if (el) el.classList.toggle('more', el.scrollTop + el.clientHeight < el.scrollHeight - 2); };
+  useEffect(edge, [c]);
+  if (!c) return null;
+  const sep = lang === 'zh' ? '；' : '; ';
+  return (
+    <div className="wn-credits" ref={box} onScroll={edge}>
+      <div className="small wn-credits-title">{t('creditsTitle')}</div>
+      {c.sections.map((s, i) => (
+        <p key={i} className="muted small wn-about">
+          <b>{pick(s.title)}{lang === 'zh' ? '：' : ': '}</b>
+          {s.people.map((p) => { const n = pick(p.note); return n ? (lang === 'zh' ? `${p.name}（${n}）` : `${p.name} (${n})`) : p.name; }).join(sep)}
+        </p>
+      ))}
+    </div>
+  );
 }

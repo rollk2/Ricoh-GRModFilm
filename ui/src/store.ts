@@ -2,13 +2,14 @@ import { useSyncExternalStore } from 'react';
 import { FACTORY_LOOK_IDS, card, GR3X_FILM_IDS, GR3X_HIDEABLE, readGr3xSettingsFile, GR3X_MAX_CUSTOM_RATIOS, GR3X_T4_CUSTOM, LANGS, MAX_CUSTOM_RATIOS, MAX_EXTRA_SLOTS, SHUTDOWN_MAX_PICTURES, SHUTDOWN_NAME_MAX, validateExtraSlotName, validateGr3xRatioName, validateRatioName, validateShutdownName } from '@grmod/core';
 import type { CameraModel, ClarityChange, ExtraSlotSpec, FirmwareInfo, FirmwareSummary, LangCode, LookLayout, PresetResult, RatioPreview, RatioSpec, ShutdownPictureSpec, SlotId, SlotRequest, SoftFocusRequest, SoftFocusStrength } from '@grmod/core';
 import { engine, EngineError } from './engine';
-import { host, HostError, onWeb, sha256Hex } from './host';
+import { host, HostError, isMobile, onWeb, sha256Hex } from './host';
+import { upload } from './host-android';
 import { DOWNLOADS } from './webhost';
 import { firmwareFromZip, isZip } from './zip';
 import { COMMUNITY_LICENSE, emptyRecipe, makeRatioPack, makeRecipePack, mergeRatios, PackError, placeRecipes, RATIOS_EXT, readRatioPack, readRecipePack, RECIPES_EXT } from './packs';
 import type { CommunityEntry, CommunityIndex, PackMeta, PackRecipe } from './packs';
 import type { ParkedEntry, Volume } from './host';
-import { t } from './i18n';
+import { setUiLangPref, t, uiLangPref } from './i18n';
 import type { Key } from './i18n';
 import { cropToRgb, defaultCrop, ensureIconFont, imageIcon, loadBitmap, textIcon, workingCopy } from './pixels';
 import type { Crop } from './pixels';
@@ -67,6 +68,8 @@ export interface State {
   ready: boolean; page: Page;
   fwName?: string; fwBusy: boolean; info?: FirmwareInfo; raw?: Uint8Array;
   model: CameraModel; lang: LangCode;
+  /** The camera language follows the system's (lang is then systemCameraLang()): the app language is "follow system". */
+  langAuto: boolean;
   slots: Record<SlotId, SlotState>;
   wall: WallItem[];
   ratios: RatioItem[]; activeRatio?: string; ratioBackdrop: RatioBackdrop;
@@ -74,6 +77,8 @@ export interface State {
   ratioOrder: string[];
   /** 0.9.8: a GRFILM.SET opened in the program (not kept in the project), written to the card's root. */
   settingsFile: { name: string; data: Uint8Array; model: 'gr3' | 'gr3x'; version: string } | null;
+  /** GR IV rear-LCD Auto curve, off by default. */
+  brightAuto: false | 'bright' | 'balanced';
   soft: boolean; dateStamp: boolean; monoUnlock: boolean;
   /** GR III / IIIx: the film mode, and the movie taken out. */
   filmMode: boolean; noMovie: boolean;
@@ -83,6 +88,13 @@ export interface State {
   hiddenSettings: Record<string, number>;
   /** GR IV: Direct Flash, a fifth Flash Mode (GR III / IIIx have the GF-2 mode of their own). */
   directFlash: boolean;
+  /** An HDR gain map in the JPEGs (switched in the camera: Shooting menu › HDR). */
+  hdr: boolean;
+  /** GR IV 1.20: exposure preview as a camera setting (Shooting › Exposure Settings, ADJ lever). */
+  exposurePreview: boolean;
+  /** ADJ lever slots in the build: 5 (the camera's) to 8 (GR IV). */
+  adjSlots: number;
+  /** GR IV, experimental: .cube presets of added slots get hue sectors of their own (core color/hue.ts). */
   /** GR III / IIIx: how many films the build has (1..info.features.maxFilms). */
   filmCount: number;
   previewMode: PreviewMode; photoRev: number; activeSlot: SlotKey;
@@ -97,11 +109,11 @@ export interface State {
   volumes: Volume[]; showAll: boolean; volumeId?: string; role?: card.CardRole;
   copySource: CopySource; parked: ParkedEntry[]; backups: ParkedEntry[]; copySel: string[]; copyInfo: Record<string, CopyInfo>; builds: BuildRecord[];
   busy?: string; toasts: Toast[]; confirm?: Confirm; cropId?: string; onlineOpen: boolean;
-  /** Why the download dialog is open, when it says so: the bridge firmware is open, or one is to be made and no firmware is open. */
-  onlineReason?: 'bridge-loaded' | 'bridge-base';
-  /** The bridge firmware dialog; `bridgeAfter` is where the bridge goes once a downloaded official file is open. */
-  bridgeOpen: boolean; bridgeAfter?: Dest;
+  /** Why the download dialog is open, when it says so: a 1.12 bridge firmware file is open. */
+  onlineReason?: 'bridge-loaded';
   tour?: TourState; toursSeen: TourId[];
+  /** Android: a firmware file on its way to the camera over Wi-Fi (camera.tsx shows the dialog while it is set). */
+  push?: { file: Uint8Array; label: string; stock: boolean };
 }
 
 const SLOT_IDS: readonly SlotId[] = GR3X_FILM_IDS;
@@ -115,8 +127,8 @@ const availableSlots = (s: State = state): SlotId[] => s.info ? shownSlots(s).ma
 const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '', style: 'film' } });
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
-  ready: false, page: 'ic', fwBusy: false, model: 'GR3', lang: 'en',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', soft: false, dateStamp: false, monoUnlock: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, directFlash: false, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [], bridgeOpen: false,
+  ready: false, page: 'ic', fwBusy: false, model: 'GR3', lang: cameraLang(), langAuto: uiLangPref() === '',
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', brightAuto: false, soft: false, dateStamp: false, monoUnlock: false, directFlash: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, hdr: false, exposurePreview: false, adjSlots: 5, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [],
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -156,13 +168,22 @@ function ask(title: string, lines: string[], ok: string, warn?: string, reset = 
   return new Promise((resolve) => set({ confirm: { title, warn, lines, ok, resolve, ...(reset ? { reset } : {}) } }));
 }
 /**
+ * The warning for a firmware made from (or being) one of the cameras' newer releases (GR IV 1.20 / 1.21,
+ * GR III 2.20 / 2.21, GR IIIx 1.70 / 1.71): a camera that installs it cannot go back to an earlier release.
+ */
+function newFirmwareWarning(info: FirmwareInfo | undefined): string | null {
+  if (!info) return null;
+  const newer = info.family === 'gr4' ? ['1.20', '1.21'] : ['2.20', '1.70', '2.21', '1.71'];
+  return newer.includes(info.version) ? t('newFwWriteLine') : null;
+}
+/**
  * Before the official firmware goes back on the camera: settings made with GR Mod's firmware (an
  * added slot or ratio selected, soft focus on the ADJ lever, the date imprint, added slots'
  * parameters) are values the official firmware does not know and may freeze on. The dialog says so
  * in red and its button confirms that the camera was reset to factory defaults.
  */
-function askOfficial(lines: string[]): Promise<boolean> {
-  return ask(t('resetConfirmTitle'), lines, t('resetConfirmOk'), undefined, true);
+function askOfficial(lines: string[], warn?: string): Promise<boolean> {
+  return ask(t('resetConfirmTitle'), lines, t('resetConfirmOk'), warn, true);
 }
 export function answerConfirm(v: boolean): void { const c = state.confirm; set({ confirm: undefined }); c?.resolve(v); }
 export function answerConfirmAlt(): void { const c = state.confirm; set({ confirm: undefined }); c?.onAlt?.(); }
@@ -234,7 +255,7 @@ function familyData(s: State): FamilyDoc {
     wall: s.wall.map((w) => ({ id: w.id, name: w.name, kind: 'image', width: w.width, height: w.height, crop: w.crop, ...(w.menuName !== undefined ? { menuName: w.menuName } : {}), ...(w.menuId ? { menuId: w.menuId } : {}) })),
     ratios: s.ratios.map((r) => ({ id: r.id, ratio: r.ratio, name: r.name })),
     ratioOrder: s.ratioOrder,
-    soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, filmCount: s.filmCount,
+    brightAuto: s.brightAuto, soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, hdr: s.hdr, exposurePreview: s.exposurePreview, adjSlots: s.adjSlots, filmCount: s.filmCount,
     filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, hiddenSettings: s.hiddenSettings,
   };
 }
@@ -262,9 +283,10 @@ function parseFamily(doc: FamilyDoc | null): Partial<State> {
     slots, extras, activeSlot: 'CY', wall: [], ratios, activeRatio: ratios[0]?.id, ratioOrder: Array.isArray(doc?.ratioOrder) ? (doc!.ratioOrder as unknown[]).filter((k): k is string => typeof k === 'string') : [],
     lookOrder: normalizeLookOrder(Array.isArray(doc?.lookOrder) ? doc!.lookOrder : [], extras),
     lookHidden: normalizeLookHidden(Array.isArray(doc?.lookHidden) ? doc!.lookHidden : [], extras),
-    lookOrder3: gr3SavedKeys(doc?.lookOrder3), lookHidden3: gr3SavedKeys(doc?.lookHidden3),
+    lookOrder3: gr3SavedKeys(doc?.lookOrder3), lookHidden3: gr3SavedKeys(doc?.lookHidden3).filter((k) => k !== 'g11'),
+    brightAuto: doc?.brightAuto === 'balanced' ? 'balanced' : doc?.brightAuto === true || doc?.brightAuto === 'bright' ? 'bright' : false,
     soft: doc?.soft === true || (!!doc?.softFocus && typeof doc.softFocus === 'object' && Object.keys(doc.softFocus).length > 0),
-    dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true,
+    dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true, hdr: doc?.hdr === true, exposurePreview: doc?.exposurePreview === true, adjSlots: typeof doc?.adjSlots === 'number' && Number.isInteger(doc.adjSlots) && doc.adjSlots >= 5 && doc.adjSlots <= 8 ? doc.adjSlots : 5,
     filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true,
     hiddenSettings: Object.fromEntries(Object.entries(doc?.hiddenSettings && typeof doc.hiddenSettings === 'object' ? doc.hiddenSettings : {})
       .filter(([k, v]) => k in GR3X_HIDEABLE && (GR3X_HIDEABLE as Record<string, { values: readonly number[] }>)[k].values.includes(v as number))) as Record<string, number>,
@@ -353,7 +375,7 @@ async function saveProject(): Promise<void> {
   familyDocs[familyOf(s.model)] = currentFamilyDoc();
   const doc = {
     ...(familyDocs.gr4 ?? {}),
-    v: 1, page: s.page, model: s.model, lang: s.lang, fwName: s.fwName, showAll: s.showAll, previewMode: s.previewMode, ratioBackdrop: s.ratioBackdrop,
+    v: 1, page: s.page, model: s.model, lang: s.lang, langAuto: s.langAuto, uiLang: uiLangPref(), fwName: s.fwName, showAll: s.showAll, previewMode: s.previewMode, ratioBackdrop: s.ratioBackdrop,
     tours: s.toursSeen, toursV: 2,
   };
   try {
@@ -364,7 +386,7 @@ async function saveProject(): Promise<void> {
 export async function init(): Promise<void> {
   if (!host.available) { set({ ready: true }); return; }
   // The web site has no shell to keep alive (webhost.ts).
-  if (host.info!.kind !== 'web') void engine.heartbeat(host.info!.token);
+  if (!isMobile && host.info!.kind !== 'web') void engine.heartbeat(host.info!.token);
   void ensureIconFont();
   void loadPreviewPhoto();
   void loadBuilds();
@@ -381,7 +403,7 @@ export async function init(): Promise<void> {
       const fam = familyOf(model), work = familyDocs[fam];
       set({ ...parseFamily(work), model,
         page: doc.page === 'wall' || doc.page === 'copies' || doc.page === 'ratio' || doc.page === 'ic' || doc.page === 'feat' || doc.page === 'community' ? doc.page : doc.page === 'script' ? 'wall' : 'ic',
-        lang: (LANGS as readonly string[]).includes(doc.lang) ? doc.lang : 'en', fwName: doc.fwName, showAll: !!doc.showAll,
+        ...langOf(doc), fwName: doc.fwName, showAll: !!doc.showAll,
         previewMode: doc.previewMode === 'swatch' ? 'swatch' : 'photo', ratioBackdrop: doc.ratioBackdrop === 'gray' ? 'gray' : 'photo',
         // GR Mod 0.8 changed the power-off page: its tour (which now says where the pictures are chosen) shows once more
         toursSeen: TOUR_IDS.filter((id) => Array.isArray(doc.tours) && doc.tours.includes(id) && (id !== 'wall' || doc.toursV >= 2)) });
@@ -397,8 +419,10 @@ export async function init(): Promise<void> {
   set({ ready: true });
   // A GR III project found in project.json goes to its own file at once.
   if (gr3Legacy) scheduleSave();
-  void refreshVolumes();
-  setInterval(() => { if (!document.hidden && !state.busy) void refreshVolumes(); }, 2500);
+  if (!isMobile) {
+    void refreshVolumes();
+    setInterval(() => { if (!document.hidden && !state.busy) void refreshVolumes(); }, 2500);
+  }
   for (const id of allSlotKeys()) void renderIcon(id);
 }
 
@@ -433,7 +457,45 @@ export function setPage(page: Page): void {
   if (page === 'wall' && isGr3(state.model) && state.info && !state.info.capabilities.menuPictures) return; // power-off pictures: GR III / IIIx with the End Screen menu
   set({ page }); scheduleSave(); if (page === 'copies') void refreshCopies();
 }
-export function setLang(lang: LangCode): void { set({ lang }); scheduleSave(); }
+/**
+ * The camera language (whose names Image Control changes) follows the app language: 简体中文 → zh-CN, English → en,
+ * following the system → the system's language where the camera has it (else English).
+ */
+export function cameraLang(): LangCode {
+  const ui = uiLangPref();
+  return ui === 'zh' ? 'zh-CN' as LangCode : ui === 'en' ? 'en' as LangCode : systemCameraLang();
+}
+/** The camera language closest to the phone's own: its first language GR IV has, else English. */
+export function systemCameraLang(): LangCode {
+  const have = LANGS as readonly string[];
+  for (const raw of navigator.languages?.length ? navigator.languages : [navigator.language || 'en']) {
+    const l = raw.toLowerCase();
+    if (l.startsWith('zh')) return (/-(tw|hk|mo)|hant/.test(l) ? 'zh-TW' : 'zh-CN') as LangCode;
+    const base = l.split('-')[0];
+    if (have.includes(base)) return base as LangCode;
+  }
+  return 'en' as LangCode;
+}
+/** The app language (and with it the camera language): kept, the work saved with it, then the page reloads in it. */
+export async function setAppLanguage(v: '' | 'zh' | 'en'): Promise<void> {
+  if (v === uiLangPref()) return;
+  setUiLangPref(v, false);
+  try { sessionStorage.setItem('grmod.uiLangAdopted', v); } catch { /* none */ }
+  clearTimeout(saveTimer);
+  if (host.available && state.ready) await saveProject();
+  window.setTimeout(() => window.location.reload(), 60);
+}
+function langOf(doc: { uiLang?: string }): { lang: LangCode; langAuto: boolean } {
+  // The app language is kept by the page (localStorage) and in the saved work: the desktop page's storage goes with
+  // its port, so a saved choice the page has lost is taken back (once: the page reloads in it).
+  const saved = doc.uiLang === 'zh' || doc.uiLang === 'en' || doc.uiLang === '' ? doc.uiLang : undefined;
+  if (saved !== undefined && saved !== uiLangPref()) {
+    let reloadOnce = false;
+    try { reloadOnce = sessionStorage.getItem('grmod.uiLangAdopted') !== saved; sessionStorage.setItem('grmod.uiLangAdopted', saved); } catch { /* no storage: no reload */ }
+    if (reloadOnce) setUiLangPref(saved);
+  }
+  return { lang: cameraLang(), langAuto: uiLangPref() === '' };
+}
 export function setModel(model: CameraModel): void {
   if (state.busy || state.fwBusy || model === state.model) return;
   const differentFamily = familyOf(state.model) !== familyOf(model);
@@ -443,10 +505,10 @@ export function setModel(model: CameraModel): void {
   const otherFile = !!state.info && !state.info.models.includes(model);
   if (otherFile) {
     void engine.reset();
-    set({ info: undefined, raw: undefined, fwName: undefined, bridgeOpen: false, bridgeAfter: undefined,
+    set({ info: undefined, raw: undefined, fwName: undefined,
       copyInfo: {}, copySel: [], ratios: state.ratios.map(({ preview, ...r }) => r) });
   }
-  set({ model, ...(isGr3(model) ? { bridgeOpen: false, bridgeAfter: undefined } : {}) });
+  set({ model });
   // The other camera's work comes back (its pictures are encoded again once read).
   if (differentFamily) enterFamily(familyOf(model));
   else for (const w of state.wall) void encodeWall(w.id);
@@ -481,8 +543,7 @@ async function openFirmware(raw: Uint8Array, name: string, persist: boolean): Pr
     const model = info.models.includes(state.model) ? state.model : info.models[0];
     const sameFamily = familyOf(state.model) === familyOf(model);
     if (!sameFamily) leaveFamily();
-    set({ info, raw, model, fwName: info.filename, fwBusy: false, copyInfo: {}, copySel: [],
-      ...(info.family === 'gr3x' ? { bridgeOpen: false, bridgeAfter: undefined } : {}) });
+    set({ info, raw, model, fwName: info.filename, fwBusy: false, copyInfo: {}, copySel: [], });
     // Opening the other camera's firmware brings back that camera's work.
     if (!sameFamily) enterFamily(familyOf(model));
     if (info.family === 'gr3x') set((s) => ({ dateStamp: s.dateStamp && info.features.dateStamp, monoUnlock: s.monoUnlock && info.features.monoUnlock }));
@@ -519,39 +580,40 @@ export async function loadFirmwareFile(file: File): Promise<void> {
 }
 /** The dialog that fetches the official firmware from Ricoh's site. */
 export function setOnlineOpen(onlineOpen: boolean, reason?: State['onlineReason']): void {
-  set({ onlineOpen, onlineReason: onlineOpen ? reason : undefined, ...(onlineOpen ? {} : { bridgeAfter: undefined }) });
+  set({ onlineOpen, onlineReason: onlineOpen ? reason : undefined });
 }
 /** Take over a firmware file the shell downloaded; true when it is now the open firmware. */
 export async function adoptFirmware(name: string, version: string, data: Uint8Array): Promise<boolean> {
-  const after = state.bridgeAfter;
   const ok = await openFirmware(data, name, true);
   if (ok) toast(t('fwDownloaded', { v: version || state.info?.version || '' }), 'ok');
-  if (ok && after) { set({ bridgeAfter: undefined }); setTimeout(() => { void outputBridge(after); }, 0); }
   return ok;
 }
 /** True while the open firmware is the 1.12 bridge firmware: nothing is written until the official one is open. */
 export const bridgeLoaded = (s: State = state): boolean => !!s.info?.bridge;
 /** What a write or export does while the bridge firmware is open: offer the official download instead. */
 export function askForOfficial(): void { setOnlineOpen(true, 'bridge-loaded'); }
-export function setBridgeOpen(bridgeOpen: boolean): void {
-  if (bridgeOpen && (isGr3(state.model) || (state.info && !state.info.capabilities.bridge))) return;
-  set({ bridgeOpen });
-}
 
 // ------------------------------------------------------------------ presets
 const PRESET_ERRORS: Record<string, Key> = {
   'not-xmp': 'errNotXmp', 'no-table': 'errNoTable', 'look-profile-missing': 'errLookMissing', 'unsupported-table': 'errUnsupportedTable', 'bad-table': 'errUnsupportedTable',
   'not-cube': 'errNotXmp', 'bad-cube': 'errBadCube', 'gr3x-cube-only': 'gr3xCubeOnly',
 };
+/** The newest conversion of each slot: an older one that finishes later is dropped. */
+const presetRuns = new Map<SlotKey, number>();
+let presetRun = 0;
 async function runPreset(id: SlotKey, fileName: string, kind: 'xmp' | 'cube', text: string): Promise<void> {
   patchSlot(id, { preset: { fileName, kind, text, busy: !!state.info?.capabilities.presets } });
   if (!state.info?.capabilities.presets) return;
+  const run = ++presetRun;
+  presetRuns.set(id, run);
+  // GR IV added slots also try hue sectors; the conversion keeps them only when they come out closer.
+  const hue = isExtra(id) && state.info.family !== 'gr3x';
   try {
-    const result = await engine.convert(kind, text);
-    if (slotOf(id)?.preset?.text !== text) return; // replaced or removed meanwhile
+    const result = await engine.convert(kind, text, hue ? { hue: true } : {});
+    if (presetRuns.get(id) !== run || slotOf(id)?.preset?.text !== text) return; // replaced, removed or converted again meanwhile
     patchSlot(id, { preset: { fileName, kind, text, busy: false, result } });
   } catch (e) {
-    if (slotOf(id)?.preset?.text !== text) return;
+    if (presetRuns.get(id) !== run || slotOf(id)?.preset?.text !== text) return;
     const code = e instanceof EngineError ? e.code : '';
     patchSlot(id, { preset: { fileName, kind, text, busy: false, error: PRESET_ERRORS[code] ? t(PRESET_ERRORS[code]) : t('errNotXmp') } });
   }
@@ -600,6 +662,9 @@ const FACTORY_LOOK_NAMES: Record<number, { zh: string; en: string }> = {
   23: { zh: '正负逆冲', en: 'Cross Processing' }, 24: { zh: '负片', en: 'Negative Film' }, 25: { zh: '标准（单色）', en: 'Standard (mono)' },
   26: { zh: '柔和（单色）', en: 'Soft (mono)' }, 27: { zh: '高对比度（单色）', en: 'High Contrast (mono)' }, 28: { zh: '颗粒感（单色）', en: 'Grainy (mono)' },
   29: { zh: '无颗粒感（单色）', en: 'Solid (mono)' }, 30: { zh: 'HDR色调（单色）', en: 'HDR Tone (mono)' },
+  // Firmware 1.20 (the camera's texts): Pictorialist is offered on no model (not listed, see
+  // UNRELEASED_LOOKS), Solarized on the Monochrome (and with the B&W looks unlocked).
+  31: { zh: '画意摄影效果', en: 'Pictorialist Effect' }, 32: { zh: '中途曝光效果', en: 'Solarized Effect' },
 };
 /** GR III / IIIx (round 8): its twelve looks in the camera's menu order, their numbers and names (the camera's texts). */
 const GR3_LOOK_IDS: readonly number[] = [11, 12, 13, 14, 15, 16, 22, 17, 18, 19, 20, 21];
@@ -631,19 +696,41 @@ export function lookOrderAvailable(s: State = state): boolean {
 /** Every key the order can contain, in the camera's order: GR IV's 20 looks and the added slots; GR III's twelve and its films. */
 export function lookKeys(s: State = state): string[] {
   if (gr3Order(s)) return [...GR3_LOOK_IDS.map(gr3LookKey), ...Array.from({ length: gr3Films(s) }, (_, k) => gr3LookKey(64 + k))];
-  return [...FACTORY_LOOK_IDS.map(factoryLookKey), ...lookExtras(s).map((x) => x.key)];
+  return [...listedFactoryLooks(s).map(factoryLookKey), ...lookExtras(s).map((x) => x.key)];
 }
+/**
+ * Looks in the firmware's order table that no camera shows: 1.20's 31 (Pictorialist) is not
+ * offered on any model, not even the Monochrome, and the B&W unlock leaves it so. It is not listed
+ * (it could only be moved or hidden without anything changing on the camera); builds keep it in
+ * the order table just before 32, where the official firmware has it.
+ */
+const UNRELEASED_LOOKS: readonly number[] = [31];
+function listedFactoryLooks(s: State = state): number[] { return factoryLooks(s).filter((n) => !UNRELEASED_LOOKS.includes(n)); }
+/** The style order to build from the listed keys: the unlisted looks go back where the firmware has them. */
+function withUnlisted(styles: number[], s: State): number[] {
+  const out = [...styles];
+  const official = factoryLooks(s);
+  for (const n of UNRELEASED_LOOKS) {
+    const i = official.indexOf(n);
+    if (i < 0 || out.includes(n)) continue;
+    const next = official.slice(i + 1).find((m) => out.includes(m));
+    out.splice(next === undefined ? out.length : out.indexOf(next), 0, n);
+  }
+  return out;
+}
+/** GR IV's looks: the open firmware's (1.20 adds 31 and 32), 1.11's while none is open. */
+function factoryLooks(s: State = state): readonly number[] { return s.info?.looks?.factory ?? FACTORY_LOOK_IDS; }
 /** The style number the firmware uses for a key (GR IV 11..30, or 34.. for added slots; GR III 11..22, films 64..). */
 export function lookStyleOf(key: string, s: State = state): number | null {
   if (key.startsWith('g')) { const n = Number(key.slice(1)); return gr3Order(s) && lookKeys(s).includes(key) ? n : null; }
-  if (key.startsWith('f')) { const n = Number(key.slice(1)); return FACTORY_LOOK_IDS.includes(n) ? n : null; }
+  if (key.startsWith('f')) { const n = Number(key.slice(1)); return factoryLooks(s).includes(n) ? n : null; }
   const i = lookExtras(s).findIndex((x) => x.key === key);
-  return i < 0 ? null : 34 + i;
+  return i < 0 ? null : (s.info?.looks?.extraFirst ?? 34) + i;
 }
 /** Only on the GR IV Monochrome (its six black-and-white looks). */
 export function lookMonoOnly(key: string, s: State = state): boolean {
   const n = lookStyleOf(key, s);
-  return !gr3Order(s) && n !== null && n >= 25 && n <= 30;
+  return !gr3Order(s) && n !== null && (s.info?.looks?.monoOnly ?? [25, 26, 27, 28, 29, 30]).includes(n);
 }
 /** A display name for the UI: the camera's Chinese/English name, or an added slot's / a film's name. */
 export function lookName(key: string, s: State = state): string {
@@ -681,10 +768,10 @@ function normalizeHidden(hidden: readonly string[], keys: readonly string[]): st
 }
 /** GR IV's order for the current extras (projects keep it as saved; see `lookOrderNow`). */
 export function normalizeLookOrder(order: readonly string[], extras: readonly ExtraSlot[]): string[] {
-  return normalizeOrder(order, [...FACTORY_LOOK_IDS.map(factoryLookKey), ...extras.map((x) => x.key)]);
+  return normalizeOrder(order, [...listedFactoryLooks().map(factoryLookKey), ...extras.map((x) => x.key)]);
 }
 export function normalizeLookHidden(hidden: readonly string[], extras: readonly ExtraSlot[]): string[] {
-  return normalizeHidden(hidden, [...FACTORY_LOOK_IDS.map(factoryLookKey), ...extras.map((x) => x.key)]);
+  return normalizeHidden(hidden, [...listedFactoryLooks().map(factoryLookKey), ...extras.map((x) => x.key)]);
 }
 /** GR III's saved order and hidden keys (kept apart from GR IV's), checked like GR IV's when a project opens. */
 function gr3SavedKeys(list: unknown): string[] {
@@ -699,7 +786,8 @@ export function lookLayoutSpec(s: State = state): LookLayout | undefined {
   const hidden = lookHiddenNow(s);
   const factory = lookKeys(s);
   if (hidden.length === 0 && order.every((k, i) => k === factory[i])) return undefined;
-  return { order: order.map((k) => lookStyleOf(k, s)!), hidden: hidden.map((k) => lookStyleOf(k, s)!) };
+  const styles = order.map((k) => lookStyleOf(k, s)!);
+  return { order: gr3Order(s) ? styles : withUnlisted(styles, s), hidden: hidden.map((k) => lookStyleOf(k, s)!) };
 }
 export function hasLookLayout(s: State = state): boolean { return !!lookLayoutSpec(s); }
 /** Put the family's order / hidden keys. */
@@ -772,7 +860,7 @@ export function extraSpecs(s: State = state): ExtraSlotSpec[] {
   if (s.model === 'MONO') return [];
   return s.extras.map((x) => {
     const r = x.preset!.result!;
-    return { name: extraName(x, s), matrixQ13: r.matrixQ13, curves: r.curves, ...(r.postQ9 ? { postQ9: r.postQ9 } : {}), icon: x.icon.pixels!, halation: true };
+    return { name: extraName(x, s), matrixQ13: r.matrixQ13, curves: r.curves, ...(r.postQ9 ? { postQ9: r.postQ9 } : {}), ...(r.hueQ10 ? { hueQ10: r.hueQ10 } : {}), icon: x.icon.pixels!, halation: true };
   });
 }
 
@@ -904,7 +992,7 @@ export const wallMax = (): number => SHUTDOWN_MAX_PICTURES;
 export async function addWallFiles(files: File[]): Promise<void> {
   for (const f of files) {
     if (state.wall.length >= wallMax()) { toast(t('wallMax', { n: wallMax() }), 'info'); break; }
-    if (!/^image\//.test(f.type) && !/\.(jpe?g|png|webp|bmp|gif|avif)$/i.test(f.name)) continue;
+    if (!/^image\//.test(f.type) && !/\.(jpe?g|png|webp|bmp|gif|avif|heic|heif)$/i.test(f.name)) continue;
     try {
       const bmp = await loadBitmap(f);
       const wc = await workingCopy(bmp);
@@ -1004,15 +1092,18 @@ export function directFlashOn(s: State = state): boolean { return !!s.directFlas
 /** A film's code: 4 characters A-Z or 0-9 (DCF file names). */
 export const FILM_CODE = /^[A-Z0-9]{4}$/;
 /** The film mode and the movie removal need a full GR III / IIIx file (round 10, date imprint stage). */
-export const filmModeChoosable = (s: State = state): boolean => s.info?.family === 'gr3x' && !!s.info.features.dateStamp && filmCountChoosable(s);
+// GR Mod Film 1.1: the film mode is built on GR III 2.10 / GR IIIx 1.60 only (not ported to 2.20 / 2.21 yet).
+export const filmModeChoosable = (s: State = state): boolean => s.info?.family === 'gr3x' && (s.info.version === '2.10' || s.info.version === '1.60') && !!s.info.features.dateStamp && filmCountChoosable(s);
 export function filmModeOn(s: State = state): boolean { return !!s.filmMode && filmModeChoosable(s); }
-export function noMovieOn(s: State = state): boolean { return !!s.noMovie && filmModeChoosable(s); }
+/** No movie: the GR III 2.10 / GR IIIx 1.60 file, or the GR IV Monochrome 1.11 (GR IV 1.21) file (GR Mod Film 1.2). */
+export const noMovieChoosable = (s: State = state): boolean => filmModeChoosable(s) || !!s.info?.features.noMovie;
+export function noMovieOn(s: State = state): boolean { return !!s.noMovie && noMovieChoosable(s); }
 export function setFilmMode(filmMode: boolean): void {
   if (filmMode && !filmModeChoosable()) return;
   set({ filmMode }); scheduleSave();
 }
 export function setNoMovie(noMovie: boolean): void {
-  if (noMovie && !filmModeChoosable()) return;
+  if (noMovie && !noMovieChoosable()) return;
   set({ noMovie }); scheduleSave();
 }
 export function rearDialOffOn(s: State = state): boolean { return !!s.rearDialOff && filmModeChoosable(s); }
@@ -1040,8 +1131,30 @@ export function filmCodes(s: State = state): Partial<Record<SlotId, string>> {
 }
 /** A film code being typed and not yet 4 characters long. */
 export function filmCodeProblem(id: SlotId, s: State = state): boolean { const c = s.slots[id]?.code; return !!c && !FILM_CODE.test(c); }
+export function setBrightAuto(brightAuto: State['brightAuto']): void {
+  if (brightAuto && !state.info?.features.brightAuto) return;
+  set({ brightAuto }); scheduleSave();
+}
+export function brightAutoOf(s: State = state): State['brightAuto'] { return s.info?.features.brightAuto ? s.brightAuto : false; }
+export function setHdr(hdr: boolean): void {
+  if (hdr && !state.info?.features.hdrGainMap) return;
+  set({ hdr }); scheduleSave();
+}
+export function hdrOn(s: State = state): boolean { return !!s.hdr && !!s.info?.features.hdrGainMap; }
+export function setExposurePreview(exposurePreview: boolean): void {
+  if (exposurePreview && !state.info?.features.exposurePreview) return;
+  set({ exposurePreview }); scheduleSave();
+}
+export function exposurePreviewOn(s: State = state): boolean { return !!s.exposurePreview && !!s.info?.features.exposurePreview; }
+/** ADJ lever slots (5..8): the camera's five unless the firmware can have more. */
+export function setAdjSlots(adjSlots: number): void {
+  if (!(Number.isInteger(adjSlots) && adjSlots >= 5 && adjSlots <= (state.info?.features.maxAdjSlots ?? 5))) return;
+  set({ adjSlots }); scheduleSave();
+}
+/** The ADJ lever slots the build gets (5: none added). */
+export function adjSlotsOf(s: State = state): number { const max = s.info?.features.maxAdjSlots ?? 5; return s.adjSlots > 5 && s.adjSlots <= max ? s.adjSlots : 5; }
 /** Any addition that is not a slot or a ratio. */
-export function extrasOn(s: State = state): boolean { return softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s); }
+export function extrasOn(s: State = state): boolean { return !!brightAutoOf(s) || exposurePreviewOn(s) || softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || adjSlotsOf(s) > 5 || hdrOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s); }
 const MINUS = '\u2212';
 const strengthLabel = (st: SoftFocusStrength | 'custom'): string => t(st === 'weak' ? 'softWeak' : st === 'medium' ? 'softMedium' : st === 'strong' ? 'softStrong' : 'softCustom');
 /** "−2 weak / −3 medium" (−1 first), for confirmations and the copies page. */
@@ -1150,6 +1263,48 @@ export function setFilmCount(n: number): void {
     return { filmCount: want, activeSlot: ids.includes(s.activeSlot as SlotId) ? s.activeSlot : (ids[Math.max(0, want - 1)] ?? 'CY') };
   });
   scheduleSave();
+}
+/**
+ * GR III / IIIx: take one film away, as GR IV's added slots: the films after it move up one place
+ * (preset, names, icon, halation, their place in the menu order and hidden list), and the count
+ * drops by one. Not while a preset of a moving film is still being converted.
+ */
+export function removeFilm(id: SlotId): void {
+  if (!filmCountChoosable()) return;
+  const ids = (state.info?.slots ?? []).map((x) => x.id);
+  const n = state.filmCount;
+  const k = ids.indexOf(id);
+  if (k < 0 || k >= n) return;
+  if (ids.slice(k, n).some((x) => state.slots[x].preset?.busy)) { toast(t('converting'), 'info'); return; }
+  const look = (key: string): string | null => {
+    const f = key.startsWith('g') ? Number(key.slice(1)) - 64 : -1;
+    if (!(f >= 0 && f < n)) return key;
+    return f === k ? null : f > k ? `g${64 + f - 1}` : key;
+  };
+  set((s) => {
+    const slots = { ...s.slots };
+    for (let i = k; i < n - 1; i++) slots[ids[i]] = s.slots[ids[i + 1]];
+    slots[ids[n - 1]] = emptySlot();
+    const a = ids.indexOf(s.activeSlot as SlotId);
+    const activeSlot = a < 0 || a < k ? s.activeSlot : a > k ? ids[a - 1] : (ids[Math.min(k, n - 2)] ?? 'CY');
+    return {
+      slots, filmCount: n - 1, activeSlot,
+      lookOrder3: s.lookOrder3.map(look).filter((x): x is string => x !== null),
+      lookHidden3: s.lookHidden3.map(look).filter((x): x is string => x !== null),
+    };
+  });
+  scheduleSave();
+  // The preset files kept for the films move with them.
+  if (host.available) {
+    void (async () => {
+      for (let i = k; i < n - 1; i++) {
+        const text = await host.storeGet(presetKey(ids[i + 1])).catch(() => null);
+        if (text) await host.storeSet(presetKey(ids[i]), text).catch(() => undefined);
+        else await host.storeDel(presetKey(ids[i])).catch(() => undefined);
+      }
+      await host.storeDel(presetKey(ids[n - 1])).catch(() => undefined);
+    })();
+  }
 }
 export function setActiveRatio(id: string): void { if (state.activeRatio !== id) set({ activeRatio: id }); }
 
@@ -1269,8 +1424,10 @@ async function runPlan(root: string, steps: card.PlanStep[]): Promise<number> {
   }
   return moved;
 }
-type Dest = { kind: 'card' } | { kind: 'folder' };
+type Dest = { kind: 'card' } | { kind: 'folder' } | { kind: 'camera' } | { kind: 'phone' };
 async function destination(dest: Dest): Promise<{ root: string; volume?: Volume } | null> {
+  // The phone app: to the camera over Wi-Fi, or into the phone's own files.
+  if (dest.kind === 'camera' || dest.kind === 'phone') return { root: '' };
   if (dest.kind === 'card' && !onWeb) {
     const v = state.volumes.find((x) => x.id === state.volumeId);
     if (!v) { toast(t('noCard'), 'error'); return null; }
@@ -1349,6 +1506,10 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn();
   const hiddenSettings = stock ? {} : hiddenSettingsOn(), hiddenCount = Object.keys(hiddenSettings).length;
   if (filmMode && shownSlots().some((x) => filmCodeProblem(x.id))) { toast(t('filmCodeIncomplete'), 'error'); return; }
+  const hdr = !stock && hdrOn();
+  const exposurePreview = !stock && exposurePreviewOn();
+  const brightAuto = stock ? false : brightAutoOf();
+  const adjSlots = stock ? 5 : adjSlotsOf();
   if (!stock && (hasNameErrors() || hasRatioErrors())) return;
   if (!stock && hasExtraErrors()) { toast(t('extraIncomplete'), 'error'); return; }
   const extras = stock ? [] : extraSpecs();
@@ -1359,28 +1520,40 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const pictures = noPictures ? [] : menuPictures();
   const films = filmCountChoosable() ? state.filmCount : 0;
   const lookLayout = stock ? undefined : lookLayoutSpec();
-  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff) { toast(t('nothingToDo'), 'info'); return; }
-  if (stock && !(await askOfficial([t('copyOfficial')]))) return;
-  // On the web site the only way out is a folder (the card) or a download: the summary is shown before it as before a card write.
-  if ((dest.kind === 'card' || onWeb) && !stock) {
-    const lines = changes.map((c) => `${state.info?.family === 'gr3x' ? (state.slots[c.id].names[state.lang] || state.info.slots.find(s => s.id === c.id)?.defaultName || c.id) : t(('slot' + c.id) as Key)}  ·  ${c.labels.join(' / ')}`);
-    if (ratios.length) lines.push(t('ratioLine', { n: ratios.length, l: ratios.map((r) => r.name).join(' / ') }));
-    if (soft) lines.push(sourceInfo.features.softFocus === 'clarity' ? t('softLine', { l: softText(GR3X_SOFT_FOCUS) }) : t('softAdjLine'));
-    // As GR IV's added slots: every film has Halation.
-    if (films) lines.push(t('extraLine', { n: films, l: (state.info?.slots ?? []).slice(0, films).map((sl) => `${state.slots[sl.id]?.names[state.lang] || sl.defaultName} (${t('halation')})`).join(' / ') }));
-    if (dateStamp) lines.push(t('dateLine'));
-    if (monoUnlock) lines.push(t(state.info?.family === 'gr3x' ? 'gr3xReplicaLine' : 'monoLine'));
-    if (directFlash) lines.push(t('flashLine'));
-    if (filmMode) lines.push(t('filmModeLine', { l: Object.values(filmCodes()).join(' / ') || '—' }));
-    if (noMovie) lines.push(t('noMovieLine'));
-    if (rearDialOff) lines.push(t('rearDialOffLine'));
+  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && !hdr && !exposurePreview && !brightAuto && adjSlots === 5 && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !state.info?.features.customButtons) { toast(t('nothingToDo'), 'info'); return; }
+  const fresh = newFirmwareWarning(sourceInfo);
+  // The cannot-go-back warning is a paragraph (the dialog's lines are cut to one line each).
+  // GR III / IIIx cannot take a firmware over Wi-Fi (only the GR IV's camera has that interface).
+  if (dest.kind === 'camera' && sourceInfo.family !== 'gr4') { toast(t('pushOnlyGr4'), 'info'); return; }
+  // everything that leaves for a camera (also a file saved on the phone for it) is confirmed first
+  const toCamera = dest.kind === 'card' || dest.kind === 'camera' || dest.kind === 'phone';
+  if (stock && !(await askOfficial([t('copyOfficial')], fresh && toCamera ? fresh : undefined))) return;
+  // On the web site the only way out is a folder (the card) or a download: the same check before it.
+  if ((toCamera || onWeb) && !stock) {
+    // The check before writing: only what changes, by name; with a count where one item holds several.
+    const named = (name: string, n: number, unit: Key = 'chkCount'): string => (n > 1 ? `${name}  ·  ${t(unit, { n })}` : name);
+    const lines = changes.map((c) => named(state.info?.family === 'gr3x' ? (state.slots[c.id].names[state.lang] || state.info.slots.find(s => s.id === c.id)?.defaultName || c.id) : t(('slot' + c.id) as Key), c.labels.length, 'chkChanges'));
+    if (ratios.length) lines.push(named(t('chkRatios'), ratios.length));
+    if (soft) lines.push(t('navSoft'));
+    if (films) lines.push(named(t('extraTitle'), films));
+    if (dateStamp) lines.push(t('navDate'));
+    if (monoUnlock) lines.push(t(state.info?.family === 'gr3x' ? 'gr3xReplicaTitle' : 'navMono'));
+    if (brightAuto) lines.push(t('navBrightAuto'));
+    if (directFlash) lines.push(t('navFlash'));
+    if (hdr) lines.push(t('navHdr'));
+    if (exposurePreview) lines.push(t('navPreview'));
+    if (adjSlots > 5) lines.push(`${t('navAdjSlots')}  ·  ${t('chkCount', { n: adjSlots })}`);
+    if (extras.length) lines.push(named(t('extraTitle'), extras.length));
+    if (lookLayout) lines.push(lookLayout.hidden.length ? `${t('icViewOrder')}  ·  ${t('chkHidden', { n: lookLayout.hidden.length })}` : t('icViewOrder'));
+    if (pictures.length) lines.push(named(t('navWall'), pictures.length, 'chkPictures'));
+    if (filmMode) lines.push(`${t('navFilmMode')}  ·  ${Object.values(filmCodes()).join(' / ') || '-'}`);
+    if (noMovie) lines.push(t('navNoMovie'));
+    if (rearDialOff) lines.push(t('navRearDialOff'));
     if (hiddenCount) lines.push(t('hideLine', { n: hiddenCount }));
-    if (extras.length) lines.push(t('extraLine', { n: extras.length, l: extras.map((x) => (x.halation ? `${x.name} (${t('halation')})` : x.name)).join(' / ') }));
-    if (lookLayout) lines.push(t('lookOrderLine', { n: lookLayout.hidden.length }));
-    if (pictures.length) lines.push(t('wallMenuLine', { n: pictures.length, l: pictures.map((p) => p.name).join(' / ') }));
     const sfLine = settingsFileFor();
     if (sfLine) lines.push(t('settingsFileLine', { v: sfLine.version || '?' }));
-    if (!(await ask(t('confirmTitle'), lines, t('confirmOk')))) return;
+    const [title, ok] = dest.kind === 'camera' ? [t('pushTitle'), t('pushStart')] : dest.kind === 'phone' ? [t('saveTitle'), t('saveStart')] : [t('confirmTitle'), t('confirmOk')];
+    if (!(await ask(title, lines, ok, fresh ?? undefined))) return;
   }
   const target = await destination(dest);
   if (!target || state.info !== sourceInfo || state.raw !== sourceRaw || state.model !== sourceModel || state.fwBusy) return;
@@ -1391,7 +1564,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
       set({ busy: t('building') });
       const clarity = soft && sourceInfo.features.softFocus === 'clarity' ? [...GR3X_SOFT_FOCUS] : [];
       const built = await engine.build(changes.map((c) => c.request), ratios, clarity,
-        { adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
+        { ...(brightAuto ? { brightAuto } : {}), adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(hdr ? { hdrGainMap: true } : {}), ...(exposurePreview ? { exposurePreview: true } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
           ...(films ? { filmCount: films } : {}), ...(lookLayout ? { lookLayout } : {}),
           // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed),
           // the Hold lines of Fn and the 4-way pad (Snap DOF left out from 0.9.4: Fn + the front dial), the film lines
@@ -1402,9 +1575,19 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked),
           // and Shake Reduction's list of speeds (1/4000, the factory On: no change until another speed is chosen).
           ...(filmModeChoosable() ? { afPoint: true, memoryU: true, srSpeed: true } : {}) });
+
       if (!Object.values(built.checks).every((v) => v === true)) throw new EngineError('selfcheck-failed', 'self-check');
       file = built.file;
       void recordBuild(file, changes);
+    }
+    if (dest.kind === 'camera') { set({ busy: undefined, push: { file, label: firmwareFilename(), stock } }); return; }
+    if (dest.kind === 'phone') {
+      set({ busy: t('writing') });
+      // Android: Download/GR Mod/…; iOS: wherever the user puts it in the Files app (or nowhere: cancelled)
+      const r = await upload(file, { to: 'download', name: firmwareFilename() }) as { path?: string; cancelled?: boolean };
+      set({ busy: undefined });
+      if (!r.cancelled) toast(t('savedTo', { p: r.path ?? '' }), 'ok');
+      return;
     }
     set({ busy: t('writing') });
     let moved = 0;
@@ -1419,31 +1602,9 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   void refreshVolumes();
 }
 
-/**
- * Write the 1.12 bridge firmware (made from the official file, see core `fw/bridge.ts`). With no
- * firmware open, the official one is downloaded first and the write continues after it.
- */
-export async function outputBridge(dest: Dest): Promise<void> {
-  if (isGr3(state.model) || (state.info && !state.info.capabilities.bridge)) return;
-  if (state.busy || state.fwBusy) return;
-  if (!state.info) { set({ bridgeAfter: dest }); setOnlineOpen(true, 'bridge-base'); return; }
-  const sourceInfo = state.info, sourceModel = state.model;
-  const target = await destination(dest);
-  if (!target || state.info !== sourceInfo || state.model !== sourceModel || state.fwBusy) return;
-  try {
-    set({ busy: t('building') });
-    const file = await engine.bridge();
-    set({ busy: t('writing') });
-    let moved = 0;
-    if (target.volume) moved = await firmwareToCard(target.volume, file);
-    else await runPlan(target.root, [{ op: 'write', path: [firmwareFilename()], data: file }]);
-    set({ busy: undefined });
-    doneToast(target.root, target.volume, moved, firmwareFilename());
-  } catch (e) { set({ busy: undefined }); fail(e); }
-  void refreshVolumes();
-}
 
 export function wallReady(s: State = state): boolean { return menuReady(s); }
+export function closePush(): void { set({ push: undefined }); }
 
 // ------------------------------------------------------------------ copies moved aside on the card, and their backups
 const BUILDS_KEY = 'builds.json';
@@ -1593,9 +1754,13 @@ export function describeCopy(summary: FirmwareSummary, s: State = state): string
   });
   if (summary.ratios.length) lines.push(t('ratioLine', { n: summary.ratios.length, l: summary.ratios.map((r) => r.name).join(' / ') }));
   if (summary.adjSoftFocus) lines.push(t('softAdjLine'));
+  if (summary.brightAuto) lines.push(t(summary.brightAuto === 'balanced' ? 'brightAutoBalanced' : 'brightAutoBright'));
   if (summary.dateStamp) lines.push(t('dateLine'));
   if (summary.monoUnlock) lines.push(t(state.info?.family === 'gr3x' ? 'gr3xReplicaLine' : 'monoLine'));
   if (summary.directFlash) lines.push(t('flashLine'));
+  if (summary.hdrGainMap) lines.push(t('hdrLine'));
+  if (summary.exposurePreview) lines.push(t(summary.directFlash ? 'previewLine' : 'previewLineNoFlash'));
+  if (summary.adjSlots) lines.push(t('adjSlotsLine', { n: summary.adjSlots }));
   if (summary.extraSlots?.length) lines.push(t('extraLine', { n: summary.extraSlots.length, l: summary.extraSlots.map((x) => x.name).join(' / ') }));
   if (summary.lookLayout) lines.push(t('lookOrderLine', { n: summary.lookLayout.hidden.length }));
   if (summary.shutdownPictures?.length) lines.push(t('wallMenuLine', { n: summary.shutdownPictures.length, l: summary.shutdownPictures.map((p) => p.name).join(' / ') }));
@@ -1613,7 +1778,8 @@ export async function writeCopy(): Promise<void> {
   if (!pick) return;
   if (!v) { toast(t('noCard'), 'error'); return; }
   const official = pick.summary.kind === 'official';
-  if (!(await (official ? askOfficial(describeCopy(pick.summary)) : ask(t('confirmTitle'), describeCopy(pick.summary), t('confirmOk'))))) return;
+  const fresh = newFirmwareWarning(sourceInfo) ?? undefined;
+  if (!(await (official ? askOfficial(describeCopy(pick.summary), fresh) : ask(t('confirmTitle'), describeCopy(pick.summary), t('confirmOk'), fresh)))) return;
   if (state.info !== sourceInfo || state.model !== sourceModel || state.fwBusy) return;
   try {
     set({ busy: t('opening') });

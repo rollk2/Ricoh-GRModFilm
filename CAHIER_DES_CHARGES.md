@@ -257,6 +257,9 @@ Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre 
     Reduction, liste nommée des réglages) ; toutes les adresses à retrouver. Sur le Monochrome : pas de
     recettes (créneaux couleur absents), le rouleau s'appuie sur ses looks noir et blanc (code par look,
     grain).
+    **Fait le 2026-11-16 (1.1.0)** : fusion de l'amont (0.8.15+) ; le GR IV Monochrome 1.10 / 1.11 reçoit les
+    fonctions de GR Mod dans GR Mod Film (vérifié en construction, pas encore sur le boîtier). Restent : mode
+    pellicule GR IV / Monochrome, puis portage 2.21 / 1.71.
 
 19. Levier ADJ jusqu'à 8 réglages sur GR III / IIIx. Source : Maxwooow, GR Mod 0.8.9 (adjslots). Porter sur GR III : réglages 6 à 8 dans ADJ Mode Setting, valeurs protégées par le garde-fou. Vérifier la compatibilité avec le verrou du rouleau (cases ADJ lues Off pendant un rouleau).
 

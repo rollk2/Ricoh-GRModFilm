@@ -18,19 +18,39 @@ import (
 // with the matching private key, which is not part of the source).
 const updatePublicKey = "SmDyXQIIsZYfZ06bPIdeuzDMvpT4FbELxGu9BuCVx+I="
 
-// updateSources are where releases are looked for, in order: this line's own
-// channel first (a release tagged fw1.11 whose files are replaced by every
-// 0.8.x release), then the newest release (which a GR Mod for camera firmware
-// 1.20 will be one day; its manifest is then only reported, see updateBelow).
+// updateSources are where releases are looked for, in order: the newest release, then the channel
+// the 0.8.0..0.8.6 copies look in first (a release tagged fw1.11).
 var updateSources = []string{
-	"https://github.com/Maxwooow/Ricoh-GRMod/releases/download/fw1.11/",
 	"https://github.com/Maxwooow/Ricoh-GRMod/releases/latest/download/",
+	"https://github.com/Maxwooow/Ricoh-GRMod/releases/download/fw1.11/",
 }
 
-// updateBelow ends this line: GR Mod 0.8.x is for GR IV camera firmware 1.11 (and, from 0.8.5,
-// GR III 2.10 / GR IIIx 1.60); 0.9 and later are for GR IV 1.20 (a camera updated to 1.20 cannot go
-// back), so they are never installed over this copy, only reported.
-const updateBelow = "0.9"
+// updateBelow: none from 0.8.7 on. GR Mod builds on both the earlier and the current official
+// firmware of each camera (GR IV 1.11 / 1.20, GR III 2.10 / 2.20, GR IIIx 1.60 / 1.70), so every
+// newer release is installed, 0.9 and later too. (0.8.0..0.8.6 end their line at 0.9: they install
+// 0.8.7 online and only report a 0.9 release; once on 0.8.7 they take any later one.)
+const updateBelow = ""
+
+// creditsURLs are the acknowledgements shown in About (0.8.11): credits.json on
+// the repository's main branch, edited on GitHub whenever a name is added;
+// jsDelivr's copy of the same file second (it answers where GitHub's raw files
+// do not, and follows the branch within hours).
+var creditsURLs = []string{
+	"https://raw.githubusercontent.com/Maxwooow/Ricoh-GRMod/main/credits.json",
+	"https://cdn.jsdelivr.net/gh/Maxwooow/Ricoh-GRMod@main/credits.json",
+}
+
+// envCredits replaces creditsURLs (the development build and tests).
+const envCredits = "GRMOD_CREDITS"
+
+func creditsSources(hostKind string) []string {
+	if hostKind == "dev" || experimental() {
+		if c := strings.TrimSpace(os.Getenv(envCredits)); c != "" {
+			return []string{c}
+		}
+	}
+	return creditsURLs
+}
 
 // releaseNotesAPI lists the published releases with their text (what's new).
 const releaseNotesAPI = "https://api.github.com/repos/Maxwooow/Ricoh-GRMod/releases?per_page=30"
