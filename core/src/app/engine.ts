@@ -263,6 +263,8 @@ export interface BuildOptions {
   dateStampDiag?: boolean;
   /** Test builds only (GR IV 1.20, with the date imprint): print the picture's look word and the halation module's status. */
   halationDiag?: boolean;
+  /** Test builds only (GR IV Monochrome 1.11): the last key codes, printed by the date imprint (no guard). */
+  keyDiag?: boolean;
   /** Test builds: the HDR gain map's diagnostics segment (APP15 "GRMODHDR") in every JPEG. */
   hdrDiag?: boolean;
   /** Test builds only (GR IV 1.20): exposure preview always off (issue #17). */
@@ -1134,6 +1136,7 @@ export class Engine {
     const test = {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),
+      ...(options && options.keyDiag ? { keyDiag: true } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),
     };

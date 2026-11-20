@@ -4460,3 +4460,9 @@ Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo
   `0x20` à `0x24` pavé et molette) ; son seul renvoi est la table de méthodes `0x53de5288` (celle du `0x53b4dcf8` du GR III). Le point
   d'entrée de type `OnEvent` (fonction qui aiguille selon l'écran courant, `bl 0x5325eec0`) est probablement `0x532568c0`. À confirmer
   par émulation, puis par un build de diagnostic des codes de touches (équivalent de T-HOLD0) avant d'écrire les lignes Hold.
+- **Build de diagnostic des touches (2026-11-20)** : `keydiag.ts` (option de test `keyDiag`). Point d'entrée des codes de touches de la 1.21
+  confirmé : `0x53258098` (la traduction `0x5325825c` y saute avec le code dans `r1`, comme `0x532231e4` vers `0x53221a1c` sur le GR III ;
+  première instruction `mov ip,sp`). Anneau de 7 codes + octet d'indice à `0x55839038` (le mot FRAME_LOOK et le suivant : build sans
+  garde-fou), imprimé par la datation sur les images de 720 pixels (`{ words }`, comme le diagnostic de la halation) ; les codes du
+  déclenchement 5 à 8 et une répétition immédiate sont omis. Vérifié par `tools/gr4v121/keydiag_probe.py` (anneau, registres, `sp`) et
+  `nomovie_probe.py` sur le même fichier. Pas encore testé sur le boîtier.
