@@ -265,6 +265,8 @@ export interface BuildOptions {
   halationDiag?: boolean;
   /** Test builds only (GR IV Monochrome 1.11): the last key codes, printed by the date imprint (no guard). */
   keyDiag?: boolean;
+  /** Test builds only (GR IV Monochrome 1.11): more functions in the Fn button lists. */
+  fnAll?: boolean;
   /** Test builds: the HDR gain map's diagnostics segment (APP15 "GRMODHDR") in every JPEG. */
   hdrDiag?: boolean;
   /** Test builds only (GR IV 1.20): exposure preview always off (issue #17). */
@@ -1137,6 +1139,7 @@ export class Engine {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),
       ...(options && options.keyDiag ? { keyDiag: true } : {}),
+      ...(options && options.fnAll ? { fnAll: true } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),
     };

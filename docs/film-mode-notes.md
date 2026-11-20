@@ -4466,3 +4466,16 @@ Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo
   garde-fou), imprimé par la datation sur les images de 720 pixels (`{ words }`, comme le diagnostic de la halation) ; les codes du
   déclenchement 5 à 8 et une répétition immédiate sont omis. Vérifié par `tools/gr4v121/keydiag_probe.py` (anneau, registres, `sp`) et
   `nomovie_probe.py` sur le même fichier. Pas encore testé sur le boîtier.
+
+## GR IV Monochrome 1.11 : exécuteurs de fonctions et listes Fn étendues (2026-11-20, test)
+
+- Correction de lecture : pour `ldrls pc,[pc,r0,lsl #2]`, la table commence deux mots **après** l'instruction suivante (`b défaut`) ; un index
+  de table = numéro de fonction + 1 quand l'appelant passe `f + 1`. Les analyses de défauts ci-dessous en tiennent compte.
+- `GetEventSwitchWlan` = `0x53398320` (table `0x53398488`) : assertion (message `GetEventSwitchWlan`, sans effet) pour les fonctions
+  5, 6, 7, 33, ce qui explique les listes B et C sans elles. `GetEventCustomize` = `0x53399990` (table `0x533999bc`) : toutes les
+  fonctions 0 à 44 ont un traitement. Les six fonctions de texte d'aide par touche (`0x5351ca64`, `cdb4`, `d104`, `d454`, `d7a4`, `dab4`)
+  répondent 0 sans effet pour 23 et 37.
+- `fnlists.ts` (option de test `fnAll`) : 23 Flash Exposure Comp. et 37 Airplane Mode ajoutées aux listes A et B, 23 à C (tables
+  recopiées plus longues, constructeurs `0x531dd108/188/20c` repointés). Vérifié : tables relues dans le fichier construit. 5, 6, 7, 33
+  restent exclues de B et C (leur exécuteur les refuse). Pas testé sur le boîtier.
+- À faire : retirer Framerate de la liste ADJ ; étendre l'ADJ ; fonctions nouvelles.
