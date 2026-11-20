@@ -56,6 +56,7 @@ def call(u, addr, args=(), hooks=None, count=5000):
 
 
 def verify(official, built, name):
+    official_filter = {}
     cases = {}
     n = lambda k: cases.__setitem__(k, cases.get(k, 0) + 1)
     for label, rtos, mod in (('official', official, False), ('built', built, True)):
@@ -77,6 +78,15 @@ def verify(official, built, name):
                 else:
                     assert fn == 0, (label, 'row kept', hex(menu), it, hex(fn))
                 n(f'{label} row')
+        # the Fn lists' filter 0x531d7be0: functions 18 (Framerate) and 19 (Still/Movie) refused, the others as in the official file
+        for f in [x for x in range(0, 46) if x not in (25, 30, 44, 45)]:  # those four ask the camera's state: not emulated here
+            r, _ = call(u, 0x531d7be0, (f,))
+            if label == 'official':
+                official_filter[f] = r
+            else:
+                want = 0 if f in (18, 19) else official_filter[f]
+                assert r == want, (label, 'fn filter', f, r, want)
+            n(f'{label} fn filter')
         # the getter
         for b in (0, 1, 2, 0xff):
             u.mem_write(OBJ + BYTE, bytes([b]))

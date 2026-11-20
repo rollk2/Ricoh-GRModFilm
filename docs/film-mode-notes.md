@@ -4420,3 +4420,25 @@ les cartes de portage de `tools/port`). Base du RTOS `0x53000000`. Rien n'est co
   partage le fichier du GR IV : mêmes adresses.
 - Outils (hors dépôt) : extraction du RTOS (`Firmware` + `sectionsOf`), `armdis.py` (capstone, base
   `0x53000000`), références de chaînes et d'appels par motifs de mots.
+
+## GR IV Monochrome 1.11 : « No movie », lignes et fonctions Fn (2026-11-20)
+
+Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo/vidéo). Code : `core/src/fw/gr4v121/aspect/nomovie.ts`.
+
+- **Lignes Still/Movie et Movie Edit** (certitude forte, lues dans les descripteurs, émulées). Descripteur Still `0x53dc8b18`
+  ligne 18 (id `0x02000082`), Playback `0x53dc8ea4` ligne 16 (id `0x04000033`). La visibilité d'une ligne est un pointeur
+  de méthode à `descripteur + 0x254 + 8 * ligne` (nul : toujours visible) ; on y met une méthode qui répond 0
+  (`mov r0,#0 ; bx lr`). La ligne 8 du descripteur Movie n'a pas besoin de traitement : l'onglet entier est caché.
+- **Fonctions Fn** (certitude forte). Trois listes d'octets (`0x53de6764` 39 fonctions, `0x53de67fc` 35, `0x53de695c` 37 ;
+  constructeurs `0x531dd108`, `0x531dd188`, `0x531dd20c`) passent chaque fonction au même filtre `0x531d7be0(f)` (0 :
+  non listée). Seuls appelants du filtre : ces trois constructeurs.
+  - Texte des fonctions : `0x5339045c(this, f)` (43 valeurs distinctes sur f = 0..45) donne un numéro de texte ;
+    la ligne anglaise du tableau de textes est en RAM `0x55003cf4` (désignation : entrée = rangée + 4 * numéro).
+    Résultat : **18 = Framerate, 19 = Still/Movie** (0 Off, 1 Focus, 12 File Format, 15 Aspect Ratio, 30 White Balance,
+    31 Image Control, 32 Shake Reduction, 36 Enable Sleep Mode, 37 Airplane Mode, 43 Touch AF, 44 HDF, 45 Red Filter ...).
+    Sur le GR III les numéros étaient 16 et 17 : la liste du GR IV a deux fonctions de plus avant eux (Focus Limiter, Switch Record Memory).
+  - Patch : le premier mot du filtre (`sub r0,r0,#0x19`) est remplacé par un saut vers un relais qui répond 0 pour 18 et 19,
+    puis refait le `sub` et revient en `0x531d7be4`. Les ids 25, 30, 44 et 45 ont des conditions propres (état du boîtier) : inchangées.
+- **Vérification** : `tools/gr4v121/nomovie_probe.py` (émulation Unicorn) : lignes, onglet, filtre (18 et 19 refusées, les 38
+  autres fonctions comme le fichier officiel), lecteur, écrivain ; `core/test/gr4-nomovie.test.ts` (construction, auto-contrôle, relecture).
+- Pas encore trouvé : les noms du bouton latéral (équivalent du renommage T20-VID4 du GR III) : à voir avec les touches (P2).

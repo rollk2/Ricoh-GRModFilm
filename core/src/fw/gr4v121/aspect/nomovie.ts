@@ -16,6 +16,12 @@
  *    0x53dc8ea4). An item's visibility is a method pointer at descriptor + 0x254 + 8 * item (null: always
  *    shown); the builder (0x531b5878) leaves the item out when the method answers 0. Both get the method that
  *    answers 0.
+ *  - Two functions of the Fn button lists: 18 Framerate and 19 Still/Movie (the text function 0x5339045c gives
+ *    their texts, found in the English row of the text table: function 18 -> text 'Framerate', 19 ->
+ *    'Still/Movie'). Three lists (0x53de6764, 0x53de67fc, 0x53de695c: the Fn, the Wireless and the
+ *    4-way / Hold buttons' functions) are built by the constructors 0x531dd108, 0x531dd188 and 0x531dd20c, each
+ *    asking the same filter 0x531d7be0(function) whether it is listed (0 leaves it out). The filter answers 0
+ *    for those two first.
  *  - The movie mode. The photo / movie setting (CommonStillMovie, byte +0xb76 of the settings object) is
  *    read through one getter, 0x5329bb60 (`ldrb r0, [r0, #0xb76]; bx lr`, 56 callers) and written by one
  *    setter, 0x532798fc(object, value) (the store at 0x53279908, then the change notice 0x162 / 0xf). The
@@ -41,6 +47,10 @@ export const STILL_MOVIE_ITEM = 18;
 export const STILL_MOVIE_ID = 0x02000082;
 export const MOVIE_EDIT_ITEM = 16;
 export const MOVIE_EDIT_ID = 0x04000033;
+/** The Fn functions' filter (`sub r0, r0, #0x19` first), asked by the three lists' constructors. */
+export const FN_FILTER = 0x531d7be0;
+export const FN_FRAMERATE = 18;
+export const FN_STILL_MOVIE = 19;
 /** CommonStillMovie's getter: `ldrb r0, [r0, #0xb76]; bx lr`. */
 export const STILL_MOVIE_GETTER = 0x5329bb60;
 /** CommonStillMovie's setter and the store it begins with. */
@@ -68,6 +78,15 @@ export function installNoMovie(patch: Patch): void {
   // The two lines: the same method as their visibility.
   patch.setWord(STILL_MENU + D_VISIBLE + 8 * STILL_MOVIE_ITEM, hidden, 'no movie: the Still/Movie line is not shown');
   patch.setWord(PLAYBACK_MENU + D_VISIBLE + 8 * MOVIE_EDIT_ITEM, hidden, 'no movie: the Movie Edit line is not shown');
+
+  // The Fn lists: Framerate and Still/Movie are not listed.
+  expectWord(patch, FN_FILTER, 0xe2400019); // sub r0, r0, #0x19
+  expectWord(patch, FN_FILTER + 4, 0xe1a0c00d); // mov ip, sp
+  const filter = patch.append((at) => [
+    ...assembleWords(`cmp r0, #${FN_FRAMERATE}\nmoveq r0, #0\nbxeq lr\ncmp r0, #${FN_STILL_MOVIE}\nmoveq r0, #0\nbxeq lr\nsub r0, r0, #0x19`, at),
+    branchWord(at + 28, FN_FILTER + 4),
+  ], 4);
+  patch.setWord(FN_FILTER, branchWord(FN_FILTER, filter), 'no movie: Framerate and Still/Movie are not listed as Fn functions');
 
   // The getter: still, always.
   patch.setWord(STILL_MOVIE_GETTER, 0xe3a00000, 'no movie: the photo / movie setting always reads still'); // mov r0, #0
