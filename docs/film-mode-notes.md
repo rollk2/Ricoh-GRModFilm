@@ -4547,3 +4547,18 @@ n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le
 - Exécution : filtre à l'entrée d'`OnEvent` (`0x53258098`) comme `gr3x/hold.ts` ; la fonction Hold est exécutée par un appui et un relâchement
   de Fn injectés (Fn = 24 / 25) avec le réglage de Fn (`obj + 0x1468`, getter `0x5329f50c`) échangé le temps de l'appel : la touche haut n'a
   pas de réglage propre, Fn sert de porteur pour les cinq. Fn court ne change pas sans Hold ; Fn long = durée entre 24 et 25 (`tk_get_otm`).
+
+### Appuis longs : moteur de test (2026-11-20) : `holdbuttons.ts`, option de test `holdTest`
+
+- Fn = 24 appui / 25 relâchement : confirmé par la lecture de la traduction (`0x5325825c`, type brut `0x1b`, état 2 puis sous-état 0 -> 24, état 1 -> 25).
+- Port de `gr3x/hold.ts` : filtre à l'entrée d'`OnEvent` (`0x53258098`, chaîné après le diagnostic des touches), vue en direct seulement (contrôleur
+  `0x08000000` / `0x08000002`, lu par `0x53240cac`, `0x53240e20`, `ldr r0,[r0]`), horloge `tk_get_otm` = `0x53067d94` (vérifié : mêmes mots que
+  `0x53050b7c` du GR III), état et heure dans les mots libres `0x55839030` et `0x55839020`. La fonction Hold est exécutée par un appui et un
+  relâchement de Fn injectés (24 / 25) avec l'octet de fonction de Fn (objet des réglages + `0x1000` + `0x468`, getter `0x5329f50c`) échangé
+  le temps de l'appel : la touche haut n'a pas de réglage, Fn sert de porteur. Seuil de Fn : 600 ms. Appui court : le filtre rejoue l'appui puis
+  laisse passer le relâchement. Fonctions de ce build (octets dans le fichier) : Fn 21 (ISO), haut 45 (Red Filter), bas 32 (Shake Reduction),
+  gauche 15 (Aspect Ratio), droite 26 (Drive Mode).
+- Vérifié en émulation (`tools/gr4v121/holdbuttons_probe.py`, 37 cas : passage des touches sans Hold, hors vue en direct, court / long de chaque
+  touche, champ de Fn restauré, pile intacte, seuil de Fn à 599 et 600 ms). Pas testé sur le boîtier.
+- Restent : les cinq lignes « Hold » dans Fn Button Setting (décision de l'utilisateur, comme sur GR III) et les octets de réglage à la place de la
+  table ; pas de garde « le pavé déplace le point AF » (analogue du GR III non trouvé, sans effet tant qu'aucun Hold n'est réglé).

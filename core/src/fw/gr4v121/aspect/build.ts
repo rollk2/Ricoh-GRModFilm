@@ -39,6 +39,7 @@ import { installBrightAuto } from './brightauto';
 import { installNoMovie } from './nomovie';
 import { installKeyDiag } from './keydiag';
 import { installFnLists } from './fnlists';
+import { installHoldButtons } from './holdbuttons';
 import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
@@ -184,6 +185,8 @@ export interface TestOptions {
   keyDiag?: boolean;
   /** GR Mod Film 1.2: Flash Exposure Comp. and Airplane Mode offered to every Fn button list (see `fnlists.ts`). */
   fnAll?: boolean;
+  /** GR Mod Film 1.2: the Hold function of Fn, up, down, left, right (0: none), baked in the file (see `holdbuttons.ts`). */
+  holdTest?: readonly number[];
   /** GR Mod Film 1.2: Red Filter on the ADJ lever, in place of Framerate (see `adjredfilter.ts`). */
   adjRedFilter?: boolean;
   /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
@@ -1107,6 +1110,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   // Before everything that copies the menu descriptors (the wide menus): the movie tab's is changed in place.
   if (features.noMovie) installNoMovie(patch);
   if (test.fnAll) installFnLists(patch);
+  const holdFilter = test.holdTest ? installHoldButtons(patch, test.holdTest) : 0;
   let icons = iconbin;
   if (ratios.length > 0) {
     const installed = installIcons(patch, iconbin, ratios);
@@ -1144,7 +1148,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
     // Halation diagnostics: words[0] the picture's look word (FRAME_LOOK), words[1] the module's status (HALATION_STATUS_WORD).
     if (test.halationDiag && FRAME_LOOK + 4 !== HALATION_STATUS_WORD) fail('internal', 'halation diagnostics: the two words are not next to each other');
     installDateStamp(patch, fixed ? patch.append([fixed, 0, 0, 0], 4) : DATESTAMP_BYTE, test.halationDiag || test.keyDiag ? { words: FRAME_LOOK } : test.directFlashDiag && features.directFlash ? 'df' : !!test.dateStampDiag, look);
-    if (test.keyDiag) { if (look) fail('internal', 'key diagnostics: build without the guard'); installKeyDiag(patch); }
+    if (test.keyDiag) { if (look) fail('internal', 'key diagnostics: build without the guard'); installKeyDiag(patch, holdFilter); }
     if (!fixed) icons = installDateStampMenu(patch, icons, stillLines);
     if (look && slots.length === 0) installLookStash(patch);
   }

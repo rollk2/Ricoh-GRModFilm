@@ -20,8 +20,9 @@ import { extendZeroFill } from './lookstash';
 export const KEY_ENTRY = 0x53258098;
 export const KEY_RING = 0x55839038;
 
-export function installKeyDiag(patch: Patch): void {
-  expectWord(patch, KEY_ENTRY, 0xe1a0c00d); // mov ip, sp
+/** `next`: the filter the entry already goes to (the hold buttons'), which the diagnostics go on to in place of OnEvent's first instruction. */
+export function installKeyDiag(patch: Patch, next = 0): void {
+  if (!next) expectWord(patch, KEY_ENTRY, 0xe1a0c00d); // mov ip, sp
   extendZeroFill(patch);
   const lo = KEY_RING & 0xffff, hi = KEY_RING >>> 16;
   const hook = patch.append((at) => [
@@ -30,7 +31,7 @@ export function installKeyDiag(patch: Patch): void {
       ldrb r0,[ip,#7];cmp r0,#7;movhs r0,#0;
       subs r2,r0,#1;movmi r2,#6;ldrb r2,[ip,r2];cmp r2,r1;beq skip;
       strb r1,[ip,r0];add r0,r0,#1;cmp r0,#7;moveq r0,#0;strb r0,[ip,#7];
-      skip:pop {r0,r2};mov ip,sp;b #${KEY_ENTRY + 4}`, at),
+      skip:pop {r0,r2};${next ? `b #${next}` : `mov ip,sp;b #${KEY_ENTRY + 4}`}`, at),
   ], 4);
   if (hook === 0) throw new FirmwareError('internal', 'key diagnostics');
   patch.setWord(KEY_ENTRY, branchWord(KEY_ENTRY, hook), 'key diagnostics: the last key codes in a ring');
