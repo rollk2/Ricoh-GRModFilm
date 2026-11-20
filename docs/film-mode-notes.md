@@ -4506,3 +4506,10 @@ Module `adjredfilter.ts` (option de test `adjRedFilter`), sonde `tools/gr4v121/a
   échoue franchement) : à fusionner avant d'en faire une option du produit.
 - Vérifié en émulation : enregistrement 18 seul changé, gestionnaires (compte, courante, fixer, dessin et au-delà), nom et icône (autres
   fonctions comme l'officiel), longueur de liste (3 modèles, registres conservés), liste. Pas testé sur le boîtier.
+
+### Résultats sur le boîtier : build de test 4 (Mono 1.11, 2026-11-20, rapportés par l'utilisateur)
+
+- Levier ADJ : s'ouvre normalement, sans gel. **Red Filter** proposée dans ADJ Mode Setting et fonctionnelle une fois affectée (nom, icône, Off/On).
+- Suppression de la vidéo : onglet Movie absent, lignes Still/Movie et Movie Edit absentes, Framerate et Still/Movie absentes des listes Fn. Aucun reste de vidéo signalé.
+- Listes Fn étendues : Flash Exposure Comp. et Airplane Mode proposées et actives (Fn, pavé, Wireless).
+- Diagnostic des codes de touches : le texte s'affiche (date et codes lus en haut à gauche de l'image en lecture).
