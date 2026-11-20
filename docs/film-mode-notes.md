@@ -4699,3 +4699,9 @@ Aucune licence indiquée sur la page ; l'auteur ne propose pas le firmware modif
 - GR IV Monochrome 1.11 : pas la même table. Une table de marges plus grande, de la même famille (569,2 / 574,5 / 597,8 / 563,3 et d'autres
   valeurs 521 à 578) se trouve à partir de 0x53ee0fd8. Les autres emplacements (échantillons, plancher, choix de cadence) n'ont pas été
   cherchés. Les mesures de la page ne valent que pour le GR IIIx : un portage GR IV demande ses propres mesures sur boîtier.
+
+### Test AF en pénombre, GR III 2.10 (2026-11-20)
+- Option de moteur `afDim` (`fw/gr3x/af-dim.ts`, `adj.ts`, `ratio-recipe.ts`, `engine.ts`), pour l'instant sans case dans l'interface : neuf mots changent
+  (6 marges x 0,32, 3 → 2 échantillons, plancher 0,02 → 0,014, `movhi r3,#3` → `#2` à 0x533f4b10). Les autres changements de la page
+  (exposant 0,875 de la fonction de marge) ne sont pas faits. Test `core/test/gr3x-af-dim.test.ts`.
+- Un build GR III 2.10 d'essai (1 ratio, sans autre option) et une référence sans `afDim` ne diffèrent que par ces neuf mots et l'enregistrement de la recette.
