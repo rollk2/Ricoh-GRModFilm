@@ -4488,3 +4488,21 @@ Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo
   fixer `+0x28`, nombre de valeurs `+0x30`). Exemple Touch AF (20) : table d'octets des valeurs `0x53de6d7c`, nombre 5 (`0x531bbcec`), dessin
   par les aides générales `0x53391ba8` (icône) et `0x533900f4` (texte) de la valeur, lecture `0x532a0d94`, écriture par l'objet `0x53241240`.
   Chaque nouvelle fonction demande son lecteur, son écrivain et ses valeurs (énumérations globales) : à lire réglage par réglage.
+
+## GR IV Monochrome 1.11 : Red Filter sur le levier ADJ, à la place de Framerate (2026-11-20, test)
+
+Module `adjredfilter.ts` (option de test `adjRedFilter`), sonde `tools/gr4v121/adjredfilter_probe.py`.
+- Même principe que le flou du GR III (`gr3x/adj-softfocus.ts`) : la table des fonctions ADJ garde ses 21 enregistrements (agrandie, elle
+  a figé le boîtier chez GR Mod) ; l'enregistrement 18 (Framerate, absent de la liste ADJ Mode Setting) devient celui de Crop avec quatre
+  gestionnaires : nombre = 2, « est courante » = celui de la liste du menu Red Filter (`0x531d7a28`), « fixer » = celui de cette liste
+  (`0x531d5f80`, queue `b 0x53346338` qui appelle l'écrivain `0x53346260` de l'octet `0x9b4`), dessin = texte de la valeur par
+  `0x533907e0` (comme la liste) posé sur la ligne de la bande (`0x5359468c` puis `0x535a1a60`). Valeurs 0 et 1 de la table `0x53de6eb8`.
+  Lecteur `0x532a0eec` (octet `0x9b4` de l'objet des réglages). Menu photo : ligne Red Filter (id `0x02000135`, ligne 23, Mono seulement).
+- Nom : texte 155 (« Red Filter », celui des listes Fn) ; icône : 40 x 40 dessinée (anneau et demi-disque), numéro 738.
+- Liste d'ADJ Mode Setting (`0x53de6790`) recopiée avec 18 en dernier ; sa longueur est fixée par un petit relais à l'endroit de
+  `add r6,r4,#0x13` (`0x531dce68`) : 20 sur le Monochrome (numéro de modèle 2), 19 ailleurs.
+- Limite : les relais du nom et de l'icône de la fonction 18 valent pour tous les modèles du fichier (le Framerate du GR IV non Mono
+  n'a plus de nom dans l'ADJ) ; incompatible, pour l'instant, avec l'aperçu d'exposition (mêmes points d'accroche, la construction
+  échoue franchement) : à fusionner avant d'en faire une option du produit.
+- Vérifié en émulation : enregistrement 18 seul changé, gestionnaires (compte, courante, fixer, dessin et au-delà), nom et icône (autres
+  fonctions comme l'officiel), longueur de liste (3 modèles, registres conservés), liste. Pas testé sur le boîtier.

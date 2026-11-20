@@ -146,7 +146,7 @@ const LOAD_SOFT = `movw r2, #${lo(SOFT_FOCUS_BYTE)}; movt r2, #${hi(SOFT_FOCUS_B
 // --------------------------------------------------------------------------------------------
 // Icons
 
-function tile(px: Uint8Array): void {
+export function tile(px: Uint8Array): void {
   for (let y = 0; y < 40; y++) {
     for (let x = 0; x < 40; x++) {
       const i = (y * 40 + x) * 4;
@@ -158,14 +158,14 @@ function tile(px: Uint8Array): void {
 }
 
 /** Blend white over the tile at (x, y) with coverage `a` (0..1). */
-function white(px: Uint8Array, x: number, y: number, a: number, grey = 255): void {
+export function white(px: Uint8Array, x: number, y: number, a: number, grey = 255): void {
   if (x < 2 || y < 2 || x > 37 || y > 37 || a <= 0) return;
   const i = (y * 40 + x) * 4;
   for (let c = 0; c < 3; c++) px[i + c] = Math.round(px[i + c] + (grey - px[i + c]) * Math.min(1, a));
 }
 
 /** 4x4 supersampled coverage of `inside` over each pixel. */
-function paint(px: Uint8Array, inside: (x: number, y: number) => number, grey = 255): void {
+export function paint(px: Uint8Array, inside: (x: number, y: number) => number, grey = 255): void {
   for (let y = 2; y < 38; y++) {
     for (let x = 2; x < 38; x++) {
       let sum = 0;

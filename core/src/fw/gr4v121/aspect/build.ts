@@ -39,6 +39,7 @@ import { installBrightAuto } from './brightauto';
 import { installNoMovie } from './nomovie';
 import { installKeyDiag } from './keydiag';
 import { installFnLists } from './fnlists';
+import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
 import type { HalationLook } from './halation';
@@ -183,6 +184,8 @@ export interface TestOptions {
   keyDiag?: boolean;
   /** GR Mod Film 1.2: Flash Exposure Comp. and Airplane Mode offered to every Fn button list (see `fnlists.ts`). */
   fnAll?: boolean;
+  /** GR Mod Film 1.2: Red Filter on the ADJ lever, in place of Framerate (see `adjredfilter.ts`). */
+  adjRedFilter?: boolean;
   /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
   hdrDiag?: boolean;
   /** Exposure preview off (issue #17), always on: the live view keeps a normal brightness (`lvpreview.ts`). */
@@ -1122,6 +1125,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   const lineOpts = features.exposurePreview || features.softFocusMenu ? { exposurePreview: !!features.exposurePreview, directFlash: !!features.directFlash, softFocus: !!features.softFocusMenu } : null;
   const ep = features.exposurePreview ? lineOpts : null;
   if (ep && test.exposurePreviewOff) fail('internal', 'exposure preview: the setting or always off, not both');
+  if (test.adjRedFilter) { icons = installAdjRedFilterIcon(patch, icons); installAdjRedFilter(patch); }
   if (features.adjSoftFocus) icons = installAdjSoftFocus(patch, icons, ep ? 0x15 : 0x14);
   // Before the date imprint's menu, which copies the list table with Flash Mode's records.
   if (features.directFlash) icons = installDirectFlash(patch, icons, !!test.directFlashDiag);

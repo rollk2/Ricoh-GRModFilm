@@ -267,6 +267,8 @@ export interface BuildOptions {
   keyDiag?: boolean;
   /** Test builds only (GR IV Monochrome 1.11): more functions in the Fn button lists. */
   fnAll?: boolean;
+  /** Test builds only (GR IV Monochrome 1.11): Red Filter on the ADJ lever. */
+  adjRedFilter?: boolean;
   /** Test builds: the HDR gain map's diagnostics segment (APP15 "GRMODHDR") in every JPEG. */
   hdrDiag?: boolean;
   /** Test builds only (GR IV 1.20): exposure preview always off (issue #17). */
@@ -1140,6 +1142,7 @@ export class Engine {
       ...(options && options.halationDiag ? { halationDiag: true } : {}),
       ...(options && options.keyDiag ? { keyDiag: true } : {}),
       ...(options && options.fnAll ? { fnAll: true } : {}),
+      ...(options && options.adjRedFilter ? { adjRedFilter: true } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),
     };
