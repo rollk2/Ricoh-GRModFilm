@@ -4664,3 +4664,27 @@ dans `holdlines_probe.py`, `holdbuttons_probe.py` repassée sur le fichier) :
 - Macro Button et Hold Macro : image n° 740 fabriquée (`drawMacroPicture`, holdlines.ts) : celle de Drive, dont la pastille
   (pixels qui diffèrent entre les images ISO et Drive) est déplacée de 18 pixels vers la gauche et 17 vers le haut, au sommet de la croix.
   Preuves : image rendue et relue dans le fichier construit, sonde `holdlines_probe.py` (260 contrôles, id d'image par ligne).
+
+## Page lue : autofocus plus rapide dans la pénombre (gr.nflaschel.de, 2026-11-20)
+
+Source : https://gr.nflaschel.de/ (recherche personnelle de nflaschel, GR IIIx firmware 1.60, novembre 2026, non affiliée à Ricoh).
+Aucune licence indiquée sur la page ; l'auteur ne propose pas le firmware modifié en téléchargement. Les notes de travail restent privées.
+
+- Résultat annoncé : de 23 à 39 % de temps de mise au point en moins en lumière faible (médiane 660 ms → 401 ms), sans changement en bonne lumière
+  (-9 à +2 %), 0 échec sur 180 appuis patchés (1 sur 165 en origine). Testé sur un seul boîtier, sur trépied, quelques scènes intérieures ;
+  la netteté des photos n'a pas été vérifiée.
+- Principe : l'AF final vient d'un balayage de contraste. Deux réglages ne servent qu'ensemble : une marge d'acceptation du pic plus basse, et
+  49 images/s au lieu de 29 dans le mode le plus sombre.
+- Les cinq changements et leurs adresses (firmware 1.60) :
+  1. marges de base, 6 flottants à 0x53c16bb0 (environ 570 à 600) : multipliées par 0,32 ;
+  2. fonction de la marge à 0x5340c590 : mise à l'échelle en lumière faible (b/y) adoucie en (b/y)^0,875 (le code n'est pas donné) ;
+  3. nombre d'échantillons en baisse avant acceptation, à 0x53c16cc0 : 3 → 2 ;
+  4. plancher de montée (mode 0), à 0x53c16d14 : 0,02 → 0,014 ;
+  5. « NO29 », à 0x533f4b10 : `movhi r3,#3` → `#2` (49 images/s là où l'appareil choisirait 29).
+- Coûts signalés : mauvais objet dans une scène à deux objets (3 appuis sur 85, non significatif), dispersion plus large à 49 images/s,
+  risque d'échec dans le noir presque complet (une règle de repli à 29 images/s sous une luminosité mesurée serait préférable).
+- Ce qui n'aide pas : forcer une cadence partout, raccourcir l'attente avant balayage, supprimer le lissage sur 3 images, changer le pas de
+  l'objectif (7 à 8 impulsions par image est l'optimum à 49 images/s).
+- Vérification faite ici : les valeurs d'origine aux adresses 1 (6 marges 569,2 / 569,2 / 574,5 / 597,8 / 563,3 / 563,3), 3, 4 et 5 sont
+  **identiques dans nos programmes GR IIIx 1.60 (fwdc243b) et GR III 2.10 (fwdc239b)**. L'adresse 2 (fonction de marge) n'a pas été lue.
+- Non applicable en l'état au GR IV Monochrome (autre programme, autres adresses).
