@@ -16,7 +16,8 @@
  *    with Fn's setting (settings object + 0x1468, the getter 0x5329f50c) holding the function for the time of the two calls (Fn
  *    carries the five keys: the up key has no setting of its own); later held codes kept back;
  *  - released: after a Hold, kept back; else the press sent, then the release goes on (a short press, on release).
- * Any other key, controller or state: as before.
+ * Any other key, controller or state: as before. Live view: any controller of the 0x08000000 family (0x08000000 only was tried first,
+ * and no long press ran on the camera: the identity of the live view's controller is not known, see `idDiag`).
  */
 import { FirmwareError } from '../../types';
 import { assembleWords, branchWord } from './arm';
@@ -31,6 +32,7 @@ export const FN_BLOCK = 0x1000, FN_OFFSET = 0x468;
 /** Time of Fn's press (word) and the state (bytes: the press kept back, « hold run »), in the zero-filled words before the heap. */
 export const HOLD_TIME = 0x55839020, HOLD_STATE = 0x55839030;
 export const HOLD_MS = 600;
+export const KEY_RING = 0x55839038;
 export const MAX_FUNCTION = 45;
 /** Fn, up, down, left, right: press code, held code (0: none), release code. */
 export const HOLD_KEYS = [
@@ -43,7 +45,7 @@ export const HOLD_KEYS = [
 const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 
 /** `functions`: the Hold function of Fn, up, down, left, right (0: none), baked into the file. */
-export function installHoldButtons(patch: Patch, functions: readonly number[]): number {
+export function installHoldButtons(patch: Patch, functions: readonly number[], idDiag = false): number {
   if (functions.length !== 5 || functions.some((f) => !Number.isInteger(f) || f < 0 || f > MAX_FUNCTION)) throw new FirmwareError('internal', 'hold buttons: five functions 0..45');
   expectWord(patch, KEY_ENTRY, 0xe1a0c00d);
   expectWord(patch, TK_GET_OTM, 0xe92d0010);
@@ -61,11 +63,13 @@ export function installHoldButtons(patch: Patch, functions: readonly number[]): 
     `cmp r5,#${c};moveq r6,#${i};moveq r7,#${ph};beq cls;`).join('')).join('');
   const pressOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.press};`).join('');
   const releaseOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.release};`).join('');
+  // Test builds: the controller's identity (low byte) of every key event of a key with a Hold function, in the key diagnostics' ring.
+  const ring = idDiag ? `movw ip,#${lo(KEY_RING)};movt ip,#${hi(KEY_RING)};ldrb r1,[ip,#7];cmp r1,#7;movhs r1,#0;strb r0,[ip,r1];add r1,r1,#1;cmp r1,#7;moveq r1,#0;strb r1,[ip,#7];` : '';
   const tbl = `movw r0,#${lo(table)};movt r0,#${hi(table)};ldrb r8,[r0,r6];`;
   const filter = patch.append((at) => assembleWords(`push {r0,r1,r4,r5,r6,r7,r8,lr};mov r4,r0;mov r5,r1;
     ${classify}b pass;
     cls:${tbl}cmp r8,#0;beq pass;cmp r8,#${MAX_FUNCTION};bhi pass;
-    bl #${APP};bl #${CONTROLLERS};ldr r0,[r0];bic r0,r0,#2;cmp r0,#0x08000000;bne pass;
+    bl #${APP};bl #${CONTROLLERS};ldr r0,[r0];${ring}cmp r0,#0x08000000;blo pass;cmp r0,#0x09000000;bhs pass;
     ${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];
     cmp r6,#0;bne handled;${now}${T}str r0,[ip];b handled;
     notpress:ldrb r0,[ip];cmp r0,r1;bne pass;cmp r7,#1;bne release;

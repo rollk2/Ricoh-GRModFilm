@@ -4562,3 +4562,9 @@ n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le
   touche, champ de Fn restauré, pile intacte, seuil de Fn à 599 et 600 ms). Pas testé sur le boîtier.
 - Restent : les cinq lignes « Hold » dans Fn Button Setting (décision de l'utilisateur, comme sur GR III) et les octets de réglage à la place de la
   table ; pas de garde « le pavé déplace le point AF » (analogue du GR III non trouvé, sans effet tant qu'aucun Hold n'est réglé).
+- Test 5 sur le boîtier : **aucun appui long ne fonctionne** (2026-11-20). Cause probable : la garde « vue en direct » (contrôleur `0x08000000` ou
+  `0x08000002`, valeurs du GR III) ne correspond pas au GR IV : seul `0x08000000` a une table de touches (`0x53243ec4`, entrées Fn 24, haut
+  26 à 28, bas 29 à 31, ...), les ids `0x0800000c/e/10/12/16/17/18` ont d'autres gestionnaires. Test 6 : garde élargie à toute la famille
+  `0x08xxxxxx` et mesure de l'identité du contrôleur (octet bas) à chaque événement d'une touche à Hold, imprimée par la datation (option
+  `holdDiag`). Remarque : les codes 21, 22, 23 sont produits par la traduction (`0x53258790`, `0x53258968`, `0x5325863c`) pour un autre type
+  brut : le 22 vu avec la touche haut longue n'est peut-être pas le maintien de la touche haut mais cet autre événement.
