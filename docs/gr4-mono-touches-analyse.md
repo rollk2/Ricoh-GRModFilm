@@ -28,6 +28,14 @@ Trois listes d'octets, filtrées par `0x531d7be0` (voir `film-mode-notes.md`) :
 | 43-45 | Touch AF, HDF, Red Filter | x | x | x |
 | 39-42 | numéros sans texte : inutilisés | | | |
 
+**Correction (2026-11-20, remarque de l'utilisateur)** : `fwdc248b.bin` est le firmware commun au GR IV, au GR IV HDF et au GR IV
+Monochrome ; le tableau ci-dessus est donc la liste **statique** de tout le fichier, pas ce que le Mono affiche. Le filtre
+`0x531d7be0` retire à l'exécution les fonctions d'un autre modèle : **25 ND Filter**, **30 White Balance** (test explicite « Mono »
+`0x5340171c` : cachée sur le Mono), **44 HDF** et **45 Red Filter** (test d'une classe de modèle, `0x533f26e4` valant 0, 1, 2).
+Le schéma (ND, HDF, Red Filter, une classe chacun) va dans le sens de la remarque : ND et HDF n'existent pas sur le Mono, Red Filter
+y remplace le ND. Non vérifié par émulation (la classe lue dépend de l'état du boîtier) : la liste réellement affichée sera relevée sur le boîtier.
+Les analyses des sections 2 et 3 sont à relire avec la même réserve (ND Filter, HDF, White Balance ne concernent pas le Mono).
+
 Constats :
 - **Flash Exposure Comp. (23) n'est dans aucune liste de touche** alors que la fonction existe (elle est dans la liste ADJ).
 - **Enable AF, AF+AE Lock, AE Lock, One Push AE (5, 6, 7, 33)** ne sont proposées qu'aux listes A : pas au Wireless long ni à Focus
