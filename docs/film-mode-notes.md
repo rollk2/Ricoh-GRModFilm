@@ -4479,3 +4479,12 @@ Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo
   recopiées plus longues, constructeurs `0x531dd108/188/20c` repointés). Vérifié : tables relues dans le fichier construit. 5, 6, 7, 33
   restent exclues de B et C (leur exécuteur les refuse). Pas testé sur le boîtier.
 - À faire : retirer Framerate de la liste ADJ ; étendre l'ADJ ; fonctions nouvelles.
+- (2026-11-20, suite) La liste C (septième ligne de Fn Button Setting, réglage `CustomSwitchFocusSetting`) n'est plus modifiée :
+  l'utilisateur la règle comme il veut aujourd'hui. `fnAll` n'ajoute que 23 et 37 aux listes A et B.
+- **Liste ADJ Mode Setting** : table d'octets `0x53de6790`, 19 fonctions `[0,1,2,3,4,5,19,6,7,8,9,11,12,13,14,15,16,20,17]` (constructeur
+  `0x531dce2c`, sans filtre de modèle) : **18 Framerate et 10 (Flash Exposure Comp., repris par le flou de GR Mod) n'y sont pas** ; rien
+  à retirer pour Framerate. **Red Filter n'est pas une fonction ADJ** (fonctions 0 à 20).
+- Enregistrement d'une fonction ADJ (table `0x53dcb494`, 0x5c octets) : cinq méthodes (nom `+0x10`, dessin `+0x18`, « est courante » `+0x20`,
+  fixer `+0x28`, nombre de valeurs `+0x30`). Exemple Touch AF (20) : table d'octets des valeurs `0x53de6d7c`, nombre 5 (`0x531bbcec`), dessin
+  par les aides générales `0x53391ba8` (icône) et `0x533900f4` (texte) de la valeur, lecture `0x532a0d94`, écriture par l'objet `0x53241240`.
+  Chaque nouvelle fonction demande son lecteur, son écrivain et ses valeurs (énumérations globales) : à lire réglage par réglage.

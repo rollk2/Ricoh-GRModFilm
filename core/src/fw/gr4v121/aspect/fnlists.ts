@@ -5,14 +5,15 @@
  * The three lists of functions (byte tables, built by 0x531dd108, 0x531dd188 and 0x531dd20c, each function asked of the
  * filter 0x531d7be0 which leaves out the other models': ND Filter, White Balance and HDF on the Monochrome) are, in the
  * official file:
- *   A 0x53de6764, 39 (Fn, the four-way pad's keys, Wireless short), B 0x53de67fc, 35 (Wireless long), C 0x53de695c, 37 (Focus).
+ *   A 0x53de6764, 39 (Fn, the four-way pad's keys, Wireless short), B 0x53de67fc, 35 (Wireless long), C 0x53de695c, 37 (the seventh row
+ *   of Fn Button Setting, setting `CustomSwitchFocusSetting`: left as it is, it is set up as the user wants it).
  * The jump tables that run them (GetEventCustomize 0x53399990; GetEventSwitchWlan 0x53398320, whose table at 0x53398488 is
  * indexed by function + 1 and ends in an assertion for 5, 6, 7 and 33, the four the Wireless lists do not offer) show that
  * the camera runs more than it lists:
  *   - 23 Flash Exposure Comp. is in no list (its own handler exists, the ADJ lever has it);
  *   - 37 Airplane Mode is in C only.
- * Added here, in the official order (23 after 22, 37 after 36): 23 and 37 in A and B, 23 in C. 5, 6, 7 and 33 stay out of B
- * and C (their executor refuses them: they are not added without reading it).
+ * Added here, in the official order (23 after 22, 37 after 36): 23 and 37 in A and B. C is not touched. 5, 6, 7 and 33 stay out
+ * of B (its executor refuses them).
  */
 import { FirmwareError } from '../../types';
 import { movWord } from './arm';
@@ -23,7 +24,6 @@ interface FnList { name: string; table: number; count: number; movw: number; mov
 const LISTS: readonly FnList[] = [
   { name: 'A', table: 0x53de6764, count: 39, movw: 0x531dd10c, movt: 0x531dd110, end: 0x531dd120, add: [23, 37] },
   { name: 'B', table: 0x53de67fc, count: 35, movw: 0x531dd190, movt: 0x531dd194, end: 0x531dd1a4, add: [23, 37] },
-  { name: 'C', table: 0x53de695c, count: 37, movw: 0x531dd214, movt: 0x531dd218, end: 0x531dd228, add: [23] },
 ];
 const AFTER: Readonly<Record<number, number>> = { 23: 22, 37: 36 };
 
