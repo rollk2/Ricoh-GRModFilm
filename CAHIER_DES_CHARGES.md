@@ -176,6 +176,7 @@ Décisions des 2026-11-10 et 2026-11-11.
 
 ### Après la v1 stabilisée (ambitieux, à étudier)
 12. Améliorer l'autofocus en basse lumière.
+    - Piste (2026-11-20) : la recherche de nflaschel (https://gr.nflaschel.de/, GR IIIx 1.60) : marges d'acceptation du pic plus basses et 49 images/s au lieu de 29 en pénombre, de 23 à 39 % de temps de mise au point en moins annoncés (un seul boîtier, sur trépied ; netteté non vérifiée). Les adresses et valeurs d'origine sont les mêmes dans notre GR III 2.10 et GR IIIx 1.60. Option de moteur `afDim` (neuf mots) faite, build d'essai GR III 2.10 à mesurer ; l'exposant (b/y)^0,875 n'est pas fait (code non publié). À publier en mode expérimental, avec un crédit à l'auteur. GR IV : table de marges différente, à étudier. Voir `docs/film-mode-notes.md`.
 13. Améliorer l'autonomie de la batterie.
 
 ### Nouvelles fonctions
@@ -234,6 +235,8 @@ Décisions des 2026-11-10 et 2026-11-11.
     - Mise en œuvre : un octet libre (un bit par réglage) écrit dans les 8 enregistrements ; écran de cases copié de Mode Memory (comme AF Point et Apply to U) ; les filtres actuels (lignes du menu, fonctions des touches, Hold, Wireless, cases ADJ lues Off, cases de Mode Memory forcées à « mémorisée ») testent le bit au lieu d'une liste fixe.
     - Point dur : les listes d'ADJ Mode Setting, aujourd'hui raccourcies au build, à recalculer à l'ouverture de l'écran dans une copie en RAM.
     - Estimation : moyenne, 8 à 14 builds de test, 4 à 6 sessions. Réalisé en 4 builds (T-HSET1, 1b, 2, 3), voie A pour les listes d'ADJ (calcul à la volée, sans RAM).
+
+28. Mise au point manuelle (MF) avec la molette avant (demande du 2026-11-20). En MF, la molette avant règle la mise au point (aujourd'hui, le réglage de la distance se fait par une autre commande). À étudier d'abord : quel code la molette avant envoie en MF (codes 9 et 10 relevés pour la molette avant du GR III, voir l'entrée « Fn maintenu + molette avant ») et ce que fait déjà le boîtier de ces codes dans ce mode ; la fonction de mise au point manuelle que la molette arrière appelle ; le pas de réglage (un cran = une impulsion d'objectif ?) et l'interaction avec l'agrandissement automatique (MF Auto Magnification). Modèles : GR III / IIIx d'abord ; GR IV (Monochrome) à étudier ensuite, selon ses molettes. Option de l'application, désactivée par défaut. Estimation : à faire après la phase d'étude, non engagée.
 
 ### Reprises des forks de GR Mod
 Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre est permis, en citant chaque auteur dans le README (section Thanks) et dans les messages de commit.
