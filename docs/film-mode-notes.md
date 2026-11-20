@@ -4568,3 +4568,8 @@ n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le
   `0x08xxxxxx` et mesure de l'identité du contrôleur (octet bas) à chaque événement d'une touche à Hold, imprimée par la datation (option
   `holdDiag`). Remarque : les codes 21, 22, 23 sont produits par la traduction (`0x53258790`, `0x53258968`, `0x5325863c`) pour un autre type
   brut : le 22 vu avec la touche haut longue n'est peut-être pas le maintien de la touche haut mais cet autre événement.
+- Test 6 sur le boîtier : bande `00000000 03000000` après cinq appuis courts (10 événements) : l'identité du contrôleur a toujours l'octet bas 0
+  (`0x08000000`) : **la garde n'est pas en cause**. L'objet des réglages (`0x53241240` : `0x550832a8`) est bien dans la plage testée. Hypothèse
+  suivante : les codes de maintien ne viennent plus (ou pas) quand l'appui est retenu : test 7 déclenche aussi par la durée à tous les
+  relâchements (comme Fn), et la bande note les étapes du filtre (0x10 + touche appui, 0x20 maintien, 0x30 relâchement, 0x40 appui rejoué,
+  0x80 fonction lancée, 0xA0 retour ; touches 0 Fn, 1 haut, 2 bas, 3 gauche, 4 droite). Émulation : 45 cas.

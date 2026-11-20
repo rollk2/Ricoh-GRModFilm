@@ -16,8 +16,9 @@
  *    with Fn's setting (settings object + 0x1468, the getter 0x5329f50c) holding the function for the time of the two calls (Fn
  *    carries the five keys: the up key has no setting of its own); later held codes kept back;
  *  - released: after a Hold, kept back; else the press sent, then the release goes on (a short press, on release).
- * Any other key, controller or state: as before. Live view: any controller of the 0x08000000 family (0x08000000 only was tried first,
- * and no long press ran on the camera: the identity of the live view's controller is not known, see `idDiag`).
+ * A key released after HOLD_MS or more without a held code runs the function too (the first test build on the camera ran nothing: the held
+ * codes may not come once the press is kept back). Any other key, controller or state: as before. Live view: any controller of the 0x08000000 family (0x08000000 only was tried first,
+ * and no long press ran on the camera: the identity of the live view's controller is not known, see  `idDiag`).
  */
 import { FirmwareError } from '../../types';
 import { assembleWords, branchWord } from './arm';
@@ -63,22 +64,26 @@ export function installHoldButtons(patch: Patch, functions: readonly number[], i
     `cmp r5,#${c};moveq r6,#${i};moveq r7,#${ph};beq cls;`).join('')).join('');
   const pressOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.press};`).join('');
   const releaseOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.release};`).join('');
-  // Test builds: the controller's identity (low byte) of every key event of a key with a Hold function, in the key diagnostics' ring.
-  const ring = idDiag ? `movw ip,#${lo(KEY_RING)};movt ip,#${hi(KEY_RING)};ldrb r1,[ip,#7];cmp r1,#7;movhs r1,#0;strb r0,[ip,r1];add r1,r1,#1;cmp r1,#7;moveq r1,#0;strb r1,[ip,#7];` : '';
+  // Test builds (`mark`): what the filter does, in the key diagnostics' ring (8 bytes at KEY_RING, byte 7 the next slot): for each event of a
+  // key with a Hold function in the live view, 0x10 + key (pressed), 0x20 + key (held code), 0x30 + key (released), then 0x40 + key (the
+  // press replayed: a short press), 0x80 + key (the function run), 0xA0 + key (back from it); key 0 Fn, 1 up, 2 down, 3 left, 4 right.
+  const RING = (reg: string) => idDiag ? `movw ip,#${lo(KEY_RING)};movt ip,#${hi(KEY_RING)};ldrb r2,[ip,#7];cmp r2,#7;movhs r2,#0;strb ${reg},[ip,r2];add r2,r2,#1;cmp r2,#7;moveq r2,#0;strb r2,[ip,#7];` : '';
+  const ring = '';
+  const phaseMark = idDiag ? `cmp r7,#1;movlo r1,#0x10;moveq r1,#0x20;movhi r1,#0x30;add r1,r1,r6;${RING('r1')}` : '';
   const tbl = `movw r0,#${lo(table)};movt r0,#${hi(table)};ldrb r8,[r0,r6];`;
   const filter = patch.append((at) => assembleWords(`push {r0,r1,r4,r5,r6,r7,r8,lr};mov r4,r0;mov r5,r1;
     ${classify}b pass;
     cls:${tbl}cmp r8,#0;beq pass;cmp r8,#${MAX_FUNCTION};bhi pass;
     bl #${APP};bl #${CONTROLLERS};ldr r0,[r0];${ring}cmp r0,#0x08000000;blo pass;cmp r0,#0x09000000;bhs pass;
-    ${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];
-    cmp r6,#0;bne handled;${now}${T}str r0,[ip];b handled;
+    ${phaseMark}${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];
+    ${now}${T}str r0,[ip];b handled;
     notpress:ldrb r0,[ip];cmp r0,r1;bne pass;cmp r7,#1;bne release;
     ldrb r0,[ip,#1];cmp r0,#0;bne handled;mov r0,#1;strb r0,[ip,#1];
-    run:${FIELD('handled')}ldrb r2,[ip,#${FN_OFFSET}];strb r8,[ip,#${FN_OFFSET}];push {r2,ip};
-    mov r1,#${K[0].press};mov r0,r4;bl #${orig};mov r1,#${K[0].release};mov r0,r4;bl #${orig};pop {r2,ip};strb r2,[ip,#${FN_OFFSET}];b handled;
+    run:${idDiag ? `add r1,r6,#0x80;${RING('r1')}` : ''}${FIELD('handled')}ldrb r2,[ip,#${FN_OFFSET}];strb r8,[ip,#${FN_OFFSET}];push {r2,ip};
+    mov r1,#${K[0].press};mov r0,r4;bl #${orig};mov r1,#${K[0].release};mov r0,r4;bl #${orig};pop {r2,ip};strb r2,[ip,#${FN_OFFSET}];${idDiag ? `add r1,r6,#0xA0;${RING('r1')}` : ''}b handled;
     release:${S}mov r0,#0;strb r0,[ip];ldrb r0,[ip,#1];cmp r0,#0;bne handled;
-    cmp r6,#0;bne short;push {r1};${now}pop {r1};${T}ldr r2,[ip];sub r0,r0,r2;movw r2,#${HOLD_MS};cmp r0,r2;bhs run;
-    short:${pressOf}mov r0,r4;bl #${orig};
+    push {r1};${now}pop {r1};${T}ldr r2,[ip];sub r0,r0,r2;movw r2,#${HOLD_MS};cmp r0,r2;bhs run;
+    short:${idDiag ? `add r1,r6,#0x40;${RING('r1')}` : ''}${pressOf}mov r0,r4;bl #${orig};
     pass:pop {r0,r1,r4,r5,r6,r7,r8,lr};mov ip,sp;b #${KEY_ENTRY + 4};
     handled:mov r0,#1;str r0,[sp];pop {r0,r1,r4,r5,r6,r7,r8,pc};`, at), 4);
   patch.setWord(KEY_ENTRY, branchWord(KEY_ENTRY, filter), 'hold buttons: long presses at the key entry');

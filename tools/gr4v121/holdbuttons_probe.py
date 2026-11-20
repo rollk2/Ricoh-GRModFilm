@@ -81,6 +81,9 @@ def main():
         c.key(press); log, r = c.key(held); ok(log == [(24, f), (25, f)] and r == 1, ('held', press, log, r))
         log, r = c.key(held); ok(log == [] and r == 1, ('held again', press, log))
         log, r = c.key(release); ok(log == [] and r == 1, ('released after hold', press, log))
+        # a press released after the threshold, no held code: runs too; just before: a short press
+        c.key(press); log, r = c.key(release, dt=900); ok(log == [(24, f), (25, f)] and r == 1, ('long by time', press, log, r))
+        c.key(press); log, r = c.key(release, dt=599); ok(log == [(press, 7), (release, 7)], ('short by time', press, log))
         # a stray held code with no press: passes
         log, r = c.key(held); ok(log == [(held, 7)], ('stray held', held, log))
     if fns[0]:
