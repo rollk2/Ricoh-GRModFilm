@@ -40,7 +40,7 @@ import { installNoMovie } from './nomovie';
 import { installKeyDiag } from './keydiag';
 import { installFnLists } from './fnlists';
 import { installHoldButtons } from './holdbuttons';
-import { HOLD_BYTES, installHoldLines } from './holdlines';
+import { HOLD_BYTES, MACRO_BYTE, installHoldLines, installMacroIcon } from './holdlines';
 import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
@@ -188,8 +188,6 @@ export interface TestOptions {
   fnAll?: boolean;
   /** GR Mod Film 1.2: the Hold function of Fn, up, down, left, right (0: none), baked in the file (see `holdbuttons.ts`). */
   holdTest?: readonly number[];
-  /** With `holdTest`: the controller identities of the keys' events in the date imprint's two words (no guard). */
-  holdDiag?: boolean;
   /** With `holdTest`: the Hold Fn line in Fn Button Setting (see `holdlines.ts`), Fn's Hold function read from it. */
   holdLines?: boolean;
   /** GR Mod Film 1.2: Red Filter on the ADJ lever, in place of Framerate (see `adjredfilter.ts`). */
@@ -1114,12 +1112,13 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   initializeScaffold(patch);
   // Before everything that copies the menu descriptors (the wide menus): the movie tab's is changed in place.
   if (features.noMovie) installNoMovie(patch);
-  if (test.fnAll) installFnLists(patch);
-  const holdFilter = test.holdTest ? installHoldButtons(patch, test.holdTest, !!test.holdDiag, test.holdLines ? HOLD_BYTES : []) : 0;
+  if (test.fnAll) installFnLists(patch, !!test.holdLines);
+  const holdFilter = test.holdTest ? installHoldButtons(patch, test.holdTest, test.holdLines ? { hold: HOLD_BYTES, macro: MACRO_BYTE } : undefined) : 0;
   if (test.holdLines) installHoldLines(patch);
   let icons = iconbin;
+  if (test.holdLines) icons = installMacroIcon(patch, icons);
   if (ratios.length > 0) {
-    const installed = installIcons(patch, iconbin, ratios);
+    const installed = installIcons(patch, icons, ratios);
     icons = installed.iconbin;
     const menu = installMenu(patch, ratios, installed.ids);
     const { p, scale } = buildGeometry(patch, ratios);
@@ -1153,8 +1152,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
     const look = features.guard ? { stash: LOOK_STASH, monoLooks: monoTable(patch, slots.map((x) => monoLook(x.matrixQ13, x.curves, x.postQ9)), FIRST_ADDED_LOOK), names: lookNames(patch, slots.map((x) => x.name)) } : undefined;
     // Halation diagnostics: words[0] the picture's look word (FRAME_LOOK), words[1] the module's status (HALATION_STATUS_WORD).
     if (test.halationDiag && FRAME_LOOK + 4 !== HALATION_STATUS_WORD) fail('internal', 'halation diagnostics: the two words are not next to each other');
-    installDateStamp(patch, fixed ? patch.append([fixed, 0, 0, 0], 4) : DATESTAMP_BYTE, test.halationDiag || test.keyDiag || test.holdDiag ? { words: FRAME_LOOK } : test.directFlashDiag && features.directFlash ? 'df' : !!test.dateStampDiag, look);
-    if (test.holdDiag && look) fail('internal', 'hold diagnostics: build without the guard');
+    installDateStamp(patch, fixed ? patch.append([fixed, 0, 0, 0], 4) : DATESTAMP_BYTE, test.halationDiag || test.keyDiag ? { words: FRAME_LOOK } : test.directFlashDiag && features.directFlash ? 'df' : !!test.dateStampDiag, look);
     if (test.keyDiag) { if (look) fail('internal', 'key diagnostics: build without the guard'); installKeyDiag(patch, holdFilter); }
     if (!fixed) icons = installDateStampMenu(patch, icons, stillLines);
     if (look && slots.length === 0) installLookStash(patch);

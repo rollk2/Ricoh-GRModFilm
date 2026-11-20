@@ -43,19 +43,23 @@ export function drawRedFilterIcon(): Uint8Array {
   return px;
 }
 
-/** The icon (call with the other icons, before the menus). Returns ICONBIN with it appended. */
-export function installAdjRedFilterIcon(patch: Patch, iconbin: Uint8Array): Uint8Array {
-  if (patch.word(ICON_CATALOG + RED_FILTER_ICON_ID * 4) !== 0) throw new FirmwareError('unexpected-layout', 'icon number already in use');
+/** Appends a 40 x 40 icon of the given number (not yet given out) to ICONBIN; returns the new ICONBIN. */
+export function appendIcon(patch: Patch, iconbin: Uint8Array, id: number, px: Uint8Array): Uint8Array {
+  if (patch.word(ICON_CATALOG + id * 4) !== 0) throw new FirmwareError('unexpected-layout', 'icon number already in use');
   const pad = (4 - (iconbin.length % 4)) % 4;
   const offset = iconbin.length + pad;
-  const px = drawRedFilterIcon();
   const descriptor = patch.append(concat([u16le([1, 40, 40, 0]), u32le([offset / 4])]), 16);
-  patch.write(ICON_CATALOG + RED_FILTER_ICON_ID * 4, u32le([descriptor]));
+  patch.write(ICON_CATALOG + id * 4, u32le([descriptor]));
   for (const [site, register] of LOOKUP_BOUNDS) {
     if ((patch.word(site) & 0xfff0f000) >>> 0 !== (0xe3000000 | (register << 12)) >>> 0) throw new FirmwareError('unexpected-layout', 'icon bound is not a MOVW');
-    patch.setWord(site, movWord(register, Math.max(RED_FILTER_ICON_ID, movImmediate(patch.word(site)))), 'icon upper bound');
+    patch.setWord(site, movWord(register, Math.max(id, movImmediate(patch.word(site)))), 'icon upper bound');
   }
   return concat([iconbin, new Uint8Array(pad), px]);
+}
+
+/** The icon (call with the other icons, before the menus). Returns ICONBIN with it appended. */
+export function installAdjRedFilterIcon(patch: Patch, iconbin: Uint8Array): Uint8Array {
+  return appendIcon(patch, iconbin, RED_FILTER_ICON_ID, drawRedFilterIcon());
 }
 
 /** After the icon; before anything that copies the ADJ table (adjslots, exposure preview). */

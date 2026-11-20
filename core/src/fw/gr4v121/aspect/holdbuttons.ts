@@ -30,11 +30,14 @@ export const TK_GET_OTM = 0x53067d94;
 const APP = 0x53240cac, CONTROLLERS = 0x53240e20, SETTINGS = 0x53241240;
 /** Fn's function: byte 0x469 of the block 0x1000 into the settings object (getter 0x5329f50c: add r0,r0,#0x1000; ldrb r0,[r0,#0x469]). */
 export const FN_BLOCK = 0x1000, FN_OFFSET = 0x469;
+/** The live bytes of the other keys' own functions (+ FN_BLOCK): Fn, up (none: the Macro Button line's byte), down, left (ISO Button), right (Drive Button). */
+export const OWN_OFFSETS = [0x469, 0, 0x46c, 0x46a, 0x46b] as const;
 /** Time of Fn's press (word) and the state (bytes: the press kept back, « hold run »), in the zero-filled words before the heap. */
 export const HOLD_TIME = 0x55839020, HOLD_STATE = 0x55839030;
 export const HOLD_MS = 600;
-export const KEY_RING = 0x55839038;
-export const MAX_FUNCTION = 45;
+export const MAX_FUNCTION = 46;
+/** The function « Macro Mode »: the up key's own short press. */
+export const MACRO_FUNCTION = 46;
 /** Fn, up, down, left, right: press code, held code (0: none), release code. */
 export const HOLD_KEYS = [
   { name: 'Fn', press: 24, held: 0, release: 25 },
@@ -45,9 +48,16 @@ export const HOLD_KEYS = [
 ] as const;
 const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 
-/** `functions`: the Hold function of Fn, up, down, left, right (0: none), baked into the file. */
-export function installHoldButtons(patch: Patch, functions: readonly number[], idDiag = false, liveBytes: readonly number[] = []): number {
-  if (functions.length !== 5 || functions.some((f) => !Number.isInteger(f) || f < 0 || f > MAX_FUNCTION)) throw new FirmwareError('internal', 'hold buttons: five functions 0..45');
+export interface HoldLive {
+  /** The five bytes holding the keys' Hold functions (Fn, up, down, left, right). */
+  hold: readonly number[];
+  /** The Macro Button line's byte (0: Macro Mode, 255: Off, else the function), or 0 for no Macro Button. */
+  macro: number;
+}
+
+/** `functions`: the Hold function of Fn, up, down, left, right (0: none), baked into the file, unless `live` gives their bytes. */
+export function installHoldButtons(patch: Patch, functions: readonly number[], live?: HoldLive): number {
+  if (functions.length !== 5 || functions.some((f) => !Number.isInteger(f) || f < 0 || f > MAX_FUNCTION)) throw new FirmwareError('internal', 'hold buttons: five functions 0..46');
   expectWord(patch, KEY_ENTRY, 0xe1a0c00d);
   expectWord(patch, TK_GET_OTM, 0xe92d0010);
   expectWord(patch, TK_GET_OTM + 0x20, 0x80510100);
@@ -55,39 +65,54 @@ export function installHoldButtons(patch: Patch, functions: readonly number[], i
   const table = patch.append(Uint8Array.from(functions), 4);
   const orig = patch.append((at) => assembleWords(`mov ip,sp; b #${KEY_ENTRY + 4}`, at), 4);
   const K = HOLD_KEYS;
+  const own = !!(live && live.macro);
   const S = `movw ip,#${lo(HOLD_STATE)};movt ip,#${hi(HOLD_STATE)};`;
   const T = `movw ip,#${lo(HOLD_TIME)};movt ip,#${hi(HOLD_TIME)};`;
   const now = `sub sp,sp,#8;mov r0,sp;bl #${TK_GET_OTM};ldr r0,[sp,#4];add sp,sp,#8;`;
-  // ip = the settings object + FN_BLOCK (Fn's field is at + FN_OFFSET), or branch to `label` when the object is not where it should be.
-  const FIELD = (label: string) => `bl #${APP};bl #${SETTINGS};cmp r0,#0x55000000;blo ${label};cmp r0,#0x56000000;bhs ${label};add ip,r0,#${FN_BLOCK};`;
+  // r0 = the settings object, or branch to `label` when it is not where it should be.
+  const OBJECT = (label: string) => `bl #${APP};bl #${SETTINGS};cmp r0,#0x55000000;blo ${label};cmp r0,#0x56000000;bhs ${label};`;
   const classify = K.map((k, i) => ([[k.press, 0], ...(k.held ? [[k.held, 1]] : []), [k.release, 2]] as const).map(([c, ph]) =>
     `cmp r5,#${c};moveq r6,#${i};moveq r7,#${ph};beq cls;`).join('')).join('');
   const pressOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.press};`).join('');
-  const releaseOf = K.map((k, i) => `cmp r6,#${i};moveq r1,#${k.release};`).join('');
-  // Test builds (`mark`): what the filter does, in the key diagnostics' ring (8 bytes at KEY_RING, byte 7 the next slot): for each event of a
-  // key with a Hold function in the live view, 0x10 + key (pressed), 0x20 + key (held code), 0x30 + key (released), then 0x40 + key (the
-  // press replayed: a short press), 0x80 + key (the function run), 0xA0 + key (back from it); key 0 Fn, 1 up, 2 down, 3 left, 4 right.
-  const RING = (reg: string) => idDiag ? `movw ip,#${lo(KEY_RING)};movt ip,#${hi(KEY_RING)};ldrb r2,[ip,#7];cmp r2,#7;movhs r2,#0;strb ${reg},[ip,r2];add r2,r2,#1;cmp r2,#7;moveq r2,#0;strb r2,[ip,#7];` : '';
-  const ring = '';
-  const phaseMark = idDiag ? `cmp r7,#1;movlo r1,#0x10;moveq r1,#0x20;movhi r1,#0x30;add r1,r1,r6;${RING('r1')}` : '';
-  // `liveBytes`: the addresses of the five bytes holding the keys' Hold functions (the Hold lines of Fn Button Setting), read in place of the table.
-  const live = liveBytes.length === 5 ? liveBytes.map((a, k) => `cmp r6,#${k};movweq r0,#${lo(a)};movteq r0,#${hi(a)};`).join('') + 'ldrb r8,[r0];' : '';
-  const tbl = live || `movw r0,#${lo(table)};movt r0,#${hi(table)};ldrb r8,[r0,r6];`;
-  const filter = patch.append((at) => assembleWords(`push {r0,r1,r4,r5,r6,r7,r8,lr};mov r4,r0;mov r5,r1;
+  // r8: the key's Hold function.
+  const hold = live
+    ? live.hold.map((a, k) => `cmp r6,#${k};movweq r0,#${lo(a)};movteq r0,#${hi(a)};`).join('') + 'ldrb r8,[r0];'
+    : `movw r0,#${lo(table)};movt r0,#${hi(table)};ldrb r8,[r0,r6];`;
+  // r9: the key's own function (0 none), with the Macro Button.
+  const ownFn = own ? `${OBJECT('pass')}
+    cmp r6,#1;bne notup;
+    movw r0,#${lo(live!.macro)};movt r0,#${hi(live!.macro)};ldrb r9,[r0];cmp r9,#0;moveq r9,#${MACRO_FUNCTION};beq owned;cmp r9,#255;moveq r9,#0;b owned;
+    notup:add ip,r0,#${FN_BLOCK};
+    ${OWN_OFFSETS.map((o, k) => (o ? `cmp r6,#${k};ldrbeq r9,[ip,#${o}];` : '')).join('')}owned:` : '';
+  // A key is dealt with here when it has a Hold function, or, with the Macro Button, when its own function is not what the camera does itself.
+  const special = own
+    ? `cmp r8,#0;bne special;cmp r6,#1;beq upkey;cmp r9,#${MACRO_FUNCTION};beq special;b pass;upkey:cmp r9,#${MACRO_FUNCTION};beq pass;special:`
+    : 'cmp r8,#0;beq pass;';
+  // What a short press does: its own function (with the Macro Button), else the camera's (the press replayed, the release goes on).
+  const short = own
+    ? `short:cmp r6,#1;beq upshort;cmp r9,#${MACRO_FUNCTION};bne native;mov r8,#${MACRO_FUNCTION};bl runf;b handled;
+       upshort:cmp r9,#${MACRO_FUNCTION};beq native;cmp r9,#0;beq handled;mov r8,r9;bl runf;b handled;
+       native:${pressOf}mov r0,r4;bl #${orig};b pass;`
+    : `short:${pressOf}mov r0,r4;bl #${orig};b pass;`;
+  const filter = patch.append((at) => assembleWords(`push {r0,r1,r4,r5,r6,r7,r8,r9,lr};mov r4,r0;mov r5,r1;
     ${classify}b pass;
-    cls:${tbl}cmp r8,#0;beq pass;cmp r8,#${MAX_FUNCTION};bhi pass;
-    bl #${APP};bl #${CONTROLLERS};ldr r0,[r0];${ring}cmp r0,#0x08000000;blo pass;cmp r0,#0x09000000;bhs pass;
-    ${phaseMark}${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];
+    cls:${hold}cmp r8,#${MAX_FUNCTION};movhi r8,#0;${ownFn}${special}
+    bl #${APP};bl #${CONTROLLERS};ldr r0,[r0];cmp r0,#0x08000000;blo pass;cmp r0,#0x09000000;bhs pass;
+    ${pressOf}${S}cmp r7,#0;bne notpress;strb r1,[ip];mov r0,#0;strb r0,[ip,#1];
     ${now}${T}str r0,[ip];b handled;
     notpress:ldrb r0,[ip];cmp r0,r1;bne pass;cmp r7,#1;bne release;
-    ldrb r0,[ip,#1];cmp r0,#0;bne handled;mov r0,#1;strb r0,[ip,#1];
-    run:${idDiag ? `add r1,r6,#0x80;${RING('r1')}` : ''}${FIELD('handled')}ldrb r2,[ip,#${FN_OFFSET}];strb r8,[ip,#${FN_OFFSET}];push {r2,ip};
-    mov r1,#${K[0].press};mov r0,r4;bl #${orig};mov r1,#${K[0].release};mov r0,r4;bl #${orig};pop {r2,ip};strb r2,[ip,#${FN_OFFSET}];${idDiag ? `add r1,r6,#0xA0;${RING('r1')}` : ''}b handled;
+    cmp r8,#0;beq handled;ldrb r0,[ip,#1];cmp r0,#0;bne handled;mov r0,#1;strb r0,[ip,#1];bl runf;b handled;
     release:${S}mov r0,#0;strb r0,[ip];ldrb r0,[ip,#1];cmp r0,#0;bne handled;
-    push {r1};${now}pop {r1};${T}ldr r2,[ip];sub r0,r0,r2;movw r2,#${HOLD_MS};cmp r0,r2;bhs run;
-    short:${idDiag ? `add r1,r6,#0x40;${RING('r1')}` : ''}${pressOf}mov r0,r4;bl #${orig};
-    pass:pop {r0,r1,r4,r5,r6,r7,r8,lr};mov ip,sp;b #${KEY_ENTRY + 4};
-    handled:mov r0,#1;str r0,[sp];pop {r0,r1,r4,r5,r6,r7,r8,pc};`, at), 4);
+    cmp r8,#0;beq short;push {r1};${now}pop {r1};${T}ldr r2,[ip];sub r0,r0,r2;movw r2,#${HOLD_MS};cmp r0,r2;blo short;bl runf;b handled;
+    ${short}
+    pass:pop {r0,r1,r4,r5,r6,r7,r8,r9,lr};mov ip,sp;b #${KEY_ENTRY + 4};
+    handled:mov r0,#1;str r0,[sp];pop {r0,r1,r4,r5,r6,r7,r8,r9,pc};
+    runf:push {r0,r1,r2,r3,r9,ip,lr};
+    cmp r8,#${MACRO_FUNCTION};bne fnrun;
+    mov r1,#${K[1].press};mov r0,r4;bl #${orig};mov r1,#${K[1].release};mov r0,r4;bl #${orig};b rundone;
+    fnrun:${OBJECT('rundone')}add ip,r0,#${FN_BLOCK};ldrb r2,[ip,#${FN_OFFSET}];strb r8,[ip,#${FN_OFFSET}];push {r2,ip};
+    mov r1,#${K[0].press};mov r0,r4;bl #${orig};mov r1,#${K[0].release};mov r0,r4;bl #${orig};pop {r2,ip};strb r2,[ip,#${FN_OFFSET}];
+    rundone:pop {r0,r1,r2,r3,r9,ip,pc};`, at), 4);
   patch.setWord(KEY_ENTRY, branchWord(KEY_ENTRY, filter), 'hold buttons: long presses at the key entry');
   return filter;
 }

@@ -26,25 +26,33 @@
 import { FirmwareError } from '../../types';
 import { assembleWords, branchWord, movWord } from './arm';
 import { LANGUAGES, Patch, expectWord, widenTextRows } from './build';
+import { appendIcon } from './adjredfilter';
+import { paint, tile } from './exposure';
 import { addListRecords, hookControllerFactory, installTexts } from './datestamp-menu';
 
 /** The record's live copy and the Hold bytes (record offsets), in the order of the filter's keys: Fn, up, down, left, right. */
 const RECORD = 0x550832a8 + 4;
 export const HOLD_BYTES = [0xf9, 0xfa, 0xfb, 0xe6, 0xe7].map((o) => RECORD + o);
 export const HOLD_FN_BYTE = HOLD_BYTES[0];
+/** The Macro Button line's byte (record offset 0x7A, never written by the factory defaults): 0 Macro Mode (the camera's own), 255 Off, else the function. */
+export const MACRO_BYTE = RECORD + 0x7a;
+export const MACRO_LIST_ID = 0x020001e5;
+/** The function « Macro Mode » (the up key's own short press), its text (the camera's 184) and its icon (drawn here). */
+const MACRO_FUNCTION = 46, MACRO_TEXT = 184, MACRO_ICON_ID = 739;
+const FN_TEXT = 0x5339045c, FN_ICON = 0x53391d6c;
 /** The Hold lines' list controller ids (the factory is told to hand out the Fn lists' controller for them), one per key. */
 export const HOLD_LIST_IDS = [0x020001e0, 0x020001e1, 0x020001e2, 0x020001e3, 0x020001e4] as const;
 /** A controller id of the factory's default bucket (the Fn lists'), which the Hold ids are changed to for the factory only. */
 const FN_LIST_CONTROLLER = 0x020000ec;
 /** Texts (all 21 languages: English so far): Hold Fn, Hold ISO, Hold Drive, Hold Image Control (Monochrome), Hold White Balance, Hold Macro. */
 export const HOLD_TEXT_ID = 1040;
-const HOLD_NAMES = ['Hold Fn Button', 'Hold ISO Button', 'Hold Drive Button', 'Hold Image Control Button', 'Hold White Balance Button', 'Hold Macro Button'];
+const HOLD_NAMES = ['Hold Fn Button', 'Hold ISO Button', 'Hold Drive Button', 'Hold Image Control Button', 'Hold White Balance Button', 'Hold Macro Button', 'Macro Button'];
 /**
  * The screen's rows in order, by genre: the official genres 0..5 (Fn, ISO, Drive, the fourth, Movie, Hold Movie), the Hold lines 6..10 (Fn,
  * ISO, Drive, the fourth, Macro). Hold line g stands for the key HOLD_KEY_OF_GENRE[g - 6]: the index in the filter's keys (0 Fn, 1 up, 2 down,
  * 3 left, 4 right).
  */
-const ROW_GENRES = [0, 6, 1, 7, 2, 8, 3, 9, 10, 4, 5] as const;
+const ROW_GENRES = [0, 6, 1, 7, 2, 8, 3, 9, 11, 10, 4, 5] as const;
 const HOLD_KEY_OF_GENRE = [0, 3, 4, 2, 1] as const;
 const ROWS = ROW_GENRES.length;
 const RECORD_FN = 73;
@@ -63,6 +71,24 @@ const MONO = 0x5340171c;
 const lo = (v: number): number => v & 0xffff, hi = (v: number): number => v >>> 16;
 const cmpImm = (r: number, v: number): number => (0xe3500000 | (r << 16) | v) >>> 0;
 
+/** A flower (the macro symbol): a disc with six petals, on the ADJ tile. */
+function drawMacroIcon(): Uint8Array {
+  const px = new Uint8Array(40 * 40 * 4);
+  tile(px);
+  const cx = 20, cy = 20;
+  paint(px, (x, y) => (Math.hypot(x - cx, y - cy) <= 4 ? 1 : 0));
+  for (let k = 0; k < 6; k++) {
+    const px0 = cx + 9 * Math.cos((k * Math.PI) / 3), py0 = cy + 9 * Math.sin((k * Math.PI) / 3);
+    paint(px, (x, y) => { const r = Math.hypot(x - px0, y - py0); return r <= 5 && r >= 3.2 ? 1 : 0; });
+  }
+  return px;
+}
+
+/** The icon of the function Macro Mode: appended to ICONBIN, which is returned. */
+export function installMacroIcon(patch: Patch, iconbin: Uint8Array): Uint8Array {
+  return appendIcon(patch, iconbin, MACRO_ICON_ID, drawMacroIcon());
+}
+
 export function installHoldLines(patch: Patch): void {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `Hold lines: ${m}`); };
   // What we replace is what we expect.
@@ -76,6 +102,21 @@ export function installHoldLines(patch: Patch): void {
   expectWord(patch, GETTER_CMP, cmpImm(1, 5)); // cmp r1, #5
   expectWord(patch, OPEN_CMP, cmpImm(3, 5)); // cmp r3, #5
   expectWord(patch, DESCRIPTION_CMP, cmpImm(3, 5)); // cmp r3, #5
+
+  // The function Macro Mode (46): its name (the camera's own text 184) and its icon (ours), in the two functions every Fn list reads.
+  expectWord(patch, FN_TEXT, 0xe3510000);
+  expectWord(patch, FN_TEXT + 4, 0x1a000001);
+  expectWord(patch, FN_ICON, 0xe3510000);
+  expectWord(patch, FN_ICON + 4, 0x1a000003);
+  const text = patch.append((at) => assembleWords(
+    `cmp r1, #${MACRO_FUNCTION}; movweq r0, #${MACRO_TEXT}; bxeq lr
+     cmp r1, #0; b #${FN_TEXT + 4}`, at), 4);
+  patch.setWord(FN_TEXT, branchWord(FN_TEXT, text), 'Macro Mode: the function\'s name');
+  const icon = patch.append((at) => assembleWords(
+    `cmp r1, #${MACRO_FUNCTION}; bne other
+     cmp r2, #0; movwne r0, #0; movweq r0, #${MACRO_ICON_ID}; bx lr
+     other: cmp r1, #0; b #${FN_ICON + 4}`, at), 4);
+  patch.setWord(FN_ICON, branchWord(FN_ICON, icon), 'Macro Mode: the function\'s icon');
 
   // The list: the rows, all of the type 0x22.
   const setup = patch.append((at) => assembleWords(
@@ -93,34 +134,43 @@ export function installHoldLines(patch: Patch): void {
     patch.setWord(h, movWord(r, hi(table), true), 'hold lines: the rows\' genres, high half');
   }
   for (const at of LOOP_ROWS) patch.setWord(at, cmpImm(4, ROWS), `hold lines: the rows loop takes ${ROWS} rows`);
-  patch.setWord(LOOP_VALUE, cmpImm(6, 10), 'hold lines: genres up to 10 draw a value');
+  patch.setWord(LOOP_VALUE, cmpImm(6, 11), 'hold lines: genres up to 11 draw a value');
   patch.setWord(LAST_ROW, cmpImm(0, ROWS - 1), `hold lines: the last row is row ${ROWS - 1}`);
 
   // Title (genre -> text), as the others: the function's own epilogue; the fourth key's line by the model, as the official one.
   const title = patch.append((at) => assembleWords(
     `cmp r1, #6; blo other
-     cmp r1, #10; bhi other
+     cmp r1, #11; bhi other
+     beq macrobutton
      cmp r1, #9; beq fourth
      sub r0, r1, #6
      cmp r1, #10; moveq r0, #5
      add r0, r0, #${HOLD_TEXT_ID}; b #${TITLE_RETURN}
+     macrobutton: movw r0, #${HOLD_TEXT_ID + 6}; b #${TITLE_RETURN}
      fourth: bl #${MONO}; cmp r0, #0; movwne r0, #${HOLD_TEXT_ID + 3}; movweq r0, #${HOLD_TEXT_ID + 4}; b #${TITLE_RETURN}
      other: cmp r1, #5; b #${TITLE_CMP + 4}`, at), 4);
   patch.setWord(TITLE_CMP, branchWord(TITLE_CMP, title), 'hold lines: the titles of the Hold rows');
   // The current function (genre -> value): the Hold byte (0 .. 45, else Off), through the title function's epilogue (same frame).
   const getter = patch.append((at) => assembleWords(
     `cmp r1, #6; blo other
-     cmp r1, #10; bhi other
+     cmp r1, #11; bhi other
+     beq macrobutton
      sub r1, r1, #6
      ${HOLD_KEY_OF_GENRE.map((k, i) => `cmp r1, #${i}; movweq r0, #${lo(HOLD_BYTES[k])}; movteq r0, #${hi(HOLD_BYTES[k])}`).join('\n')}
-     ldrb r0, [r0]; cmp r0, #45; movhi r0, #0
+     ldrb r0, [r0]; cmp r0, #${MACRO_FUNCTION}; movhi r0, #0
      b #${TITLE_RETURN}
+     macrobutton: movw r0, #${lo(MACRO_BYTE)}; movt r0, #${hi(MACRO_BYTE)}; ldrb r0, [r0]
+     cmp r0, #0; moveq r0, #${MACRO_FUNCTION}; beq done
+     cmp r0, #255; moveq r0, #0; beq done
+     cmp r0, #${MACRO_FUNCTION}; movhi r0, #0
+     done: b #${TITLE_RETURN}
      other: cmp r1, #5; b #${GETTER_CMP + 4}`, at), 4);
   patch.setWord(GETTER_CMP, branchWord(GETTER_CMP, getter), 'hold lines: the values of the Hold rows');
   // Opening: the list's controller id; the common tail of the official cases sets the base and goes on.
   const open = patch.append((at) => assembleWords(
     `cmp r3, #6; blo other
-     cmp r3, #10; bhi other
+     cmp r3, #11; bhi other
+     movweq r1, #${lo(MACRO_LIST_ID)}; movteq r1, #${hi(MACRO_LIST_ID)}; beq #${OPEN_GO}
      sub r3, r3, #6
      ${HOLD_LIST_IDS.map((id, i) => `cmp r3, #${i}; movweq r1, #${lo(id)}; movteq r1, #${hi(id)}`).join('\n')}
      b #${OPEN_GO}
@@ -139,7 +189,7 @@ export function installHoldLines(patch: Patch): void {
   const fv = new DataView(fn.buffer);
   if (fv.getUint32(0, true) !== 0x10000 || fv.getUint16(4, true) !== 0x1f9 || fv.getUint32(0x0c, true) !== 0x531d11e8 || fv.getUint32(0x14, true) !== 0x531d3688 ||
       fv.getUint32(0x24, true) !== 0x531d5620 || fv.getUint32(0x2c, true) !== 0x531d7020) fail('Fn Button\'s list record is not as expected');
-  const entries = HOLD_LIST_IDS.map((id, i) => {
+  const entries: { id: number; record: Uint8Array }[] = HOLD_LIST_IDS.map((id, i) => {
     const byte = HOLD_BYTES[HOLD_KEY_OF_GENRE[i]];
     const g = 6 + i; // the genre of this key's Hold line
     // (this = r0, the row's index in the function vector = r1)
@@ -157,9 +207,27 @@ export function installHoldLines(patch: Patch): void {
     rv.setUint32(0x2c, current, true);
     return { id, record };
   });
+  // The Macro Button line's list: the byte as the function (0 -> Macro Mode, 255 -> Off) and back.
+  const mset = patch.append((at) => assembleWords(
+    `ldr r3, [r0, #0x1b4]; ldrb r1, [r3, r1]
+     cmp r1, #${MACRO_FUNCTION}; moveq r1, #0; beq store
+     cmp r1, #0; moveq r1, #255
+     store: movw r2, #${lo(MACRO_BYTE)}; movt r2, #${hi(MACRO_BYTE)}; strb r1, [r2]; bx lr`, at), 4);
+  const mcurrent = patch.append((at) => assembleWords(
+    `ldr r3, [r0, #0x1b4]; ldrb r3, [r3, r1]
+     movw r2, #${lo(MACRO_BYTE)}; movt r2, #${hi(MACRO_BYTE)}; ldrb r2, [r2]
+     cmp r2, #0; moveq r2, #${MACRO_FUNCTION}; beq compare
+     cmp r2, #255; moveq r2, #0
+     compare: cmp r3, r2; moveq r0, #1; movne r0, #0; bx lr`, at), 4);
+  const macro = fn.slice();
+  const mv = new DataView(macro.buffer);
+  mv.setUint16(4, HOLD_TEXT_ID + 6, true);
+  mv.setUint32(0x24, mset, true);
+  mv.setUint32(0x2c, mcurrent, true);
+  entries.push({ id: MACRO_LIST_ID, record: macro });
   addListRecords(patch, entries, 'hold lines');
   // The factory hands out the Fn lists' controller (a cached object) for the Hold ids.
-  hookControllerFactory(patch, `${HOLD_LIST_IDS.map((id) => `movw ip, #${lo(id)}; movt ip, #${hi(id)}; cmp r1, ip; beq list`).join('\n')}
+  hookControllerFactory(patch, `${[...HOLD_LIST_IDS, MACRO_LIST_ID].map((id) => `movw ip, #${lo(id)}; movt ip, #${hi(id)}; cmp r1, ip; beq list`).join('\n')}
      b prior
      list: movw r1, #${lo(FN_LIST_CONTROLLER)}; movt r1, #${hi(FN_LIST_CONTROLLER)}`, 'hold lines: the Hold lists\' controller');
 }

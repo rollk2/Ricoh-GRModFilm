@@ -52,7 +52,9 @@ class Cam:
         return u.reg_read(UC_ARM_REG_R0), list(self.log)
 
 
-ROW_GENRES = [0, 6, 1, 7, 2, 8, 3, 9, 10, 4, 5]
+ROW_GENRES = [0, 6, 1, 7, 2, 8, 3, 9, 11, 10, 4, 5]
+MACRO_BYTE = 0x550832a8 + 4 + 0x7a
+MACRO_ID = 0x020001e5
 RECORD = 0x550832a8 + 4
 BYTES = [RECORD + o for o in (0xf9, 0xfa, 0xfb, 0xe6, 0xe7)]      # Fn, up, down, left, right
 KEY_OF_GENRE = {6: 0, 7: 3, 8: 4, 9: 2, 10: 1}
@@ -74,7 +76,7 @@ def main():
     # the genre table: the rows' order, read by all five readers
     for lo_, hi_ in ((0x531e9b30, 0x531e9b34), (0x531ea0d4, 0x531ea0d8), (0x531ea284, 0x531ea288), (0x531ea348, 0x531ea34c), (0x531ea5fc, 0x531ea604)):
         t = pointer_at(b.d, lo_, hi_)
-        ok(list(b.u.mem_read(t, 11)) == ROW_GENRES, ('genre table', hex(lo_), list(b.u.mem_read(t, 11))))
+        ok(list(b.u.mem_read(t, 12)) == ROW_GENRES, ('genre table', hex(lo_), list(b.u.mem_read(t, 12))))
     for cam in (o, b):
         for k in range(7): cam.u.mem_write(OBJ + 0x1469 + k, bytes([20 + k]))
     # the title: genres 0..5 as official (both models); the Hold genres: their texts (the fourth by the model)
@@ -82,28 +84,34 @@ def main():
         for g in range(6):
             ro, _ = o.call(0x531ea524, (THIS, g), mono=mono); rb, _ = b.call(0x531ea524, (THIS, g), mono=mono)
             ok(ro == rb, ('title', g, mono, ro, rb))
-        for g, want in ((6, 1040), (7, 1041), (8, 1042), (10, 1045)):
+        for g, want in ((6, 1040), (7, 1041), (8, 1042), (10, 1045), (11, 1046)):
             r, _ = b.call(0x531ea524, (THIS, g), mono=mono); ok(r == want, ('title', g, r))
         r, _ = b.call(0x531ea524, (THIS, 9), mono=mono); ok(r == (1043 if mono else 1044), ('title 9', mono, r))
     # the current function: 0..5 as official, the Hold genres the bytes (0..45, else Off)
     for g in range(6):
         ro, _ = o.call(0x531ea18c, (THIS, g)); rb, _ = b.call(0x531ea18c, (THIS, g)); ok(ro == rb, ('getter', g, ro, rb))
     for g, key in KEY_OF_GENRE.items():
-        for v, want in ((0, 0), (33, 33), (45, 45), (46, 0), (200, 0)):
+        for v, want in ((0, 0), (33, 33), (45, 45), (46, 46), (47, 0), (200, 0)):
             for k in range(5): b.u.mem_write(BYTES[k], bytes([0]))
             b.u.mem_write(BYTES[key], bytes([v]))
             r, _ = b.call(0x531ea18c, (THIS, g)); ok(r == want, ('getter hold', g, v, r))
             for other in range(5):
                 if other != key and v: ok(b.call(0x531ea18c, (THIS, [gg for gg, kk in KEY_OF_GENRE.items() if kk == other][0]))[0] == 0, ('getter hold isolated', g, other))
     for k in range(5): b.u.mem_write(BYTES[k], bytes([0]))
+    # genre 11, Macro Button: the byte 0 shows Macro Mode (46), 255 Off, the function as is, a stranger Off
+    for v, want in ((0, 46), (255, 0), (21, 21), (45, 45), (46, 46), (100, 0)):
+        b.u.mem_write(MACRO_BYTE, bytes([v])); r, _ = b.call(0x531ea18c, (THIS, 11)); ok(r == want, ('getter macro', v, r))
+    b.u.mem_write(MACRO_BYTE, bytes([0]))
     # the opening, row by row (the official ids for the official genres, the Hold ids for the Hold genres)
     for mono in (0, 1):
-        for row in range(11):
+        for row in range(12):
             g = ROW_GENRES[row]
             _, lb = b.call(0x531e9b14, (THIS,), row=row, mono=mono); op = [x for x in lb if x[0] == 'open']
             if g <= 5:
                 _, lo = o.call(0x531e9b14, (THIS,), row=g, mono=mono); oo = [x for x in lo if x[0] == 'open']
                 ok(op == oo, ('open', row, g, mono, op, oo))
+            elif g == 11:
+                ok(len(op) == 1 and op[0][2] == MACRO_ID and op[0][3] == 0x020000e4, ('open macro', row, op))
             else:
                 ok(len(op) == 1 and op[0][2] == IDS[g - 6] and op[0][3] == 0x020000e4, ('open hold', row, g, op))
     # the list's setup: the rows of the type 0x22
@@ -111,11 +119,11 @@ def main():
     setup = 0x531ea084 + 8 + off_ * 4
     ok((w_ >> 24) == 0xeb and setup != 0x531e9d20, 'the constructor calls our setup')
     _, lb = b.call(setup, (THIS,)); ty = [x for x in lb if x[0] == 'types']
-    ok(len(ty) == 1 and ty[0][3] == 11, ('setup', ty))
+    ok(len(ty) == 1 and ty[0][3] == 12, ('setup', ty))
     # the rows loop: all rows, a value drawn for each (the official: six), no assertion
     _, lo = o.call(0x531ea5e8, (THIS,)); _, lb = b.call(0x531ea5e8, (THIS,))
-    ok(sum(1 for x in lo if x[0] == 'item') == 6 and sum(1 for x in lb if x[0] == 'item') == 11, ('rows', len(lo), len(lb)))
-    ok(sum(1 for x in lb if x[0] == 'value') == 11 and not any(x[0] == 'assert' for x in lb), ('assert / values in the rows loop', [x[0] for x in lb]))
+    ok(sum(1 for x in lo if x[0] == 'item') == 6 and sum(1 for x in lb if x[0] == 'item') == 12, ('rows', len(lo), len(lb)))
+    ok(sum(1 for x in lb if x[0] == 'value') == 12 and not any(x[0] == 'assert' for x in lb), ('assert / values in the rows loop', [x[0] for x in lb]))
     # the description under the list: the Hold rows read as genre 0
     _, l0 = b.call(0x531ea0b8, (THIS,), row=0); _, l1 = b.call(0x531ea0b8, (THIS,), row=1)
     ok(l0 == l1 and len(l0) > 0, ('description', l0, l1))
@@ -136,12 +144,22 @@ def main():
         ok(b.u.mem_read(BYTES[key], 1)[0] == 21 and all(b.u.mem_read(BYTES[k], 1)[0] == 0 for k in range(5) if k != key), ('set', i))
         ok(b.call(curf, (THIS, 4))[0] == 1 and b.call(curf, (THIS, 5))[0] == 0 and b.call(curf, (THIS, 0))[0] == 0, ('current', i))
         b.call(setf, (THIS, 0)); ok(b.u.mem_read(BYTES[key], 1)[0] == 0 and b.call(curf, (THIS, 0))[0] == 1, ('set Off', i))
+    # Macro Button's list: record 132, set / is current through the 0 <-> 46 and 255 <-> 0 mapping
+    b.u.mem_write(THIS + 0x1a4, bytes([0])); b.call(0x531d7e68, (THIS, MACRO_ID))
+    rn = b.u.mem_read(THIS + 0x1a4, 1)[0]; ok(rn == 132, ('macro record number', rn))
+    r = struct.unpack_from('<19I', d, table + rn * 0x4c - B)
+    ok(r[0] == 0x10000 and (r[1] & 0xffff) == 1046 and r[3] == 0x531d11e8 and r[5] == 0x531d3688, ('macro record', [hex(x) for x in r[:6]]))
+    setf, curf = r[9], r[11]
+    b.u.mem_write(VEC, bytes([0, 1, 2, 3, 46, 45]))   # row 4 = Macro Mode (46), row 0 = Off
+    for row, want_byte in ((4, 0), (0, 255), (5, 45), (2, 2)):
+        b.call(setf, (THIS, row)); got = b.u.mem_read(MACRO_BYTE, 1)[0]; ok(got == want_byte, ('macro set', row, got))
+        ok(b.call(curf, (THIS, row))[0] == 1 and b.call(curf, (THIS, (row + 1) % 6))[0] == 0, ('macro current', row))
     # the official ids still map as before
     for id_ in (0x020000e5, 0x020000e6, 0x020000eb):
         o.u.mem_write(THIS + 0x1a4, bytes([0])); o.call(0x531d7e68, (THIS, id_)); b.u.mem_write(THIS + 0x1a4, bytes([0])); b.call(0x531d7e68, (THIS, id_))
         ok(o.u.mem_read(THIS + 0x1a4, 1)[0] == b.u.mem_read(THIS + 0x1a4, 1)[0] != 0, ('official id mapping', hex(id_)))
     # the controller factory: the Hold ids are changed to an id of the Fn lists' bucket, the others untouched
-    for id_, want in [(i, 0x020000ec) for i in IDS] + [(0x020000e6, 0x020000e6), (0x02000012, 0x02000012), (0x020000ec, 0x020000ec)]:
+    for id_, want in [(i, 0x020000ec) for i in IDS + [MACRO_ID]] + [(0x020000e6, 0x020000e6), (0x02000012, 0x02000012), (0x020000ec, 0x020000ec)]:
         u = b.u; seen = {}
         def code(uc, a_, s_, _):
             if a_ == 0x531871c0: seen['r1'] = uc.reg_read(UC_ARM_REG_R1); uc.emu_stop()

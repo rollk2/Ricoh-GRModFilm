@@ -4623,3 +4623,15 @@ dans `holdlines_probe.py`, `holdbuttons_probe.py` repassée sur le fichier) :
   (aucun accesseur ne les lit), soit `0x550832ac + décalage` ; ils suivent l'enregistrement (U1 à U3, Save / Load Settings). Valeur lue au delà de 45 : Off.
 - Les contrôleurs `0x020001e0 .. 0x020001e4` sont remplacés par `0x020000ec` pour l'usine seulement (`hookControllerFactory`) : elle rend le FnListController en cache ;
   SetCurrentMenu les relie aux enregistrements 127 à 131 (copies de l'enregistrement 73, nos « fixer » et « est courante »).
+
+## GR IV Mono : ligne « Macro Button » et fonction « Macro Mode » (2026-11-20)
+
+- Fonction 46 = « Macro Mode » : appui court natif de la touche haut (codes 26 puis 28 réinjectés par le filtre de touches `orig`).
+  Texte : le 184 du boîtier (« Macro Mode »), icône : fleur dessinée, n° 739 (`installMacroIcon`). Ajoutée à la liste A seulement
+  (`fnlists.ts`, paramètre `macro`). Le filtre des fonctions 0x531d7be0 l'accepte. Preuve : sondes `holdlines_probe.py` (247 contrôles),
+  texte et icône identiques au firmware officiel pour les autres fonctions.
+- Ligne « Macro Button » (genre 11) dans Fn Button Setting, entre « Hold Image Control/WB Button » et « Hold Macro Button » (12 lignes).
+  Octet propre : enregistrement + 0x7a (`MACRO_BYTE`) : 0 = Macro Mode (natif), 255 = Off, sinon la fonction. Liste de contrôleur 0x020001e5.
+- `holdbuttons.ts` : la touche haut exécute sa fonction propre (octet 0x7a) ; les autres touches avec la fonction 46 (octet vivant ou Hold)
+  injectent 26 puis 28. Sonde `holdbuttons_probe.py` (48 contrôles) : défaut natif, fonction, Off, 46 sur Fn / bas / gauche / droite, Hold 46.
+- Non vérifié : si le réglage natif des lignes Fn / ISO / Drive / 4e accepte la valeur 46 et si le miroir vivant la suit (à voir sur le boîtier).

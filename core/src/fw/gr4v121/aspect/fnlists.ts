@@ -25,16 +25,17 @@ const LISTS: readonly FnList[] = [
   { name: 'A', table: 0x53de6764, count: 39, movw: 0x531dd10c, movt: 0x531dd110, end: 0x531dd120, add: [23, 37] },
   { name: 'B', table: 0x53de67fc, count: 35, movw: 0x531dd190, movt: 0x531dd194, end: 0x531dd1a4, add: [23, 37] },
 ];
-const AFTER: Readonly<Record<number, number>> = { 23: 22, 37: 36 };
+const AFTER: Readonly<Record<number, number>> = { 23: 22, 37: 36, 46: 36 };
 
-export function installFnLists(patch: Patch): void {
+/** `macro`: the function Macro Mode (46, holdlines.ts) also in list A (Fn, ISO, Drive and the fourth button's lines and the Hold lines'), after the last. */
+export function installFnLists(patch: Patch, macro = false): void {
   for (const l of LISTS) {
     expectWord(patch, l.movw, movWord(4, l.table & 0xffff));
     expectWord(patch, l.movt, movWord(4, l.table >>> 16, true));
     expectWord(patch, l.end, 0xe2846000 | l.count);
     const official = Array.from(patch.read(l.table, l.count));
     const list = [...official];
-    for (const f of l.add) {
+    for (const f of [...l.add, ...(macro && l.name === 'A' ? [46] : [])]) {
       if (list.includes(f)) continue;
       const at = list.indexOf(AFTER[f]);
       if (at < 0) throw new FirmwareError('unexpected-layout', `fn list ${l.name}: ${AFTER[f]} not found`);
