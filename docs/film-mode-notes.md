@@ -4533,3 +4533,17 @@ est reconstruit (à confirmer).
 
 Les touches du pavé gardent les numéros du GR III (haut 26/27/28, bas 29/30/31, gauche 32/33/34, droite 35/36/37) ; le maintien répété
 n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le 22 de la touche haut.
+
+### Appuis longs GR IV Mono : plan (2026-11-20, décision de l'utilisateur : réglage dans le menu du boîtier)
+
+- Ordre des gestes confirmé par l'utilisateur (un geste, une photo, une photo à blanc) : molette avant, Fn court, Fn long, haut court,
+  haut long, bas court, bas long, gauche court, gauche long, droite court, droite long, OK court, OK long, puis ADJ (seul 13 apparaît :
+  probablement ADJ enfoncé). Fn = 24 (appui) et 25 (relâchement), sans code de maintien ; molette avant = 9 et 10.
+- Écran « Fn Button Setting » : les lignes sont des enregistrements de 0x4c octets d'une table commune (`0x53dd007c`, premier titre 0x1f9),
+  une ligne de sous-menu par réglage ; ajouter cinq lignes à ce sous-menu revient à ce qu'`adjslots` a dû faire (un enregistrement de
+  sous-menu ne tient que cinq lignes) : trop lourd pour un premier pas.
+- Piste retenue : cinq lignes « Hold » dans l'onglet Customize (même mécanisme que les lignes Exposure Preview et Soft Focus du menu photo :
+  `addListRecords`, `hookControllerFactory`), une liste de fonctions par touche (les fonctions des listes Fn, filtrées par modèle).
+- Exécution : filtre à l'entrée d'`OnEvent` (`0x53258098`) comme `gr3x/hold.ts` ; la fonction Hold est exécutée par un appui et un relâchement
+  de Fn injectés (Fn = 24 / 25) avec le réglage de Fn (`obj + 0x1468`, getter `0x5329f50c`) échangé le temps de l'appel : la touche haut n'a
+  pas de réglage propre, Fn sert de porteur pour les cinq. Fn court ne change pas sans Hold ; Fn long = durée entre 24 et 25 (`tk_get_otm`).
