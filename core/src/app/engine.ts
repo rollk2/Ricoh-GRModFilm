@@ -290,7 +290,7 @@ export interface BuildOptions {
   /** GR III / IIIx: the movie taken out (tab, mode, lines, Fn functions; the side button named
    * Wireless). With the film mode, its tab takes the movie tab's place. */
   noMovie?: boolean;
-  /** GR IV Monochrome 1.11 (1.21): every function on every button, the Hold lines, the Macro Button line and ADJ Red Filter. */
+  /** GR IV 1.21 / Monochrome 1.11: every function on every button, the Hold lines, the Macro Button line and ADJ Red Filter; always on, `false` only for tests. */
   customButtons?: boolean;
   /** GR III / IIIx (round 10): with Mode Memory's Focus unticked, the AF point back to the centre at power-on. */
   afReset?: boolean;
@@ -1130,8 +1130,8 @@ export class Engine {
     if (exposurePreview && clarity.length > 0) throw new FirmwareError('bad-clarity', 'exposure preview cannot be combined with the clarity-table soft focus of 0.4.x');
     const softFocusMenu = adjSoftFocus && on120;
     const noMovie = !!(options && options.noMovie);
-    const customButtons = !!(options && options.customButtons);
-    if (customButtons && !this.info.features.customButtons) throw new FirmwareError('bad-edit', 'custom buttons need GR IV firmware 1.21 (GR IV Monochrome 1.11)');
+    // Standard on this file, as the Hold buttons are on the GR III: every build has them (`customButtons: false` only for tests).
+    const customButtons = !!this.info.features.customButtons && !(options && options.customButtons === false);
     if (noMovie && !this.info.features.noMovie) throw new FirmwareError('bad-edit', 'no movie needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (hdrGainMap && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the HDR gain map cannot be combined with the clarity-table soft focus of 0.4.x');
     if (directFlash && clarity.length > 0) throw new FirmwareError('bad-clarity', 'Direct Flash cannot be combined with the clarity-table soft focus of 0.4.x');

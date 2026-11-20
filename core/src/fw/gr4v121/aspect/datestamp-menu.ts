@@ -282,6 +282,21 @@ export function drawStyleIcon(long: boolean, name = false): Uint8Array {
 // --------------------------------------------------------------------------------------------
 // Texts
 
+/** The camera's own text number `id` in each language, in `LANGS` order (as `installTexts` takes its names). */
+export function nativeText(patch: Patch, id: number): string[] {
+  const roots = new DataView(patch.readMapped(NATIVE_TEXT_ROOTS, LANGUAGES * 4).buffer);
+  const out: string[] = new Array(LANGUAGES).fill('');
+  for (let l = 0; l < LANGUAGES; l++) {
+    const k = (roots.getUint32(l * 4, true) + 4 - FIRST_TABLE_RAM) / TABLE_STRIDE;
+    if (!(Number.isInteger(k) && k >= 0 && k < LANGUAGES)) fail('unexpected-layout', 'language tables are not where they were expected');
+    const descriptor = patch.word(patch.word(TEXT_CATALOG + l * 4) + id * 4);
+    const units = patch.readMapped(descriptor, 1)[0] - 1;
+    const text = patch.readMapped(patch.word(descriptor + 4), units * 2);
+    out[k] = String.fromCharCode(...new Uint16Array(text.slice().buffer));
+  }
+  return out;
+}
+
 export function installTexts(patch: Patch, entries: readonly { id: number; names: readonly string[] }[]): void {
   const roots = new DataView(patch.readMapped(NATIVE_TEXT_ROOTS, LANGUAGES * 4).buffer);
   const order: number[] = [];

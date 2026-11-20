@@ -28,7 +28,9 @@ import { assembleWords, branchWord, movWord } from './arm';
 import { LANGUAGES, Patch, expectWord, widenTextRows } from './build';
 import { appendIcon } from './adjredfilter';
 import { paint, tile } from './exposure';
-import { addListRecords, hookControllerFactory, installTexts } from './datestamp-menu';
+import { addListRecords, hookControllerFactory, installTexts, nativeText } from './datestamp-menu';
+import { GR3X_MACRO_LINE_NAMES } from '../../gr3x/wb-button';
+import { gr3xHoldLineName } from '../../gr3x/hold';
 
 /** The record's live copy and the Hold bytes (record offsets), in the order of the filter's keys: Fn, up, down, left, right. */
 const RECORD = 0x550832a8 + 4;
@@ -184,7 +186,16 @@ export function installHoldLines(patch: Patch): void {
 
   // The texts, then the lists' records: Fn Button's with our set and is current.
   widenTextRows(patch, HOLD_TEXT_ID + HOLD_NAMES.length - 1);
-  installTexts(patch, HOLD_NAMES.map((n, i) => ({ id: HOLD_TEXT_ID + i, names: Array(LANGUAGES).fill(n) as string[] })));
+  // The names, in every language as on the GR III (hold.ts: each language's word for hold + the camera's own button name).
+  const GR3_ROWS = [9, 2, 4, 5, 16, 13, 8, 11, 1, 17, 3, 12, 0, 7, 20, 6, 14, 10, 19, 15, 18]; // GR III text row -> index of LANGS
+  const buttons = { fn: nativeText(patch, 0x1f9), iso: nativeText(patch, 0x1ff), drive: nativeText(patch, 0x201), wb: nativeText(patch, 0x203), ic: nativeText(patch, 0x205) };
+  const perLanguage = (k: number): string[] => {
+    const r = GR3_ROWS.indexOf(k), macro = GR3X_MACRO_LINE_NAMES[r];
+    return [gr3xHoldLineName(r, buttons.fn[k]), gr3xHoldLineName(r, buttons.iso[k]), gr3xHoldLineName(r, buttons.drive[k]), gr3xHoldLineName(r, buttons.ic[k]),
+      gr3xHoldLineName(r, buttons.wb[k]), gr3xHoldLineName(r, macro), macro];
+  };
+  const names = Array.from({ length: LANGUAGES }, (_, k) => perLanguage(k));
+  installTexts(patch, HOLD_NAMES.map((_, i) => ({ id: HOLD_TEXT_ID + i, names: names.map((n) => n[i]) })));
   const fn = patch.read(SELECT_TABLE + RECORD_FN * SELECT_RECORD, SELECT_RECORD);
   const fv = new DataView(fn.buffer);
   if (fv.getUint32(0, true) !== 0x10000 || fv.getUint16(4, true) !== 0x1f9 || fv.getUint32(0x0c, true) !== 0x531d11e8 || fv.getUint32(0x14, true) !== 0x531d3688 ||
