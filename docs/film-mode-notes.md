@@ -4455,3 +4455,8 @@ Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo
   Focus = `+0x1cc` (à confirmer par l'émulation du dessin). Les textes des fonctions (ligne anglaise `0x55003cf4`) : voir la section No movie.
 - À établir ensuite : le champ de chaque réglage dans l'enregistrement, l'exécution d'une fonction (équivalent de `GetEventCustomize` et
   `GetEventSwitchWlan` du GR III), la traduction des événements de touches (équivalent de `0x532231e4`), les octets libres.
+- Appuis longs, premiers repères (2026-11-20, statique, certitude moyenne) : la traduction des événements matériels en codes de
+  touches (équivalent du `0x532231e4` du GR III) est en **`0x5325825c`** sur la 1.21 (même structure : `ldrh r3,[r1]`, types `0x1b` Fn,
+  `0x20` à `0x24` pavé et molette) ; son seul renvoi est la table de méthodes `0x53de5288` (celle du `0x53b4dcf8` du GR III). Le point
+  d'entrée de type `OnEvent` (fonction qui aiguille selon l'écran courant, `bl 0x5325eec0`) est probablement `0x532568c0`. À confirmer
+  par émulation, puis par un build de diagnostic des codes de touches (équivalent de T-HOLD0) avant d'écrire les lignes Hold.
