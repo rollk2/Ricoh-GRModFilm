@@ -4705,3 +4705,16 @@ Aucune licence indiquée sur la page ; l'auteur ne propose pas le firmware modif
   (6 marges x 0,32, 3 → 2 échantillons, plancher 0,02 → 0,014, `movhi r3,#3` → `#2` à 0x533f4b10). Les autres changements de la page
   (exposant 0,875 de la fonction de marge) ne sont pas faits. Test `core/test/gr3x-af-dim.test.ts`.
 - Un build GR III 2.10 d'essai (1 ratio, sans autre option) et une référence sans `afDim` ne diffèrent que par ces neuf mots et l'enregistrement de la recette.
+
+### Dépôt de l'auteur : nils-fl/RicohGR (2026-11-20)
+- Dépôt public, licence **MIT** (Nils Flaschel), cloné en lecture seule (aucun code exécuté). Il contient l'étude de l'AF du GR IIIx 1.60, des outils
+  Python, un build d'AF testé (`tools/af_firmware.py`, 19 mots, flashé sur son boîtier le 2026-11-20) et des documents HTML.
+- Le build d'AF = « X875 + FALLS2 + OPT + NO29 » : exposant 0,875 (dix mots de code à 0x5340c5f0 : trois `vsqrt` et un `vdiv`),
+  2 échantillons, marges x 0,32 (six mots de données), plancher de montée 0,014, `movhi r3,#3` → `#2`.
+- **Vérifié chez nous** : les dix mots de code d'origine à 0x5340c5f0 sont identiques dans notre GR III 2.10 et notre GR IIIx 1.60.
+  Les 19 mots de notre option `afDim` sont maintenant les mêmes que ceux de son outil (comparés un à un, valeurs des flottants comprises).
+- La fonction de marge (que je n'avais pas su décoder) : y = luminosité par pixel, b la base du mode ; d'origine, la marge vaut sqrt(max(b/y, 0,25))
+  quand y >= b mais b/y quand y < b ; le patch retire le retour anticipé et applique x^0,875.
+- Crédit ajouté à `credits.json`. Son code n'est pas copié : nous reprenons ses valeurs d'adresses et de mots (faits techniques), avec crédit.
+- Il décrit aussi : un banc d'essai Wi-Fi en RAM (carte SD, script d'ingénierie du boîtier), un journal d'AF intégré, des recettes dans les emplacements Custom 1/2
+  (non testé), des conseils de reprise du boîtier. Pas encore lus en détail ici.
