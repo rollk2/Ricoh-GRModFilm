@@ -4688,3 +4688,14 @@ Aucune licence indiquée sur la page ; l'auteur ne propose pas le firmware modif
 - Vérification faite ici : les valeurs d'origine aux adresses 1 (6 marges 569,2 / 569,2 / 574,5 / 597,8 / 563,3 / 563,3), 3, 4 et 5 sont
   **identiques dans nos programmes GR IIIx 1.60 (fwdc243b) et GR III 2.10 (fwdc239b)**. L'adresse 2 (fonction de marge) n'a pas été lue.
 - Non applicable en l'état au GR IV Monochrome (autre programme, autres adresses).
+
+### Autofocus en pénombre : ce que j'ai vérifié dans nos firmwares (2026-11-20)
+- GR III 2.10 et GR IIIx 1.60 : mêmes adresses, mêmes valeurs d'origine (marges, 3 échantillons, plancher 0,02, `movhi r3,#3` à 0x533f4b10).
+- La fonction de marge 0x5340c590 (même code dans les deux) : base = table[mode] ; rapport y = luminosité / (r2 >> 2) ; la marge devient
+  base / y ; sauf si base > y, auquel cas la valeur est renvoyée telle quelle ; sinon elle est bornée par un plancher (0,25, à 0x53c16bd4)
+  puis passe par la fonction 0x53153ba8, qui a l'allure d'une racine carrée avec contrôle de domaine (argument négatif = erreur).
+  **La page décrit « (b/y) devient (b/y)^0,875 » sans donner son code : je n'ai pas pu retrouver exactement l'exposant d'origine.**
+  Ce cinquième changement n'est donc pas reproduisible sans le patch de l'auteur ou une mesure de la fonction dans l'émulateur.
+- GR IV Monochrome 1.11 : pas la même table. Une table de marges plus grande, de la même famille (569,2 / 574,5 / 597,8 / 563,3 et d'autres
+  valeurs 521 à 578) se trouve à partir de 0x53ee0fd8. Les autres emplacements (échantillons, plancher, choix de cadence) n'ont pas été
+  cherchés. Les mesures de la page ne valent que pour le GR IIIx : un portage GR IV demande ses propres mesures sur boîtier.
