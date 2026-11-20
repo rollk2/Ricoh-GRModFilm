@@ -40,7 +40,7 @@ import { installNoMovie } from './nomovie';
 import { installKeyDiag } from './keydiag';
 import { installFnLists } from './fnlists';
 import { installHoldButtons } from './holdbuttons';
-import { HOLD_FN_BYTE, installHoldLines } from './holdlines';
+import { HOLD_BYTES, installHoldLines } from './holdlines';
 import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
@@ -1115,7 +1115,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   // Before everything that copies the menu descriptors (the wide menus): the movie tab's is changed in place.
   if (features.noMovie) installNoMovie(patch);
   if (test.fnAll) installFnLists(patch);
-  const holdFilter = test.holdTest ? installHoldButtons(patch, test.holdTest, !!test.holdDiag, test.holdLines ? HOLD_FN_BYTE : 0) : 0;
+  const holdFilter = test.holdTest ? installHoldButtons(patch, test.holdTest, !!test.holdDiag, test.holdLines ? HOLD_BYTES : []) : 0;
   if (test.holdLines) installHoldLines(patch);
   let icons = iconbin;
   if (ratios.length > 0) {

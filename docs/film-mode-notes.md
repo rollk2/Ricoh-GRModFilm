@@ -4609,3 +4609,17 @@ Les appuis longs du test 8 fonctionnent sur le boîtier (l'utilisateur, 2026-11-
 - Les réglages des lignes natives : Fn `0x925`, ISO `0x926`, Drive `0x927`, WB / Image Control `0x928`, Movie `0x929`, Hold Movie `0x92a`, Focus `0x92b`,
   Keep AE Lock `0x92c` (getters `0x532a0dfc + 8 k`, octets de l'objet des réglages) ; le réglage « vivant » lu par les exécuteurs est `0x146x` (Fn `0x1469`).
 - L'octet Hold est en RAM (`0x55839032`, non sauvegardé : Off à chaque allumage) : les octets sauvegardés viendront ensuite.
+
+### Lignes Hold : étape 2, cinq lignes rangées par touche, octets sauvegardés (2026-11-20, test)
+
+Étape 1 validée sur le boîtier (la ligne « Hold Fn Button » s'affiche, s'ouvre et enregistre, l'appui long de Fn la lit). Étape 2 (`holdlines.ts`, 201 cas
+dans `holdlines_probe.py`, `holdbuttons_probe.py` repassée sur le fichier) :
+- Onze lignes, dans l'ordre demandé par l'utilisateur : Fn Button, Hold Fn Button, ISO Button, Hold ISO Button, Drive Button, Hold Drive Button, (White Balance /
+  Image Control) Button, Hold (White Balance / Image Control) Button, Hold Macro Button, Movie Button, Hold Movie Button. La table des genres (11 octets, nouvelle,
+  cinq lecteurs repointés) donne l'ordre ; boucles, dernière ligne, valeurs jusqu'au genre 10.
+- Correspondance Hold -> touche à confirmer sur le boîtier : ISO = gauche, Drive = droite, la quatrième ligne = bas, Macro = haut (celle du GR III).
+- Octets des réglages : lancement `UserDataInitValue` (`0x5354754c`, bloc par défaut `0x5508ba28`) émulé (`/scratchpad/initwrites.py`) : les décalages d'enregistrement
+  jamais écrits sont ceux déjà pris par GR Mod (`0x109..0x10b`, `0x489..0x48b`, `0x90f`, `0x94b`, `0x99a`, `0x99b`) et d'autres : retenus `0xf9`, `0xfa`, `0xfb`, `0xe6`, `0xe7`
+  (aucun accesseur ne les lit), soit `0x550832ac + décalage` ; ils suivent l'enregistrement (U1 à U3, Save / Load Settings). Valeur lue au delà de 45 : Off.
+- Les contrôleurs `0x020001e0 .. 0x020001e4` sont remplacés par `0x020000ec` pour l'usine seulement (`hookControllerFactory`) : elle rend le FnListController en cache ;
+  SetCurrentMenu les relie aux enregistrements 127 à 131 (copies de l'enregistrement 73, nos « fixer » et « est courante »).

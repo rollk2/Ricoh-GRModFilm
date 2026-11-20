@@ -46,7 +46,7 @@ export const HOLD_KEYS = [
 const lo = (v: number) => v & 0xffff, hi = (v: number) => v >>> 16;
 
 /** `functions`: the Hold function of Fn, up, down, left, right (0: none), baked into the file. */
-export function installHoldButtons(patch: Patch, functions: readonly number[], idDiag = false, liveFn = 0): number {
+export function installHoldButtons(patch: Patch, functions: readonly number[], idDiag = false, liveBytes: readonly number[] = []): number {
   if (functions.length !== 5 || functions.some((f) => !Number.isInteger(f) || f < 0 || f > MAX_FUNCTION)) throw new FirmwareError('internal', 'hold buttons: five functions 0..45');
   expectWord(patch, KEY_ENTRY, 0xe1a0c00d);
   expectWord(patch, TK_GET_OTM, 0xe92d0010);
@@ -70,9 +70,9 @@ export function installHoldButtons(patch: Patch, functions: readonly number[], i
   const RING = (reg: string) => idDiag ? `movw ip,#${lo(KEY_RING)};movt ip,#${hi(KEY_RING)};ldrb r2,[ip,#7];cmp r2,#7;movhs r2,#0;strb ${reg},[ip,r2];add r2,r2,#1;cmp r2,#7;moveq r2,#0;strb r2,[ip,#7];` : '';
   const ring = '';
   const phaseMark = idDiag ? `cmp r7,#1;movlo r1,#0x10;moveq r1,#0x20;movhi r1,#0x30;add r1,r1,r6;${RING('r1')}` : '';
-  // `liveFn`: the address of a byte holding Fn's Hold function (the Hold Fn line), read in place of the table's first entry.
-  const live = liveFn ? `cmp r6,#0;bne notfn;movw r0,#${lo(liveFn)};movt r0,#${hi(liveFn)};ldrb r8,[r0];notfn:` : '';
-  const tbl = `movw r0,#${lo(table)};movt r0,#${hi(table)};ldrb r8,[r0,r6];${live}`;
+  // `liveBytes`: the addresses of the five bytes holding the keys' Hold functions (the Hold lines of Fn Button Setting), read in place of the table.
+  const live = liveBytes.length === 5 ? liveBytes.map((a, k) => `cmp r6,#${k};movweq r0,#${lo(a)};movteq r0,#${hi(a)};`).join('') + 'ldrb r8,[r0];' : '';
+  const tbl = live || `movw r0,#${lo(table)};movt r0,#${hi(table)};ldrb r8,[r0,r6];`;
   const filter = patch.append((at) => assembleWords(`push {r0,r1,r4,r5,r6,r7,r8,lr};mov r4,r0;mov r5,r1;
     ${classify}b pass;
     cls:${tbl}cmp r8,#0;beq pass;cmp r8,#${MAX_FUNCTION};bhi pass;
