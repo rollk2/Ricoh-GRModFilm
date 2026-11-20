@@ -4580,3 +4580,20 @@ n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le
   (`0x5339c22c`, `0x5339eb9c`, `0x533a0448`, l'aide `0x5351ca60`), `0x5329f53c` / `0x5329f548` (`0x146d` / `0x146e`) ceux du Wireless court et long
   (`GetEventSwitchWlan`), `0x5329f554` (`0x146f`) celui de Focus. Le champ `0x1468` n'est lu que par l'aide `0x5351c8b4` (une ligne avant Fn).
   Correction : `FN_OFFSET = 0x469`. Build de test 8.
+
+### Lignes Hold dans Fn Button Setting : étude statique (2026-11-20)
+
+Les appuis longs du test 8 fonctionnent sur le boîtier (l'utilisateur, 2026-11-20). Étude de l'écran « Fn Button Setting » du GR IV :
+- Contrôleur `FnButtonCustomController` : table de méthodes `0x53dd42c8` (destructeur `0x531e97d0`, **constructeur `0x531ea034`**), `FnListController`
+  `0x53dcc900`. Le constructeur crée 7 widgets de l'écran depuis la table `0x53dd40d4` (descripteurs de 0x18 octets : panneau, titre, liste ...),
+  puis `0x531e9d20` met en place la **liste de 6 lignes** (`mov r2,#6`, six octets de type `0x22`, `0x5359453c(liste, types, 6, 0x3a)`, comme
+  `0x53394610(liste, types, 8, 0x3a)` du GR III), `0x531e9c04` (valeurs / aide), titre `0x1f7`.
+- Lignes (elements de 0x4c octets, `0x53dd007c ...`, titre en `+0x3c`) : Fn Button 0x1f9, ISO Button 0x1ff, Drive Button 0x201, White Balance Button 0x203,
+  Image Control Button 0x205, Movie Button 0x207, Hold Movie Button 0x209, Focus Settings 0x2c, Keep AE Lock 0x20b, One Push AE in M Mode 0x20f,
+  Shutter Button Setting 0x211 (la liste visible a 6 lignes, genres 0 à 5 : table d'octets `0x53dd4310`).
+- Ouverture d'une ligne : `0x531e9b14` : genre -> identifiant de contrôleur `0x020000e5` (0), `e6` (1), `e7` (2), `e8` / `e9` (3, selon `0x5340171c` : Mono),
+  `ea` (4), `eb` (5) ; valeurs / aide aux sites `0x531ea0e0`, `0x531ea19c`, `0x531ea534` (tables de sauts à 6 cas), boucles `cmp r4,#6` en `0x531ea634`,
+  `0x531ea6b4`, `0x531eadb4`, `0x531eaf94`, arrêt de la dernière ligne `0x531ea35c` / `0x531ea444`.
+- Pour ajouter cinq lignes (Hold Fn, haut, bas, gauche, droite) : agrandir les six octets de types, les tables de genres et d'éléments, un cas de plus
+  à chacun de ces ~10 sites, cinq identifiants de contrôleur et cinq enregistrements de liste (celui d'une ligne existante avec nos « fixer » et « est courant »
+  qui lisent les octets Hold). Même chantier que `wb-button.ts` du GR III.
