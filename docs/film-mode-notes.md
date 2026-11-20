@@ -4513,3 +4513,23 @@ Module `adjredfilter.ts` (option de test `adjRedFilter`), sonde `tools/gr4v121/a
 - Suppression de la vidéo : onglet Movie absent, lignes Still/Movie et Movie Edit absentes, Framerate et Still/Movie absentes des listes Fn. Aucun reste de vidéo signalé.
 - Listes Fn étendues : Flash Exposure Comp. et Airplane Mode proposées et actives (Fn, pavé, Wireless).
 - Diagnostic des codes de touches : le texte s'affiche (date et codes lus en haut à gauche de l'image en lecture).
+
+### Codes de touches du Mono 1.11 : relevé sur le boîtier (build de test 4, 2026-11-20)
+
+Lecture : le diagnostic imprime deux mots, chacun octet de poids fort en premier ; l'anneau se lit octets 0 à 6, le dernier octet est
+la prochaine case ; ordre chronologique : à partir de cette case. Décimal. Les gestes ne sont pas notés par l'utilisateur : l'ordre
+est reconstruit (à confirmer).
+
+| Touche | Appui court | Appui long | Certitude |
+|---|---|---|---|
+| Bas | 29, 31 | 29, **30**, 31 | forte (vu seul) |
+| Gauche | 32, 34 | 32, **33**, 34 | forte |
+| Droite | 35, 37 | 35, **36**, 37 | forte |
+| Haut (Macro) | 26, 28 | 26, **22**, 28 | moyenne (code de maintien 22, vu deux fois) |
+| OK | 50, 53 | 50, **51**, 52 | moyenne |
+| Fn | 24, 25 (probable) | 24, 25, sans code de maintien (probable) | faible |
+| Molette avant | 9, 10 | | probable (comme le GR III) |
+| ADJ enfoncé ? | 13 | | faible |
+
+Les touches du pavé gardent les numéros du GR III (haut 26/27/28, bas 29/30/31, gauche 32/33/34, droite 35/36/37) ; le maintien répété
+n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le 22 de la touche haut.
