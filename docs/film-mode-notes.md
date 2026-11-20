@@ -4442,3 +4442,16 @@ Complète l'étude du 2026-11-17 (onglet, lecteur et écrivain du réglage photo
 - **Vérification** : `tools/gr4v121/nomovie_probe.py` (émulation Unicorn) : lignes, onglet, filtre (18 et 19 refusées, les 38
   autres fonctions comme le fichier officiel), lecteur, écrivain ; `core/test/gr4-nomovie.test.ts` (construction, auto-contrôle, relecture).
 - Pas encore trouvé : les noms du bouton latéral (équivalent du renommage T20-VID4 du GR III) : à voir avec les touches (P2).
+
+## GR IV Monochrome 1.11 : touches et appuis longs, état des lieux (2026-11-20, statique)
+
+- Réglages natifs de touches (liste des noms de réglages) : `CustomSwitchFn`, `CustomSwitchLeft`, `CustomSwitchRight`,
+  `CustomSwitchDown`, `CustomSwitchWLanShort`, `CustomSwitchWLanLong`, `CustomSwitchFocusSetting`, `CustomSwitchAeLockHold`,
+  `CustomSwitchMModeOnePushAE` (et `CustomAdjMode1..5` pour le levier ADJ). Pas de « Up » (ISO du GR III) ni de lignes Hold pour Fn
+  et le pavé : seul le Wireless a un appui long natif.
+- Écran « Fn Button Setting » : contrôleur `FnButtonCustomController` + `FnListController`. Sept lignes de choix de fonction
+  dessinées par `0x531d3690 ... 0x531d3928` (même fonction de texte `0x5339045c(modèle, f)`) : cinq sur la liste `+0x1b4` (39 fonctions),
+  une sur `+0x1c0` (35), une sur `+0x1cc` (37) ; mapping probable : Fn, Left, Right, Down, WLan court = `+0x1b4`, WLan long = `+0x1c0`,
+  Focus = `+0x1cc` (à confirmer par l'émulation du dessin). Les textes des fonctions (ligne anglaise `0x55003cf4`) : voir la section No movie.
+- À établir ensuite : le champ de chaque réglage dans l'enregistrement, l'exécution d'une fonction (équivalent de `GetEventCustomize` et
+  `GetEventSwitchWlan` du GR III), la traduction des événements de touches (équivalent de `0x532231e4`), les octets libres.
