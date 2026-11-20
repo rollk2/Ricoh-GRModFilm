@@ -4573,3 +4573,10 @@ n'apparaît qu'une fois (doublons consécutifs omis). À confirmer : Fn, ADJ, le
   suivante : les codes de maintien ne viennent plus (ou pas) quand l'appui est retenu : test 7 déclenche aussi par la durée à tous les
   relâchements (comme Fn), et la bande note les étapes du filtre (0x10 + touche appui, 0x20 maintien, 0x30 relâchement, 0x40 appui rejoué,
   0x80 fonction lancée, 0xA0 retour ; touches 0 Fn, 1 haut, 2 bas, 3 gauche, 4 droite). Émulation : 45 cas.
+- Test 7 sur le boîtier (marqueurs de la bande, 5 photos) : le filtre détecte et lance sur les cinq touches (`80`/`A0` Fn, `81`/`A1` haut par la
+  durée ; `A2`, `A3` bas et gauche avec une rafale de codes de maintien `22`, `23`, `24` ; droite idem) mais aucune fonction ne s'exécute.
+  Cause : l'octet échangé était **`0x1468`**, qui n'est pas le réglage de Fn. Les getters des réglages de touches sont contigus
+  (`0x5329f500 + 0xc * k`, octets `0x1468 + k`) ; `0x5329f50c` (octet **`0x1469`**) est celui que lisent les gestionnaires de Fn
+  (`0x5339c22c`, `0x5339eb9c`, `0x533a0448`, l'aide `0x5351ca60`), `0x5329f53c` / `0x5329f548` (`0x146d` / `0x146e`) ceux du Wireless court et long
+  (`GetEventSwitchWlan`), `0x5329f554` (`0x146f`) celui de Focus. Le champ `0x1468` n'est lu que par l'aide `0x5351c8b4` (une ligne avant Fn).
+  Correction : `FN_OFFSET = 0x469`. Build de test 8.

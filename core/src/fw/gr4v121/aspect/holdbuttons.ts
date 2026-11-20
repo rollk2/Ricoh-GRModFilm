@@ -13,7 +13,7 @@
  * not Off:
  *  - pressed: kept back (state: the key's press code, « hold run » cleared);
  *  - first held code (Fn: its release, held long enough): the Hold function, run as a press and a release of Fn sent to OnEvent
- *    with Fn's setting (settings object + 0x1468, the getter 0x5329f50c) holding the function for the time of the two calls (Fn
+ *    with Fn's setting (settings object + 0x1469, the getter 0x5329f50c) holding the function for the time of the two calls (Fn
  *    carries the five keys: the up key has no setting of its own); later held codes kept back;
  *  - released: after a Hold, kept back; else the press sent, then the release goes on (a short press, on release).
  * A key released after HOLD_MS or more without a held code runs the function too (the first test build on the camera ran nothing: the held
@@ -28,8 +28,8 @@ import { extendZeroFill } from './lookstash';
 export const KEY_ENTRY = 0x53258098;
 export const TK_GET_OTM = 0x53067d94;
 const APP = 0x53240cac, CONTROLLERS = 0x53240e20, SETTINGS = 0x53241240;
-/** Fn's function: byte 0x468 of the block 0x1000 into the settings object (getter 0x5329f50c: add r0,r0,#0x1000; ldrb r0,[r0,#0x468]). */
-export const FN_BLOCK = 0x1000, FN_OFFSET = 0x468;
+/** Fn's function: byte 0x469 of the block 0x1000 into the settings object (getter 0x5329f50c: add r0,r0,#0x1000; ldrb r0,[r0,#0x469]). */
+export const FN_BLOCK = 0x1000, FN_OFFSET = 0x469;
 /** Time of Fn's press (word) and the state (bytes: the press kept back, « hold run »), in the zero-filled words before the heap. */
 export const HOLD_TIME = 0x55839020, HOLD_STATE = 0x55839030;
 export const HOLD_MS = 600;
