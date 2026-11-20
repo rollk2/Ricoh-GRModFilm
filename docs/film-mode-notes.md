@@ -4597,3 +4597,15 @@ Les appuis longs du test 8 fonctionnent sur le boîtier (l'utilisateur, 2026-11-
 - Pour ajouter cinq lignes (Hold Fn, haut, bas, gauche, droite) : agrandir les six octets de types, les tables de genres et d'éléments, un cas de plus
   à chacun de ces ~10 sites, cinq identifiants de contrôleur et cinq enregistrements de liste (celui d'une ligne existante avec nos « fixer » et « est courant »
   qui lisent les octets Hold). Même chantier que `wb-button.ts` du GR III.
+
+### Ligne « Hold Fn » dans Fn Button Setting : étape 1 (2026-11-20, test)
+
+`holdlines.ts` (option de test `holdLines`, avec `holdTest`), sonde `tools/gr4v121/holdlines_probe.py` (45 cas). Une ligne, « Hold Fn Button », sous les six lignes :
+- Écran : 7 lignes de type `0x22` (`0x531ea084` appelle notre mise en place), genre 6 (octet `0x53dd4316`, mot `0x53dd4314`), boucles `cmp r4,#6` -> 7
+  (`0x531ea634`, `0x531ea6b4`), valeur dessinée pour le genre <= 6 (`0x531ea684`), dernière ligne `0x531ea444` -> 6 ; titre `0x531ea524` (texte 1040),
+  valeur courante `0x531ea18c` (l'octet Hold), ouverture `0x531e9b14` (contrôleur `0x020000ec`, qui tombe dans le défaut de l'usine `0x53187df8`
+  = le FnListController mis en cache), description `0x531ea0b8` (le genre 6 lit comme le 0).
+- Liste : enregistrement 127 = celui de Fn Button (73) avec nos « fixer » et « est courante » sur l'octet Hold ; SetCurrentMenu fait le lien.
+- Les réglages des lignes natives : Fn `0x925`, ISO `0x926`, Drive `0x927`, WB / Image Control `0x928`, Movie `0x929`, Hold Movie `0x92a`, Focus `0x92b`,
+  Keep AE Lock `0x92c` (getters `0x532a0dfc + 8 k`, octets de l'objet des réglages) ; le réglage « vivant » lu par les exécuteurs est `0x146x` (Fn `0x1469`).
+- L'octet Hold est en RAM (`0x55839032`, non sauvegardé : Off à chaque allumage) : les octets sauvegardés viendront ensuite.

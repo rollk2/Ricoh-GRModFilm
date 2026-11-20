@@ -271,6 +271,8 @@ export interface BuildOptions {
   holdTest?: number[];
   /** Test builds only: with holdTest, the controller identities of the keys' events printed by the date imprint. */
   holdDiag?: boolean;
+  /** Test builds only: with holdTest, the Hold Fn line of Fn Button Setting. */
+  holdLines?: boolean;
   /** Test builds only (GR IV Monochrome 1.11): Red Filter on the ADJ lever. */
   adjRedFilter?: boolean;
   /** Test builds: the HDR gain map's diagnostics segment (APP15 "GRMODHDR") in every JPEG. */
@@ -1148,6 +1150,7 @@ export class Engine {
       ...(options && options.fnAll ? { fnAll: true } : {}),
       ...(options && options.holdTest ? { holdTest: options.holdTest } : {}),
       ...(options && options.holdDiag ? { holdDiag: true } : {}),
+      ...(options && options.holdLines ? { holdLines: true } : {}),
       ...(options && options.adjRedFilter ? { adjRedFilter: true } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),

@@ -15,6 +15,7 @@ ENTRY, AFTER = 0x53258098, 0x5325809c
 APP, CONTROLLERS, SETTINGS, TK = 0x53240cac, 0x53240e20, 0x53241240, 0x53067d94
 OBJ, CTRL, SENT, STACK = 0x55100000, 0x70200000, 0x70000100, 0x70080000
 FN = OBJ + 0x1469
+LIVE_FN = 0
 
 
 class Cam:
@@ -25,6 +26,7 @@ class Cam:
         u.mem_map(0x55000000, 0x1000000); u.mem_map(0x70000000, 0x400000)
         self.now = 1000; self.ctrl = 0x08000000; self.log = []
         u.mem_write(FN, bytes([7]))   # Fn's own function, 7 (AE Lock)
+        u.mem_write(0x55839032, bytes([LIVE_FN]))   # the Hold Fn line's byte (builds with `holdLines`)
 
         def code(uc, a, s, _):
             if a == SENT:
@@ -56,6 +58,8 @@ class Cam:
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--built', required=True); ap.add_argument('--functions', default='5,45,0,0,0'); a = ap.parse_args()
     fns = [int(x) for x in a.functions.split(',')]
+    global LIVE_FN
+    LIVE_FN = fns[0]
     c = Cam(a.built); n = 0
     def ok(cond, what):
         nonlocal n

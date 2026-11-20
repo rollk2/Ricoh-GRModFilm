@@ -40,6 +40,7 @@ import { installNoMovie } from './nomovie';
 import { installKeyDiag } from './keydiag';
 import { installFnLists } from './fnlists';
 import { installHoldButtons } from './holdbuttons';
+import { HOLD_FN_BYTE, installHoldLines } from './holdlines';
 import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
@@ -189,6 +190,8 @@ export interface TestOptions {
   holdTest?: readonly number[];
   /** With `holdTest`: the controller identities of the keys' events in the date imprint's two words (no guard). */
   holdDiag?: boolean;
+  /** With `holdTest`: the Hold Fn line in Fn Button Setting (see `holdlines.ts`), Fn's Hold function read from it. */
+  holdLines?: boolean;
   /** GR Mod Film 1.2: Red Filter on the ADJ lever, in place of Framerate (see `adjredfilter.ts`). */
   adjRedFilter?: boolean;
   /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
@@ -1112,7 +1115,8 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   // Before everything that copies the menu descriptors (the wide menus): the movie tab's is changed in place.
   if (features.noMovie) installNoMovie(patch);
   if (test.fnAll) installFnLists(patch);
-  const holdFilter = test.holdTest ? installHoldButtons(patch, test.holdTest, !!test.holdDiag) : 0;
+  const holdFilter = test.holdTest ? installHoldButtons(patch, test.holdTest, !!test.holdDiag, test.holdLines ? HOLD_FN_BYTE : 0) : 0;
+  if (test.holdLines) installHoldLines(patch);
   let icons = iconbin;
   if (ratios.length > 0) {
     const installed = installIcons(patch, iconbin, ratios);
