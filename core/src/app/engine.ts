@@ -88,6 +88,8 @@ export interface FirmwareInfo {
     exposurePreview?: boolean;
     /** GR Mod Film 1.2: the movie taken out (its tab hidden, the mode never entered): GR IV 1.21 / Monochrome 1.11. */
     noMovie?: boolean;
+    /** GR Mod Film 1.2: every function on every button, Hold lines, Macro Button line, ADJ Red Filter (GR IV Monochrome 1.11). */
+    customButtons?: boolean;
     /** GR III / IIIx: the most films a build can have (9; 20 on GR III 2.10, where
      * the number is chosen with BuildOptions.filmCount and Halation is set in the camera). */
     maxFilms?: number };
@@ -223,6 +225,8 @@ export interface FirmwareSummary {
   exposurePreview?: boolean;
   /** True when the file has the movie taken out (GR Mod Film 1.2, GR IV 1.21). */
   noMovie?: boolean;
+  /** True when the file has the custom buttons (GR Mod Film 1.2, GR IV 1.21). */
+  customButtons?: boolean;
   /** ADJ lever slots (6..8) when the file has more than the camera's five. */
   adjSlots?: number;
 }
@@ -265,14 +269,6 @@ export interface BuildOptions {
   halationDiag?: boolean;
   /** Test builds only (GR IV Monochrome 1.11): the last key codes, printed by the date imprint (no guard). */
   keyDiag?: boolean;
-  /** Test builds only (GR IV Monochrome 1.11): more functions in the Fn button lists. */
-  fnAll?: boolean;
-  /** Test builds only (GR IV Monochrome 1.11): the Hold function of Fn, up, down, left, right. */
-  holdTest?: number[];
-  /** Test builds only: with holdTest, the Hold Fn line of Fn Button Setting. */
-  holdLines?: boolean;
-  /** Test builds only (GR IV Monochrome 1.11): Red Filter on the ADJ lever. */
-  adjRedFilter?: boolean;
   /** Test builds: the HDR gain map's diagnostics segment (APP15 "GRMODHDR") in every JPEG. */
   hdrDiag?: boolean;
   /** Test builds only (GR IV 1.20): exposure preview always off (issue #17). */
@@ -294,6 +290,8 @@ export interface BuildOptions {
   /** GR III / IIIx: the movie taken out (tab, mode, lines, Fn functions; the side button named
    * Wireless). With the film mode, its tab takes the movie tab's place. */
   noMovie?: boolean;
+  /** GR IV Monochrome 1.11 (1.21): every function on every button, the Hold lines, the Macro Button line and ADJ Red Filter. */
+  customButtons?: boolean;
   /** GR III / IIIx (round 10): with Mode Memory's Focus unticked, the AF point back to the centre at power-on. */
   afReset?: boolean;
   /** GR III / IIIx (round 10): an « AF Point » box in Mode Memory; unticked, the AF point back to the centre at power-on. */
@@ -572,7 +570,7 @@ export class Engine {
       factoryRatios: ['3:2', '4:3', '16:9', '1:1'],
       // The 1.12 bridge firmware goes back to 1.11 only: no bridge for 1.20.
       capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, bridge: !bridge && g4 === Gr4Program111, menuPictures: true, lookLayout: true },
-      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true } : {}) },
+      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true } : {}) },
       version: g4.FIRMWARE_VERSION,
       looks: { factory: [...g4.aspect.FACTORY_LOOK_IDS], extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
       sha256: await sha256Hex(raw),
@@ -801,6 +799,7 @@ export class Engine {
       ...(features.adjSlots ? { adjSlots: features.adjSlots } : {}),
       ...(features.exposurePreview ? { exposurePreview: true } : {}),
       ...(features.noMovie ? { noMovie: true } : {}),
+      ...(features.customButtons ? { customButtons: true } : {}),
     });
     if (!specs) return modified(false, [], aligned);
     let ratios: BuiltRatio[] = [];
@@ -1131,6 +1130,8 @@ export class Engine {
     if (exposurePreview && clarity.length > 0) throw new FirmwareError('bad-clarity', 'exposure preview cannot be combined with the clarity-table soft focus of 0.4.x');
     const softFocusMenu = adjSoftFocus && on120;
     const noMovie = !!(options && options.noMovie);
+    const customButtons = !!(options && options.customButtons);
+    if (customButtons && !this.info.features.customButtons) throw new FirmwareError('bad-edit', 'custom buttons need GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (noMovie && !this.info.features.noMovie) throw new FirmwareError('bad-edit', 'no movie needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (hdrGainMap && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the HDR gain map cannot be combined with the clarity-table soft focus of 0.4.x');
     if (directFlash && clarity.length > 0) throw new FirmwareError('bad-clarity', 'Direct Flash cannot be combined with the clarity-table soft focus of 0.4.x');
@@ -1138,17 +1139,13 @@ export class Engine {
     if (adjSoftFocus && clarity.length > 0) throw new FirmwareError('bad-clarity', 'soft focus on the ADJ lever and on the clarity table cannot be combined');
     if (dateStamp && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the date imprint cannot be combined with the clarity-table soft focus of 0.4.x');
     if (extraSlots.length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'added slots cannot be combined with the clarity-table soft focus of 0.4.x');
-    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
+    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
     if (Object.keys(cinemaHalation).length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'halation cannot be combined with the clarity-table soft focus of 0.4.x');
-    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}) };
+    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}) };
     const test = {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),
       ...(options && options.keyDiag ? { keyDiag: true } : {}),
-      ...(options && options.fnAll ? { fnAll: true } : {}),
-      ...(options && options.holdTest ? { holdTest: options.holdTest } : {}),
-      ...(options && options.holdLines ? { holdLines: true } : {}),
-      ...(options && options.adjRedFilter ? { adjRedFilter: true } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),
     };

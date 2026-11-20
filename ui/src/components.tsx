@@ -47,6 +47,7 @@ export const Ico = {
   soft: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="3.3" /><circle cx="10" cy="10" r="7.2" strokeDasharray="1.4 2.35" /></svg>,
   film: <svg viewBox="0 0 20 20" {...P}><rect x="2.4" y="5" width="15.2" height="10" rx="1" /><path d="M2.4 7.4h15.2M2.4 12.6h15.2M5 5v2.4M8 5v2.4M11 5v2.4M14 5v2.4M5 12.6V15M8 12.6V15M11 12.6V15M14 12.6V15" /></svg>,
   dial: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="6.4" /><circle cx="10" cy="10" r="2.2" /><path d="M10 3.6v2M3 3l14 14" /></svg>,
+  buttons: <svg viewBox="0 0 20 20" {...P}><circle cx="5" cy="5" r="2.2" /><circle cx="15" cy="5" r="2.2" /><circle cx="5" cy="15" r="2.2" /><circle cx="15" cy="15" r="2.2" /><path d="M10 7.5v5M7.5 10h5" /></svg>,
   noMovie: <svg viewBox="0 0 20 20" {...P}><rect x="2.4" y="5.6" width="10.6" height="8.8" rx="1.6" /><path d="M13 9l4.6-2.6v7.2L13 11M3 3l14 14" /></svg>,
   date: <svg viewBox="0 0 20 20" {...P}><rect x="2.8" y="4.4" width="14.4" height="12" rx="2" /><path d="M2.8 8.2h14.4M6.6 2.8v3M13.4 2.8v3M6.4 11.4h1.6M9.2 11.4h1.6M12 11.4h1.6M6.4 13.8h1.6M9.2 13.8h1.6" /></svg>,
   adj: <svg viewBox="0 0 20 20" {...P}><rect x="1.8" y="6.6" width="3.4" height="3.4" rx="0.8" /><rect x="6.4" y="6.6" width="3.4" height="3.4" rx="0.8" /><rect x="11" y="6.6" width="3.4" height="3.4" rx="0.8" /><rect x="15.6" y="6.6" width="2.6" height="3.4" rx="0.8" /><path d="M3.5 13.4h13" /></svg>,

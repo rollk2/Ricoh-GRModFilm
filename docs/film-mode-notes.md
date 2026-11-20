@@ -4635,3 +4635,24 @@ dans `holdlines_probe.py`, `holdbuttons_probe.py` repassée sur le fichier) :
 - `holdbuttons.ts` : la touche haut exécute sa fonction propre (octet 0x7a) ; les autres touches avec la fonction 46 (octet vivant ou Hold)
   injectent 26 puis 28. Sonde `holdbuttons_probe.py` (48 contrôles) : défaut natif, fonction, Off, 46 sur Fn / bas / gauche / droite, Hold 46.
 - Non vérifié : si le réglage natif des lignes Fn / ISO / Drive / 4e accepte la valeur 46 et si le miroir vivant la suit (à voir sur le boîtier).
+
+## GR IV Mono : les boutons personnalisés deviennent une fonction du produit (2026-11-20)
+
+- Les options de test `fnAll`, `holdTest`, `holdLines` et `adjRedFilter` sont remplacées par une seule fonction `customButtons`
+  (`ExtensionFeatures.customButtons`, option moteur `customButtons`, case « Custom buttons » de la page Features).
+  Elle comprend : toutes les fonctions sur toutes les touches (`fnlists.ts`), les lignes Hold et la ligne Macro Button
+  (`holdlines.ts`), le filtre des touches avec appuis longs (`holdbuttons.ts`, réglages lus en direct dans l'enregistrement
+  des réglages) et ADJ Red Filter (`adjredfilter.ts`).
+- Enregistrement dans le micrologiciel : octet de fonctions n° 2, bit 64 (`package.ts`), relu par `inspect`.
+- Ordre d'installation (contraintes trouvées en combinant avec les autres fonctions) :
+  1. listes Fn, filtre des touches, icône Macro, icône Red Filter : avant les menus ;
+  2. lignes Hold et Macro Button : après le tampon date, l'aperçu d'exposition et le menu HDR, car l'usine de contrôleurs
+     (0x531871bc) n'accepte qu'un seul premier accroc attendu par `installDateStampMenu`, et la table des listes est copiée
+     par plusieurs ajouts ;
+  3. ADJ Red Filter : après l'aperçu d'exposition. `installAdjRedFilter(patch, table)` travaille sur la table copiée par
+     l'aperçu, chaîne ses accroches de nom et d'icône à celles déjà posées, et relit longueur et contenu de la liste.
+- Preuves : sondes d'émulation sur le build « boutons seuls » et sur le build avec toutes les autres fonctions
+  (`holdlines_probe.py` 247 contrôles, `holdbuttons_probe.py` 48, `adjredfilter_probe.py` avec `--official` pointant sur un build
+  de référence sans boutons personnalisés, `nomovie_probe.py`), test `core/test/gr4-custombuttons.test.ts`.
+- Un seul fichier firmware sert le GR IV, le GR IV HDF et le Monochrome : la fonction est proposée pour les trois, mais seul le
+  Monochrome a été essayé sur boîtier. Les libellés sont en anglais (21 langues du boîtier), l'interface en zh et en.

@@ -63,18 +63,29 @@ export function installAdjRedFilterIcon(patch: Patch, iconbin: Uint8Array): Uint
 }
 
 /** After the icon; before anything that copies the ADJ table (adjslots, exposure preview). */
-export function installAdjRedFilter(patch: Patch): void {
+/**
+ * `table`: where the ADJ function table is now (the official one, or the copy that exposure preview made). Run after the other
+ * additions to the ADJ lever (soft focus, exposure preview): the name, icon and list hooks chain to what is already there.
+ */
+export function installAdjRedFilter(patch: Patch, table = ADJ_TABLE): void {
   const fail = (m: string): never => { throw new FirmwareError('unexpected-layout', `ADJ Red Filter: ${m}`); };
-  const rec = new DataView(patch.read(ADJ_TABLE + RED_FILTER * ADJ_RECORD, ADJ_RECORD).buffer.slice(0));
+  const rec = new DataView(patch.read(table + RED_FILTER * ADJ_RECORD, ADJ_RECORD).buffer.slice(0));
   if (rec.getUint32(0x10, true) !== 0x531bc0f0 || rec.getUint32(H_DRAW, true) !== 0x531bfd5c || rec.getUint32(H_COUNT, true) !== 0x531bbcfc) fail('record 18 is not Framerate\'s');
-  const crop = patch.read(ADJ_TABLE + CROP * ADJ_RECORD, ADJ_RECORD);
+  const crop = patch.read(table + CROP * ADJ_RECORD, ADJ_RECORD);
   const cv = new DataView(crop.buffer);
   if (cv.getUint32(0x10, true) !== 0x531bbc60 || cv.getUint32(0x3c, true) !== 0x531be524) fail('Crop\'s record is not as expected');
   expectWord(patch, IS_CURRENT, 0xe1a0c00d); // mov ip, sp
   expectWord(patch, SET, 0xe1a0c00d);
-  expectWord(patch, NAME_OF, 0xe3510000);
-  expectWord(patch, ICON_OF, 0xe3510000);
-  expectWord(patch, FUNCTION_LIST_LENGTH, 0xe2846013);
+  // The name and icon functions: the official ones, or already hooked by another addition (then ours chains to its hook).
+  const tail = (site: number): string => {
+    const w = patch.word(site);
+    if (w === 0xe3510000) return `cmp r1, #0; b #${site + 4}`;
+    if ((w >>> 24) === 0xea) { const off = (w & 0xffffff) << 8 >> 8; return `b #${site + 8 + off * 4}`; }
+    return fail('the name / icon function is neither official nor hooked');
+  };
+  const nameTail = tail(NAME_OF), iconTail = tail(ICON_OF);
+  const lengthWord = patch.word(FUNCTION_LIST_LENGTH);
+  if ((lengthWord & 0xffffff00) >>> 0 !== 0xe2846000) fail('the list length is not as expected');
 
   // Handlers (this = r0, value index = r1): the strip's text for value i, the count.
   const draw = patch.append((at) => assembleWords(
@@ -96,26 +107,25 @@ export function installAdjRedFilter(patch: Patch): void {
   rv.setUint32(H_COUNT, count, true);
   rv.setUint32(0x3c, 0, true);
   for (let off = 0; off < ADJ_RECORD; off += 4) {
-    const word = rv.getUint32(off, true), at = ADJ_TABLE + RED_FILTER * ADJ_RECORD + off;
+    const word = rv.getUint32(off, true), at = table + RED_FILTER * ADJ_RECORD + off;
     if (word !== patch.word(at)) patch.setWord(at, word, 'ADJ Red Filter: record 18 (Crop\'s, with handlers of its own)');
   }
 
   // Name and icon.
   const name = patch.append((at) => assembleWords(
     `cmp r1, #${RED_FILTER}; movweq r0, #${RED_FILTER_NAME_TEXT}; bxeq lr
-     cmp r1, #0; b #${NAME_OF + 4}`, at), 16);
+     ${nameTail}`, at), 16);
   patch.setWord(NAME_OF, branchWord(NAME_OF, name), 'ADJ Red Filter: the function\'s name');
   const icon = patch.append((at) => assembleWords(
     `cmp r1, #${RED_FILTER}; bne other
      cmp r2, #0; movne r0, #0; movweq r0, #${RED_FILTER_ICON_ID}; bx lr
-     other: cmp r1, #0; b #${ICON_OF + 4}`, at), 16);
+     other: ${iconTail}`, at), 16);
   patch.setWord(ICON_OF, branchWord(ICON_OF, icon), 'ADJ Red Filter: the function\'s icon');
 
   // ADJ Mode Setting's list: 18 added at the end, offered on the Monochrome only (its length is set here).
   const listAt = (movImmediate(patch.word(FUNCTION_LIST_LOW)) | (movImmediate(patch.word(FUNCTION_LIST_HIGH)) << 16)) >>> 0;
-  if (listAt !== 0x53de6790) fail('the function list is not the official one');
-  const old = [...patch.read(listAt, 0x13)];
-  if (old.includes(RED_FILTER) || old.some((f) => f > 0x14)) fail('the function list is not as expected');
+  const old = [...patch.read(listAt, lengthWord & 0xff)];
+  if (old.includes(RED_FILTER) || old.some((f) => f > 0x15)) fail('the function list is not as expected');
   const newList = patch.append(Uint8Array.from([...old, RED_FILTER]), 16);
   patch.setWord(FUNCTION_LIST_LOW, movWord(4, lo(newList)), 'ADJ Red Filter: the function list, low half');
   patch.setWord(FUNCTION_LIST_HIGH, movWord(4, hi(newList), true), 'ADJ Red Filter: the function list, high half');
