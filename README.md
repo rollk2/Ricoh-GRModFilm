@@ -16,7 +16,16 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.1.0 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.2.0 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.2.0 (GR IV Monochrome 1.11, the GR IV 1.21 file)
+
+- **No movie** (an option on the Features page): the Movie tab, Still/Movie, Movie Edit and the movie functions are taken out.
+- **Custom buttons, always on** (as the Hold buttons are on the GR III): every function can go on every button
+  (Flash Exp. Comp., Airplane Mode and Macro Mode added to the lists); a Hold (long press) line under the line of
+  Fn, ISO, Drive, the fourth key and the Macro key in Fn Button Setting; a Macro Button line for the up key; and Red Filter on
+  the ADJ lever (the Monochrome has no ND filter). The new lines are named in the 21 languages as on the GR III.
+- Tried on a GR IV Monochrome 1.11. The same file is used by the GR IV and the GR IV HDF, which have not been tried.
 
 ## What the film mode does (GR III / IIIx)
 
