@@ -74,7 +74,7 @@ export const TEXT_SHIFT = 44;
 const TEXT_CAPACITY = 896 + TEXT_SHIFT;
 export const LANGUAGES = 21;
 const ROW_STRIDE = TEXT_CAPACITY * 4;
-const NATIVE_ICON_CATALOG = 0x55014280;
+export const NATIVE_ICON_CATALOG = 0x55014280;
 export const NATIVE_TEXT_ROOTS = 0x55002118;
 
 export const ORDER_SITES = [0x531bcacc, 0x531bcdb0, 0x531bfe5c, 0x531d2b54, 0x531d4e9c, 0x531d6814, 0x5325d2d8] as const;

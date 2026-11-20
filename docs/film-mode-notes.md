@@ -4656,3 +4656,11 @@ dans `holdlines_probe.py`, `holdbuttons_probe.py` repassée sur le fichier) :
   de référence sans boutons personnalisés, `nomovie_probe.py`), test `core/test/gr4-custombuttons.test.ts`.
 - Un seul fichier firmware sert le GR IV, le GR IV HDF et le Monochrome : la fonction est proposée pour les trois, mais seul le
   Monochrome a été essayé sur boîtier. Les libellés sont en anglais (21 langues du boîtier), l'interface en zh et en.
+
+### Images de description de Fn Button Setting (2026-11-20)
+- La description sous la liste (fonction 0x531ea0b8) affiche deux images : en haut une image 340 x 160 de la place du bouton
+  (icônes 622 Fn, 695 ISO, 696 Drive, 697 4e bouton, 74 Movie), en dessous la vue de côté 120 x 160 (88 ou 372).
+- Les lignes Hold lisent maintenant le genre de leur touche (Hold ISO : 695, Hold Drive : 696, Hold Image Control : 697).
+- Macro Button et Hold Macro : image n° 740 fabriquée (`drawMacroPicture`, holdlines.ts) : celle de Drive, dont la pastille
+  (pixels qui diffèrent entre les images ISO et Drive) est déplacée de 18 pixels vers la gauche et 17 vers le haut, au sommet de la croix.
+  Preuves : image rendue et relue dans le fichier construit, sonde `holdlines_probe.py` (260 contrôles, id d'image par ligne).

@@ -25,7 +25,7 @@
  */
 import { FirmwareError } from '../../types';
 import { assembleWords, branchWord, movWord } from './arm';
-import { LANGUAGES, Patch, expectWord, widenTextRows } from './build';
+import { LANGUAGES, NATIVE_ICON_CATALOG, Patch, expectWord, widenTextRows } from './build';
 import { appendIcon } from './adjredfilter';
 import { paint, tile } from './exposure';
 import { addListRecords, hookControllerFactory, installTexts, nativeText } from './datestamp-menu';
@@ -41,6 +41,8 @@ export const MACRO_BYTE = RECORD + 0x7a;
 export const MACRO_LIST_ID = 0x020001e5;
 /** The function « Macro Mode » (the up key's own short press), its text (the camera's 184) and its icon (drawn here). */
 const MACRO_FUNCTION = 46, MACRO_TEXT = 184, MACRO_ICON_ID = 739;
+/** The picture of the up key's place (340 x 160, as the pictures of the Fn, ISO, Drive and fourth buttons), drawn from theirs. */
+const MACRO_PICTURE_ID = 740, ISO_PICTURE = 695, DRIVE_PICTURE = 696, PICTURE_W = 340, PICTURE_H = 160;
 const FN_TEXT = 0x5339045c, FN_ICON = 0x53391d6c;
 /** The Hold lines' list controller ids (the factory is told to hand out the Fn lists' controller for them), one per key. */
 export const HOLD_LIST_IDS = [0x020001e0, 0x020001e1, 0x020001e2, 0x020001e3, 0x020001e4] as const;
@@ -68,7 +70,7 @@ const LOOP_ROWS = [0x531ea634, 0x531ea6b4] as const, LOOP_VALUE = 0x531ea684, LA
 const TITLE_CMP = 0x531ea534, TITLE_RETURN = 0x531ea55c;
 const GETTER_CMP = 0x531ea19c;
 const OPEN_CMP = 0x531e9b3c, OPEN_GO = 0x531e9b68;
-const DESCRIPTION_CMP = 0x531ea0e0;
+const DESCRIPTION_CMP = 0x531ea0e0, DESCRIPTION_TAIL = 0x531ea10c;
 const MONO = 0x5340171c;
 const lo = (v: number): number => v & 0xffff, hi = (v: number): number => v >>> 16;
 const cmpImm = (r: number, v: number): number => (0xe3500000 | (r << 16) | v) >>> 0;
@@ -86,9 +88,40 @@ function drawMacroIcon(): Uint8Array {
   return px;
 }
 
-/** The icon of the function Macro Mode: appended to ICONBIN, which is returned. */
+/** One of the official pictures (RGBA, 340 x 160) of Fn Button Setting's description. */
+function officialPicture(patch: Patch, iconbin: Uint8Array, id: number): Uint8Array {
+  const entry = patch.readMapped(NATIVE_ICON_CATALOG + id * 4, 4), descriptor = new DataView(entry.buffer, entry.byteOffset).getUint32(0, true);
+  const head = patch.readMapped(descriptor, 12), v = new DataView(head.buffer, head.byteOffset);
+  if (v.getUint16(2, true) !== PICTURE_W || v.getUint16(4, true) !== PICTURE_H) throw new FirmwareError('unexpected-layout', `Macro picture: icon ${id} is not 340 x 160`);
+  const at = v.getUint32(8, true) * 4;
+  return iconbin.slice(at, at + PICTURE_W * PICTURE_H * 4);
+}
+
+/**
+ * The picture for the up key: the Drive button's (the dot at the right of the pad) with that dot moved to the top of the pad,
+ * where the up key is. The dot's pixels are those that differ between the ISO and the Drive pictures (the dots at the left and
+ * at the right); the pad's centre is halfway between them, the fourth button's dot sits 17 pixels below the centre.
+ */
+function drawMacroPicture(patch: Patch, iconbin: Uint8Array): Uint8Array {
+  const iso = officialPicture(patch, iconbin, ISO_PICTURE), drive = officialPicture(patch, iconbin, DRIVE_PICTURE);
+  const out = drive.slice();
+  const at = (x: number, y: number): number => (y * PICTURE_W + x) * 4;
+  const dot: [number, number][] = [];
+  for (let y = 100; y < 150; y++) for (let x = 276; x < 310; x++) {   // the right-hand dot (the ISO dot is at x < 270)
+    const i = at(x, y);
+    if (iso[i] !== drive[i] || iso[i + 1] !== drive[i + 1] || iso[i + 2] !== drive[i + 2] || iso[i + 3] !== drive[i + 3]) dot.push([x, y]);
+  }
+  if (dot.length < 100) throw new FirmwareError('unexpected-layout', 'Macro picture: the Drive dot was not found');
+  for (const [x, y] of dot) out.set(iso.subarray(at(x, y), at(x, y) + 4), at(x, y));   // the pad as the ISO picture shows it, without the dot
+  for (const [x, y] of dot) out.set(drive.subarray(at(x, y), at(x, y) + 4), at(x - 18, y - 17));
+  return out;
+}
+
+/** The icon of the function Macro Mode and the up key's picture: appended to ICONBIN, which is returned. */
 export function installMacroIcon(patch: Patch, iconbin: Uint8Array): Uint8Array {
-  return appendIcon(patch, iconbin, MACRO_ICON_ID, drawMacroIcon());
+  const picture = drawMacroPicture(patch, iconbin);
+  const withIcon = appendIcon(patch, iconbin, MACRO_ICON_ID, drawMacroIcon());
+  return appendIcon(patch, withIcon, MACRO_PICTURE_ID, picture, PICTURE_W, PICTURE_H);
 }
 
 export function installHoldLines(patch: Patch): void {
@@ -179,9 +212,14 @@ export function installHoldLines(patch: Patch): void {
      other: cmp r3, #5; b #${OPEN_CMP + 4}`, at), 4);
   patch.setWord(OPEN_CMP, branchWord(OPEN_CMP, open), 'hold lines: the Hold rows open their lists');
   // The description under the list: the Hold rows read as genre 0.
+  // Hold Fn reads as Fn's genre, and so on for ISO, Drive and the fourth key (the picture of the button's place is the key's own);
+  // the Macro lines show their own picture (the official code of the case: the text 0x58 under a picture, then the common tail).
   const description = patch.append((at) => assembleWords(
-    `cmp r3, #6; movhs r3, #0
-     cmp r3, #5; b #${DESCRIPTION_CMP + 4}`, at), 4);
+    `cmp r3, #6; blo other
+     sub r3, r3, #6
+     cmp r3, #4; bhs macro
+     other: cmp r3, #5; b #${DESCRIPTION_CMP + 4}
+     macro: mov r5, #0x58; movw r1, #${MACRO_PICTURE_ID}; b #${DESCRIPTION_TAIL}`, at), 4);
   patch.setWord(DESCRIPTION_CMP, branchWord(DESCRIPTION_CMP, description), 'hold lines: the description of the Hold rows');
 
   // The texts, then the lists' records: Fn Button's with our set and is current.

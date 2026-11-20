@@ -44,11 +44,11 @@ export function drawRedFilterIcon(): Uint8Array {
 }
 
 /** Appends a 40 x 40 icon of the given number (not yet given out) to ICONBIN; returns the new ICONBIN. */
-export function appendIcon(patch: Patch, iconbin: Uint8Array, id: number, px: Uint8Array): Uint8Array {
+export function appendIcon(patch: Patch, iconbin: Uint8Array, id: number, px: Uint8Array, width = 40, height = 40): Uint8Array {
   if (patch.word(ICON_CATALOG + id * 4) !== 0) throw new FirmwareError('unexpected-layout', 'icon number already in use');
   const pad = (4 - (iconbin.length % 4)) % 4;
   const offset = iconbin.length + pad;
-  const descriptor = patch.append(concat([u16le([1, 40, 40, 0]), u32le([offset / 4])]), 16);
+  const descriptor = patch.append(concat([u16le([1, width, height, 0]), u32le([offset / 4])]), 16);
   patch.write(ICON_CATALOG + id * 4, u32le([descriptor]));
   for (const [site, register] of LOOKUP_BOUNDS) {
     if ((patch.word(site) & 0xfff0f000) >>> 0 !== (0xe3000000 | (register << 12)) >>> 0) throw new FirmwareError('unexpected-layout', 'icon bound is not a MOVW');

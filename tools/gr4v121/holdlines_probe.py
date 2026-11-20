@@ -125,8 +125,15 @@ def main():
     ok(sum(1 for x in lo if x[0] == 'item') == 6 and sum(1 for x in lb if x[0] == 'item') == 12, ('rows', len(lo), len(lb)))
     ok(sum(1 for x in lb if x[0] == 'value') == 12 and not any(x[0] == 'assert' for x in lb), ('assert / values in the rows loop', [x[0] for x in lb]))
     # the description under the list: the Hold rows read as genre 0
-    _, l0 = b.call(0x531ea0b8, (THIS,), row=0); _, l1 = b.call(0x531ea0b8, (THIS,), row=1)
-    ok(l0 == l1 and len(l0) > 0, ('description', l0, l1))
+    # the picture of the button's place (the first call of 0x5359aa2c, 340 x 160): the key's own for its Hold line, a picture of its own for Macro
+    PICTURE = {0: 622, 1: 695, 2: 696, 3: 697, 6: 622, 7: 695, 8: 696, 9: 697, 10: 740, 11: 740}
+    for row in range(12):
+        g = ROW_GENRES[row]
+        if g in (4, 5): continue
+        _, lg = b.call(0x531ea0b8, (THIS,), row=row); texts = [x for x in lg if x[0] == 'text']
+        ok(len(texts) == 2 and texts[0][2] == PICTURE[g] and texts[1][2] == 0x58, ('description picture', row, g, texts))
+        if g <= 3:
+            _, lo_ = o.call(0x531ea0b8, (THIS,), row=g); ok([x for x in lo_ if x[0] == 'text'] == texts, ('description as official', g))
     # the list records: the ids' mapping (SetCurrentMenu stores the record number at this + 0x1a4), the table, the title, set and is current
     d = b.d
     table = pointer_at(d, 0x531d8864, 0x531d8874)
