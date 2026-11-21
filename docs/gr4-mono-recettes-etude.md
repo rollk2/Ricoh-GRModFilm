@@ -197,3 +197,14 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
 - Que la courbe propre est bien appliquée à la luminance (mire de gris sur le boîtier).
 - Les noms des paramètres 2 à 7 et 17 à 21 sur l'écran de paramètres.
 - Le comportement réel du paramètre 7 (filtre ou virage) sur un style ajouté.
+
+## 11. M3 : choix d'un premier test plus sûr, M3a (2026-11-21)
+
+- Un style **ajouté** noir et blanc demande d'adapter une dizaine de crochets dont les constantes sont propres à Cinema Yellow (champs des paramètres, foncteurs de
+  changement, champs de la vue en direct, module des paramètres propres, listes des « maker notes ») : les constantes équivalentes de Monochrome Standard doivent
+  d'abord être relevées. Un premier test sur le boîtier avec tout cela serait risqué (un champ mal mappé peut arrêter l'appareil).
+- **M3a** répond d'abord à la question centrale, sans aucun de ces crochets : le look existant **Soft** (26) reçoit une **courbe propre** (APX 100). Option de test
+  `monoCurve` (`core/src/fw/gr4v121/aspect/monocurve.ts`) : un descripteur copié de High Contrast (drapeau 1), ses trois pointeurs vers une seule courbe, écrit dans
+  les trois variantes de la table des courbes. Vérification : `tools/gr4v121/mono_curve_check.py`. Protocole : `docs/protocole-M3a-mono.md`.
+- Courbe APX calculée comme proposé en 9.4 : `c[i] = 16383 × LUT(G_standard[i] / 16383)`, LUT interpolée linéairement entre ses 13 points.
+- **M3b** (ensuite) : le style ajouté noir et blanc, une fois M3a validé et les constantes de Monochrome Standard relevées.
