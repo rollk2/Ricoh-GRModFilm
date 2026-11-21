@@ -157,6 +157,7 @@ export interface ExtensionFeatures {
   /** GR Mod Film 1.2: the movie taken out (GR IV 1.21 only, `gr4v121/aspect/nomovie.ts`; ignored by this program). */
   noMovie?: boolean;
   customButtons?: boolean;
+  monoRecipes?: boolean;
 }
 
 /** For test builds only: a fixed setting byte (1 short, 3 long style) instead of the camera menu. */

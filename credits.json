@@ -5,6 +5,7 @@
     {
       "title": { "zh": "代码贡献", "en": "Code" },
       "people": [
+        { "name": "nils-fl (nflaschel)", "url": "https://github.com/nils-fl/RicohGR", "note": { "zh": "弱光自动对焦研究与补丁（AF 更快，实验性）", "en": "Dim-light autofocus research and patch (faster AF, experimental)" } },
         { "name": "Mrjie7205", "url": "https://github.com/Mrjie7205", "note": { "zh": "GR IIIx HDF 1.60 的固件与色彩引擎移植", "en": "GR IIIx HDF 1.60 firmware and colour engine port" } },
         { "name": "sjclijie", "url": "https://github.com/sjclijie", "note": { "zh": "影像控制菜单顺序与隐藏、预设拟合改进、时间戳印风格名的思路", "en": "Image Control menu order and hidden looks, preset fitting improvements, the look name in the date imprint" } },
         { "name": "orbitsail", "url": "https://github.com/orbitsail", "note": { "zh": "色相区拟合、屏幕自动亮度曲线", "en": "Hue-sector fitting, Auto LCD curves" } },

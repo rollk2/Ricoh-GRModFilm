@@ -42,6 +42,7 @@ import { installFnLists } from './fnlists';
 import { installHoldButtons } from './holdbuttons';
 import { HOLD_BYTES, MACRO_BYTE, installHoldLines, installMacroIcon } from './holdlines';
 import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
+import { installMonoCurve } from './monocurve';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
 import type { HalationLook } from './halation';
@@ -169,6 +170,8 @@ export interface ExtensionFeatures {
   noMovie?: boolean;
   /** GR Mod Film 1.2: every function on every button, the Hold lines, the Macro Button line and ADJ Red Filter (`holdlines.ts`, `holdbuttons.ts`, `fnlists.ts`, `adjredfilter.ts`). */
   customButtons?: boolean;
+  /** GR Mod Film 1.3: the added slots are black-and-white recipes on Monochrome Standard (GR IV Monochrome; `slots.ts` with `mono`). */
+  monoRecipes?: boolean;
 }
 
 /** For test builds only: a fixed setting byte (1 short, 3 long style) instead of the camera menu. */
@@ -186,6 +189,8 @@ export interface TestOptions {
   halationDiag?: boolean;
   /** GR Mod Film 1.2: the last key codes (see `keydiag.ts`), printed by the date imprint; needs the date imprint, no guard. */
   keyDiag?: boolean;
+  /** GR IV Monochrome recipes, test M3a (`monocurve.ts`): one black-and-white factory look (25..30) gets this tone curve (256 values 0..16383). */
+  monoCurve?: { style: number; curve: readonly number[]; path?: 'own' | 'standard' | 'linear' };
   /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
   hdrDiag?: boolean;
   /** Exposure preview off (issue #17), always on: the live view keeps a normal brightness (`lvpreview.ts`). */
@@ -1142,6 +1147,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
     icons = installExposurePreviewAssets(patch, icons, lineOpts);
     stillLines.push(...exposurePreviewStillLines(patch, lineOpts));
   }
+  if (test.monoCurve) installMonoCurve(patch, test.monoCurve.style, test.monoCurve.curve, test.monoCurve.path ?? 'own');
   if (features.dateStamp) {
     const fixed = test.dateStampFixed;
     // From 0.8.2 (builds with the guard) the imprint goes by the picture's look.
@@ -1167,7 +1173,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
     halation.push({ style, light: colour.ownCurves ? halationLight(colour.curves, colour.postQ9) : halationLight() });
   }
   // Last: the added slots compose with the monochrome looks' visibility check.
-  if (slots.length > 0) icons = installExtraSlots(patch, icons, slots, { stashLook: (!!features.dateStamp && !!features.guard) || halation.length > 0, layout: features.lookLayout });
+  if (slots.length > 0) icons = installExtraSlots(patch, icons, slots, { stashLook: (!!features.dateStamp && !!features.guard) || halation.length > 0, layout: features.lookLayout, mono: !!features.monoRecipes });
   else if (features.lookLayout) {
     validateLookLayout(features.lookLayout, 0);
     installLookOrder(patch, features.lookLayout.order);
@@ -1198,5 +1204,5 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   if (features.brightAuto) installBrightAuto(patch, features.brightAuto === 'balanced' ? 'balanced' : 'bright');
   if (patch.length % 4 !== 0) fail('internal', 'image length is not a multiple of 4');
   if (BASE + patch.length >= APPEND_LIMIT) fail('too-many-ratios', 'the appended area would reach the RAM area');
-  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { ...(features.brightAuto ? { brightAuto: features.brightAuto === 'balanced' ? 'balanced' as const : 'bright' as const } : {}), adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}), ...(features.hdrGainMap ? { hdrGainMap: true } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.exposurePreview ? { exposurePreview: true } : {}), ...(features.softFocusMenu ? { softFocusMenu: true } : {}), ...(features.noMovie ? { noMovie: true } : {}), ...(features.customButtons ? { customButtons: true } : {}) } };
+  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { ...(features.brightAuto ? { brightAuto: features.brightAuto === 'balanced' ? 'balanced' as const : 'bright' as const } : {}), adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}), ...(features.hdrGainMap ? { hdrGainMap: true } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.exposurePreview ? { exposurePreview: true } : {}), ...(features.softFocusMenu ? { softFocusMenu: true } : {}), ...(features.noMovie ? { noMovie: true } : {}), ...(features.customButtons ? { customButtons: true } : {}), ...(features.monoRecipes && slots.length > 0 ? { monoRecipes: true } : {}) } };
 }

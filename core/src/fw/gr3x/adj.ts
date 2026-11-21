@@ -43,6 +43,8 @@ import { GR3X_MACRO_FUNCTION, GR3X_MACRO_ICON, GR3X_MACRO_LINE_NAMES, GR3X_MACRO
 import { GR3X_FN_CUSTOM, installGr3xRewindButton } from './film-roll';
 import { installGr3xNativeGrainTest } from './grain-native';
 import { installGr3xDialProbe, installGr3xRearDialOff } from './dial-probe';
+import { installGr3xAfDim } from './af-dim';
+import { installGr3xAfTime } from './af-time';
 import { GR3X_HOLD_KEYS, GR3X_HOLD_STATE, gr3xHoldLineName, installGr3xHoldButtons } from './hold';
 import { installGr3xPlayProbe } from './play-probe';
 import { installGr3xPlayLast } from './play-last';
@@ -131,6 +133,10 @@ export interface Gr3xAdjFeatures {
   noMovie?: boolean;
   /** T24-AF1: with Mode Memory's Focus unticked, the AF point back to the centre at power-on. */
   afReset?: boolean;
+  /** Experimental: a faster autofocus in dim light (af-dim.ts, after nflaschel's research). */
+  afDim?: boolean;
+  /** Test builds (T-AFT1, af-time.ts): the autofocus's action codes and their durations in the key ring (with `grainTag: 'keys'`, without the other probes). */
+  afTime?: boolean;
   /** T24-AF2: an « AF Point » box in Mode Memory (after Focus): unticked, the AF point back to the centre at power-on. */
   afPoint?: boolean;
   /** V1-RC2 (with `afPoint`): an « Apply to U modes » box last in Mode Memory: ticked, Mode Memory also applies at power-on in U1 to U3. */
@@ -546,6 +552,11 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     ...(features.filmRoll === 'hide1' || features.filmRoll === 'card1' || features.filmRoll === 'card2' || features.filmRoll === 'card3' || features.filmRoll === 'vid1' || features.filmRoll === 'vid2' || features.filmRoll === 'vid3' || features.filmRoll === 'vid4' || features.filmRoll === 'tab1' || features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film') ? installGr3xMenuRebuild({ code, sites, patch }) : {}),
     ...(features.filmRoll === 'name1' || (features.filmRoll === 'name2' || features.filmRoll === 'film') ? installGr3xFilmFileNames({ code, sites, patch }, (features.filmRoll === 'name2' || features.filmRoll === 'film'), filmCodes) : {}) } : {};
   // T24-AF1: the AF point reset with Mode Memory's Focus.
+  if (features.afDim) installGr3xAfDim({ patch, u32: word });
+  if (features.afTime) {
+    if (features.grainTag !== 'keys' || features.dialProbe || features.playProbe || features.filmProbe || features.srSpeed?.diag || features.formatRewind === 'diag' || features.playLast === 'diag') fail('IIIx AF timing: with the keys tag, without the other probes');
+    installGr3xAfTime({ code, patch, u32: word, sites });
+  }
   const afResetEntries = { ...(features.afReset ? installGr3xAfReset({ code, sites, patch }) : {}),
     ...(features.afPoint ? installGr3xAfPointMemory({ code, sites, patch, read, append }, afText, memoryU ? uText : undefined,
       { film: !!roll && filmMenu, ...(roll ? { filmRecall: roll.entries.filmRollRecall } : {}), hideStillMovie: movieLines, hideItems: hiddenPlan?.memoryItems ?? [],
@@ -744,7 +755,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rewindButton ? { rewindButton: true } : {}), ...(features.fnDial ? { fnDial: features.fnDial } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.playProbe ? { playProbe: features.playProbe } : {}), ...(features.playLast ? { playLast: features.playLast } : {}), ...(features.srSpeed ? { srSpeed: { ...features.srSpeed } } : {}), ...(features.formatRewind ? { formatRewind: features.formatRewind } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afDim ? { afDim: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rewindButton ? { rewindButton: true } : {}), ...(features.fnDial ? { fnDial: features.fnDial } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.playProbe ? { playProbe: features.playProbe } : {}), ...(features.playLast ? { playLast: features.playLast } : {}), ...(features.srSpeed ? { srSpeed: { ...features.srSpeed } } : {}), ...(features.formatRewind ? { formatRewind: features.formatRewind } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

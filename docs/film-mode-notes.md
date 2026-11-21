@@ -4664,3 +4664,121 @@ dans `holdlines_probe.py`, `holdbuttons_probe.py` repassée sur le fichier) :
 - Macro Button et Hold Macro : image n° 740 fabriquée (`drawMacroPicture`, holdlines.ts) : celle de Drive, dont la pastille
   (pixels qui diffèrent entre les images ISO et Drive) est déplacée de 18 pixels vers la gauche et 17 vers le haut, au sommet de la croix.
   Preuves : image rendue et relue dans le fichier construit, sonde `holdlines_probe.py` (260 contrôles, id d'image par ligne).
+
+## Page lue : autofocus plus rapide dans la pénombre (gr.nflaschel.de, 2026-11-20)
+
+Source : https://gr.nflaschel.de/ (recherche personnelle de nflaschel, GR IIIx firmware 1.60, novembre 2026, non affiliée à Ricoh).
+Aucune licence indiquée sur la page ; l'auteur ne propose pas le firmware modifié en téléchargement. Les notes de travail restent privées.
+
+- Résultat annoncé : de 23 à 39 % de temps de mise au point en moins en lumière faible (médiane 660 ms → 401 ms), sans changement en bonne lumière
+  (-9 à +2 %), 0 échec sur 180 appuis patchés (1 sur 165 en origine). Testé sur un seul boîtier, sur trépied, quelques scènes intérieures ;
+  la netteté des photos n'a pas été vérifiée.
+- Principe : l'AF final vient d'un balayage de contraste. Deux réglages ne servent qu'ensemble : une marge d'acceptation du pic plus basse, et
+  49 images/s au lieu de 29 dans le mode le plus sombre.
+- Les cinq changements et leurs adresses (firmware 1.60) :
+  1. marges de base, 6 flottants à 0x53c16bb0 (environ 570 à 600) : multipliées par 0,32 ;
+  2. fonction de la marge à 0x5340c590 : mise à l'échelle en lumière faible (b/y) adoucie en (b/y)^0,875 (le code n'est pas donné) ;
+  3. nombre d'échantillons en baisse avant acceptation, à 0x53c16cc0 : 3 → 2 ;
+  4. plancher de montée (mode 0), à 0x53c16d14 : 0,02 → 0,014 ;
+  5. « NO29 », à 0x533f4b10 : `movhi r3,#3` → `#2` (49 images/s là où l'appareil choisirait 29).
+- Coûts signalés : mauvais objet dans une scène à deux objets (3 appuis sur 85, non significatif), dispersion plus large à 49 images/s,
+  risque d'échec dans le noir presque complet (une règle de repli à 29 images/s sous une luminosité mesurée serait préférable).
+- Ce qui n'aide pas : forcer une cadence partout, raccourcir l'attente avant balayage, supprimer le lissage sur 3 images, changer le pas de
+  l'objectif (7 à 8 impulsions par image est l'optimum à 49 images/s).
+- Vérification faite ici : les valeurs d'origine aux adresses 1 (6 marges 569,2 / 569,2 / 574,5 / 597,8 / 563,3 / 563,3), 3, 4 et 5 sont
+  **identiques dans nos programmes GR IIIx 1.60 (fwdc243b) et GR III 2.10 (fwdc239b)**. L'adresse 2 (fonction de marge) n'a pas été lue.
+- Non applicable en l'état au GR IV Monochrome (autre programme, autres adresses).
+
+### Autofocus en pénombre : ce que j'ai vérifié dans nos firmwares (2026-11-20)
+- GR III 2.10 et GR IIIx 1.60 : mêmes adresses, mêmes valeurs d'origine (marges, 3 échantillons, plancher 0,02, `movhi r3,#3` à 0x533f4b10).
+- La fonction de marge 0x5340c590 (même code dans les deux) : base = table[mode] ; rapport y = luminosité / (r2 >> 2) ; la marge devient
+  base / y ; sauf si base > y, auquel cas la valeur est renvoyée telle quelle ; sinon elle est bornée par un plancher (0,25, à 0x53c16bd4)
+  puis passe par la fonction 0x53153ba8, qui a l'allure d'une racine carrée avec contrôle de domaine (argument négatif = erreur).
+  **La page décrit « (b/y) devient (b/y)^0,875 » sans donner son code : je n'ai pas pu retrouver exactement l'exposant d'origine.**
+  Ce cinquième changement n'est donc pas reproduisible sans le patch de l'auteur ou une mesure de la fonction dans l'émulateur.
+- GR IV Monochrome 1.11 : pas la même table. Une table de marges plus grande, de la même famille (569,2 / 574,5 / 597,8 / 563,3 et d'autres
+  valeurs 521 à 578) se trouve à partir de 0x53ee0fd8. Les autres emplacements (échantillons, plancher, choix de cadence) n'ont pas été
+  cherchés. Les mesures de la page ne valent que pour le GR IIIx : un portage GR IV demande ses propres mesures sur boîtier.
+
+### Test AF en pénombre, GR III 2.10 (2026-11-20)
+- Option de moteur `afDim` (`fw/gr3x/af-dim.ts`, `adj.ts`, `ratio-recipe.ts`, `engine.ts`), pour l'instant sans case dans l'interface : neuf mots changent
+  (6 marges x 0,32, 3 → 2 échantillons, plancher 0,02 → 0,014, `movhi r3,#3` → `#2` à 0x533f4b10). Les autres changements de la page
+  (exposant 0,875 de la fonction de marge) ne sont pas faits. Test `core/test/gr3x-af-dim.test.ts`.
+- Un build GR III 2.10 d'essai (1 ratio, sans autre option) et une référence sans `afDim` ne diffèrent que par ces neuf mots et l'enregistrement de la recette.
+
+### Dépôt de l'auteur : nils-fl/RicohGR (2026-11-20)
+- Dépôt public, licence **MIT** (Nils Flaschel), cloné en lecture seule (aucun code exécuté). Il contient l'étude de l'AF du GR IIIx 1.60, des outils
+  Python, un build d'AF testé (`tools/af_firmware.py`, 19 mots, flashé sur son boîtier le 2026-11-20) et des documents HTML.
+- Le build d'AF = « X875 + FALLS2 + OPT + NO29 » : exposant 0,875 (dix mots de code à 0x5340c5f0 : trois `vsqrt` et un `vdiv`),
+  2 échantillons, marges x 0,32 (six mots de données), plancher de montée 0,014, `movhi r3,#3` → `#2`.
+- **Vérifié chez nous** : les dix mots de code d'origine à 0x5340c5f0 sont identiques dans notre GR III 2.10 et notre GR IIIx 1.60.
+  Les 19 mots de notre option `afDim` sont maintenant les mêmes que ceux de son outil (comparés un à un, valeurs des flottants comprises).
+- La fonction de marge (que je n'avais pas su décoder) : y = luminosité par pixel, b la base du mode ; d'origine, la marge vaut sqrt(max(b/y, 0,25))
+  quand y >= b mais b/y quand y < b ; le patch retire le retour anticipé et applique x^0,875.
+- Crédit ajouté à `credits.json`. Son code n'est pas copié : nous reprenons ses valeurs d'adresses et de mots (faits techniques), avec crédit.
+- Il décrit aussi : un banc d'essai Wi-Fi en RAM (carte SD, script d'ingénierie du boîtier), un journal d'AF intégré, des recettes dans les emplacements Custom 1/2
+  (non testé), des conseils de reprise du boîtier. Pas encore lus en détail ici.
+
+## Mesure de la durée d'AF par le date imprint, « voie 2 » : plan (2026-11-21)
+
+Demande du 2026-11-21 : mesurer la durée réelle de la mise au point sans téléphone, en l'imprimant sur la photo avec le date imprint, pour
+comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné ici ; rien n'est encore codé.
+
+### Ce qui existe déjà chez nous (GR III 2.10 / GR IIIx 1.60)
+- Un **anneau de recherche** de 8 octets à 0x558043a8 (`GR3X_DIAL_TABLE`, `dial-probe.ts`) : sept octets, le huitième est l'index. Le module de
+  date (`datestamp.c -DKEY_DIAG`, option `grainTag: 'keys'`) l'imprime après l'étiquette de grain : chaque octet s'imprime sur **deux chiffres
+  (valeur modulo 100)** ; 246 n'imprime rien. Notation `gr3xRingNote` (play-probe.ts).
+- Le temps : `tk_get_otm` 0x53050b7c (millisecondes depuis le démarrage, mot bas à [sp+4]), déjà utilisé par `hold.ts`.
+- Des sondes d'émulation (Unicorn) pour ce genre de crochet (`tools/gr3x/*_probe.py`).
+- Contrainte : l'impression par l'anneau n'existe que dans un build avec le mode pellicule, le grain et le date imprint (`adj.ts` : « grain tag: only
+  with the grain and the date imprint stage »). Le build de mesure sera donc un build GR Mod Film complet.
+
+### Ce que dit le dépôt de l'auteur sur le code d'AF (nils-fl/RicohGR, MIT) et que j'ai relu dans notre firmware
+- L'AF par contraste est dans CafProcess / CafDetection / CafWobbling (0x533f3d18 .. 0x53417990). Le répartiteur par image est **0x5340a2bc** :
+  il lit le code d'action à `this + 0xc44c` (`ldrh r4,[r6,r3]`, r6 = this + 0xc000), l'aigrille (1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80) et réécrit le
+  nouveau code en 0x5340a354 (`strh r4,[r6,r1]`, r1 = 0x44c) à sa sortie commune (0x5340a344).
+- Phases d'un appui d'après ses traces (lumière faible) : attente de l'objectif (code 2, environ 210 ms), balayage (code 4, environ 335 ms à 29 images/s),
+  acceptation et fin (codes 8 et 128, environ 70 ms) ; total médian 618 ms en stock.
+- La valeur d'un code « repos » n'est **pas** documentée : je ne sais pas si le répartiteur est appelé hors AF.
+
+### Conception
+1. Crochet unique à la sortie commune du répartiteur (0x5340a354) : l'instruction `strh` est remplacée par un branchement vers notre code, qui
+   exécute l'instruction d'origine et garde tous les registres et les drapeaux (comme `dial-probe.ts`). Coût : une vingtaine d'instructions par image
+   (200 images/s au plus), sans effet sensible sur l'AF.
+2. À chaque **changement** de code d'action : lire l'heure, attribuer le temps écoulé depuis le changement précédent à la phase de l'**ancien** code,
+   enregistrer le total depuis le premier changement d'une série.
+3. Sorties imprimées (en dizaines de millisecondes, plafonnées à 99) : attente, balayage, fin, total, nombre de changements, dernier code, drapeau d'AF
+   confirmée. Elles décrivent l'**AF qui précède la photo**.
+4. Mémoire : 16 octets environ de plus que l'anneau. La zone de mise à zéro de la ronde 10 (76 octets avant 0x558043c0) est presque pleine
+   (rouleau de pellicule, touche WB, mot de look, copie des réglages) : l'attribution doit être faite avec soin, et vérifiée par la sonde.
+
+### Étapes proposées (chacune validée avant la suivante)
+- **T-AFT0** (statique, fait ici) : crochet et champs identifiés ; les quatre inconnues ci-dessous restent à lever.
+- **T-AFT1** : build qui note, à chaque changement de code, le **nouveau code et le temps écoulé** dans l'anneau (7 octets : environ 3 changements
+  seulement). Objectif : découvrir la vraie suite de codes d'un appui sur le boîtier (le répartiteur est-il appelé hors AF, quel est le code de repos).
+  Sonde d'émulation du répartiteur avec un faux objet avant tout flashage.
+- **T-AFT2** : le chronomètre par phases (point 3) ; 10 appuis, vérification contre le téléphone sur 3 appuis.
+- **T-AFT3** : l'A/B proprement dit (fichiers A et B identiques à 19 mots près, chacun avec le chronomètre), protocole du 2026-11-21.
+
+### Inconnues et risques
+1. Le répartiteur est-il appelé en continu ou seulement pendant un AF ? (T-AFT1)
+2. Valeur du code de repos, et code qui marque « mise au point confirmée » (8 puis 128 ?). (T-AFT1)
+3. Mots de RAM libres pour l'état du chronomètre. (étude de `round10.ts`, sonde)
+4. Le chronomètre doit couvrir ce que l'utilisateur appelle « temps de mise au point » (demi-appui jusqu'au cadre vert) : l'attente avant le premier code
+   d'action n'est peut-être pas comptée. À comparer au téléphone une fois (T-AFT2).
+5. Un crochet dans le code d'AF : une erreur peut figer l'appareil. Atténuation : sonde d'émulation du répartiteur (registres, drapeaux, pile), chemin
+   de retour toujours à l'instruction d'origine, build d'essai seulement.
+6. Le build de mesure est un build film complet : l'utilisateur doit confirmer les options qu'il utilise d'habitude sur son GR III.
+
+### T-AFT1 : fait (2026-11-21)
+- `fw/gr3x/af-time.ts` (option de test `afTime`, avec `grainTag: 'keys'`) : crochet à la sortie du répartiteur d'AF (0x5340a354) ; à chaque changement du code d'action,
+  une case de l'anneau : dizaines = durée de l'ancien code en pas de 50 ms (9 = 450 ms ou plus), unités = rang du bit de l'ancien code + 1. Heure du dernier changement
+  au mot 0x55804388 (celui de la sonde de film, exclue de ce build).
+- Preuve : `tools/gr3x/af_time_probe.py` (11 contrôles : registres, stockage, codage, bouclage de l'anneau). Build : build film complet (mode pellicule, grain, boutons,
+  Save/Load, 2 films, ratio 65:24, SR par vitesse, AF Point) + `afTime` ; auto-contrôles passés.
+- Protocole de test : `docs/protocole-T-AFT1.md`.
+
+## GR IV Monochrome : recettes depuis une LUT dans l'application (2026-11-21)
+- `core/src/color/mono.ts` : axe neutre de la LUT (moyenne des canaux, 256 points), coloration (seuil 2 / 255) et mélange des canaux (seuil 8 / 255) signalés ;
+  courbe `c[i] = 16383 × LUT(S[i] / 16383)`, `S` = courbe verte de Monochrome Standard du firmware. Certitude : élevée (méthode validée sur boîtier en M3a-6 et M3b).
+- Fichier construit par le site : vérifié par le moteur, sonde `mono_recipe_probe.py` 56 / 56. Détails : `docs/gr4-mono-recettes-etude.md` section 13.

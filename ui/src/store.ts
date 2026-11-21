@@ -7,7 +7,7 @@ import { upload } from './host-android';
 import { DOWNLOADS } from './webhost';
 import { firmwareFromZip, isZip } from './zip';
 import { COMMUNITY_LICENSE, emptyRecipe, makeRatioPack, makeRecipePack, mergeRatios, PackError, placeRecipes, RATIOS_EXT, readRatioPack, readRecipePack, RECIPES_EXT } from './packs';
-import type { CommunityEntry, CommunityIndex, PackMeta, PackRecipe } from './packs';
+import type { CommunityEntry, CommunityIndex, PackFamily, PackMeta, PackRecipe } from './packs';
 import type { ParkedEntry, Volume } from './host';
 import { setUiLangPref, t, uiLangPref } from './i18n';
 import type { Key } from './i18n';
@@ -508,7 +508,9 @@ export function setModel(model: CameraModel): void {
     set({ info: undefined, raw: undefined, fwName: undefined,
       copyInfo: {}, copySel: [], ratios: state.ratios.map(({ preview, ...r }) => r) });
   }
+  const wasMono = monoRecipesOn();
   set({ model });
+  if (wasMono !== monoRecipesOn()) reconvertExtras();
   // The other camera's work comes back (its pictures are encoded again once read).
   if (differentFamily) enterFamily(familyOf(model));
   else for (const w of state.wall) void encodeWall(w.id);
@@ -596,7 +598,7 @@ export function askForOfficial(): void { setOnlineOpen(true, 'bridge-loaded'); }
 // ------------------------------------------------------------------ presets
 const PRESET_ERRORS: Record<string, Key> = {
   'not-xmp': 'errNotXmp', 'no-table': 'errNoTable', 'look-profile-missing': 'errLookMissing', 'unsupported-table': 'errUnsupportedTable', 'bad-table': 'errUnsupportedTable',
-  'not-cube': 'errNotXmp', 'bad-cube': 'errBadCube', 'gr3x-cube-only': 'gr3xCubeOnly',
+  'not-cube': 'errNotXmp', 'bad-cube': 'errBadCube', 'gr3x-cube-only': 'gr3xCubeOnly', 'mono-cube-only': 'monoCubeOnly',
 };
 /** The newest conversion of each slot: an older one that finishes later is dropped. */
 const presetRuns = new Map<SlotKey, number>();
@@ -608,8 +610,10 @@ async function runPreset(id: SlotKey, fileName: string, kind: 'xmp' | 'cube', te
   presetRuns.set(id, run);
   // GR IV added slots also try hue sectors; the conversion keeps them only when they come out closer.
   const hue = isExtra(id) && state.info.family !== 'gr3x';
+  // GR IV Monochrome: an added slot is a black-and-white recipe (the .cube's tone curve on Monochrome Standard).
+  const mono = isExtra(id) && monoRecipesOn();
   try {
-    const result = await engine.convert(kind, text, hue ? { hue: true } : {});
+    const result = await engine.convert(kind, text, mono ? { mono: true } : hue ? { hue: true } : {});
     if (presetRuns.get(id) !== run || slotOf(id)?.preset?.text !== text) return; // replaced, removed or converted again meanwhile
     patchSlot(id, { preset: { fileName, kind, text, busy: false, result } });
   } catch (e) {
@@ -854,10 +858,20 @@ export function extraProblem(x: ExtraSlot, s: State = state): string | null {
   if (!x.icon.pixels) return t('extraNeedsIcon');
   return null;
 }
-export function hasExtraErrors(s: State = state): boolean { return s.model !== 'MONO' && s.extras.some((x) => !!extraProblem(x, s)); }
+export function hasExtraErrors(s: State = state): boolean { return (s.model !== 'MONO' || monoRecipesOn(s)) && s.extras.some((x) => !!extraProblem(x, s)); }
+/** GR IV Monochrome 1.11: the added slots are black-and-white recipes made from .cube LUTs (GR Mod Film 1.3). */
+export function monoRecipesOn(s: State = state): boolean { return s.model === 'MONO' && !!s.info?.features.monoRecipes; }
+/** Re-converts the added slots' presets when the model changes between the Monochrome and a colour model (the conversion differs). */
+function reconvertExtras(): void {
+  for (const x of state.extras) if (x.preset && !x.preset.busy) void runPreset(x.key, x.preset.fileName, x.preset.kind, x.preset.text);
+}
 /** What the added slots give the build (none on the Monochrome, which has no colour looks). */
 export function extraSpecs(s: State = state): ExtraSlotSpec[] {
-  if (s.model === 'MONO') return [];
+  if (s.model === 'MONO' && !monoRecipesOn(s)) return [];
+  if (s.model === 'MONO') return s.extras.map((x) => {
+    const r = x.preset!.result!;
+    return { name: extraName(x, s), matrixQ13: r.matrixQ13, curves: r.curves, icon: x.icon.pixels! };
+  });
   return s.extras.map((x) => {
     const r = x.preset!.result!;
     return { name: extraName(x, s), matrixQ13: r.matrixQ13, curves: r.curves, ...(r.postQ9 ? { postQ9: r.postQ9 } : {}), ...(r.hueQ10 ? { hueQ10: r.hueQ10 } : {}), icon: x.icon.pixels!, halation: true };
@@ -1564,7 +1578,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
       set({ busy: t('building') });
       const clarity = soft && sourceInfo.features.softFocus === 'clarity' ? [...GR3X_SOFT_FOCUS] : [];
       const built = await engine.build(changes.map((c) => c.request), ratios, clarity,
-        { ...(brightAuto ? { brightAuto } : {}), adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(hdr ? { hdrGainMap: true } : {}), ...(exposurePreview ? { exposurePreview: true } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
+        { ...(brightAuto ? { brightAuto } : {}), adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(hdr ? { hdrGainMap: true } : {}), ...(exposurePreview ? { exposurePreview: true } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(extras.length && monoRecipesOn() ? { monoRecipes: true } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
           ...(films ? { filmCount: films } : {}), ...(lookLayout ? { lookLayout } : {}),
           // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed),
           // the Hold lines of Fn and the 4-way pad (Snap DOF left out from 0.9.4: Fn + the front dial), the film lines
@@ -1821,13 +1835,26 @@ const packProblem = (e: unknown): string => t(e instanceof PackError ? (({ 'othe
 
 /** A slot with nothing in it (no preset, name, film code, halation level or drawn icon). */
 const slotEmpty = (x: SlotState): boolean => !x.preset && !Object.values(x.names).some((n) => n && n.trim()) && !x.code && !(x.halation && x.halation.preview > 0) && x.icon.mode === 'keep';
-const packFamily = (s: State = state): 'gr3' | 'gr4' => (familyOf(s.model) === 'gr3' ? 'gr3' : 'gr4');
+const packFamily = (s: State = state): PackFamily => (s.model === 'MONO' ? 'gr4mono' : familyOf(s.model) === 'gr3' ? 'gr3' : 'gr4');
 /** Where recipes go: every film the firmware can have (GR III / IIIx), or GR IV's two Cinema slots. */
 const recipeSlots = (s: State = state): SlotId[] => (s.info ? s.info.slots.map((x) => x.id) : availableSlots(s));
+
+/** An added slot with nothing in it: no preset, no name (a new one already has its « GR<n> » icon). */
+const extraEmpty = (x: ExtraSlot): boolean => !x.preset && !x.name.trim();
+const packIcon = (i: IconState): PackRecipe['icon'] => ({ mode: i.mode, text: i.text, style: i.style, ...(i.image ? { image: i.image } : {}) });
 
 /** The open work as a recipe pack's text, or null when no film has anything. */
 function recipePackText(meta?: PackMeta): string | null {
   const s = state;
+  // GR IV Monochrome (1.3): the recipes are the added looks, each with its name, icon and .cube.
+  if (s.model === 'MONO') {
+    const mono: PackRecipe[] = s.extras.filter((x) => !extraEmpty(x)).map((x) => ({
+      names: (x.name.trim() ? { en: x.name.trim() } : {}) as Record<string, string>,
+      icon: packIcon(x.icon),
+      ...(x.preset && x.preset.kind === 'cube' ? { preset: { fileName: x.preset.fileName, kind: x.preset.kind, text: x.preset.text } } : {}),
+    }));
+    return mono.length ? makeRecipePack('gr4mono', mono, meta) : null;
+  }
   const recipes: PackRecipe[] = availableSlots(s).map((id) => s.slots[id]).filter((x) => !slotEmpty(x)).map((x) => ({
     names: Object.fromEntries(Object.entries(x.names).filter(([, v]) => v && v.trim())) as Record<string, string>,
     ...(x.code ? { code: x.code } : {}),
@@ -1855,6 +1882,7 @@ export async function importRecipes(text?: string): Promise<void> {
   let pack;
   try { pack = readRecipePack(text); } catch (e) { toast(packProblem(e), 'error'); return; }
   if (pack.family !== packFamily()) { toast(t('packOtherCamera'), 'error'); return; }
+  if (pack.family === 'gr4mono') { await importMonoRecipes(pack.recipes); return; }
   const slots = recipeSlots();
   const filled = availableSlots().filter((id) => !slotEmpty(state.slots[id])).length;
   let mode: 'replace' | 'add' = 'replace';
@@ -1877,6 +1905,42 @@ export async function importRecipes(text?: string): Promise<void> {
   scheduleSave();
   const skipped = pack.recipes.length - targets.length;
   toast(t('packRecipesDone', { n: targets.length }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
+}
+/**
+ * GR IV Monochrome (1.3): a pack's recipes become added looks. « Replace » takes the added looks away first, « Add » puts the pack's
+ * after them; at most MAX_EXTRA_SLOTS either way.
+ */
+async function importMonoRecipes(recipes: PackRecipe[]): Promise<void> {
+  if (!monoRecipesOn()) { toast(t('packOtherCamera'), 'error'); return; }
+  const filled = state.extras.filter((x) => !extraEmpty(x)).length;
+  let mode: 'replace' | 'add' = 'replace';
+  if (filled > 0) {
+    const c = await choose(t('packRecipesTitle'), [t('packRecipesLine', { n: recipes.length, m: filled })], t('packReplace'), t('packAdd'));
+    if (!c) return;
+    mode = c === 'alt' ? 'add' : 'replace';
+  }
+  if (mode === 'replace') while (state.extras.length) removeExtraSlot(state.extras[state.extras.length - 1].key);
+  else for (const x of [...state.extras]) if (extraEmpty(x)) removeExtraSlot(x.key);
+  const room = Math.max(0, MAX_EXTRA_SLOTS - state.extras.length), take = recipes.slice(0, room);
+  let first: string | undefined;
+  for (const r of take) {
+    const before = state.extras.length;
+    addExtraSlot();
+    if (state.extras.length === before) break;
+    const key = state.extras[state.extras.length - 1].key;
+    first ??= key;
+    const name = (r.names.en || Object.values(r.names)[0] || '').trim();
+    if (name) setExtraName(key, name);
+    if (r.icon && r.icon.mode !== 'keep') setIcon(key, { mode: r.icon.mode, text: r.icon.text, style: r.icon.style, image: r.icon.image });
+    if (r.preset) {
+      if (host.available) void host.storeSet(presetKey(key), r.preset.text).catch(() => undefined);
+      void runPreset(key, r.preset.fileName, r.preset.kind, r.preset.text);
+    }
+  }
+  if (first) setActiveSlot(first);
+  scheduleSave();
+  const skipped = recipes.length - take.length;
+  toast(t('packRecipesDone', { n: take.length }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
 }
 function clearSlot(id: SlotId): void {
   setSlot(id, emptySlot());

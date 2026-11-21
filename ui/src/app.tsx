@@ -9,6 +9,7 @@ import { PushDialog } from './camera';
 import { AndroidUpdate, checkUpdates, isAndroid } from './update-dialog';
 import { haptic, setBackFallback } from './host-android';
 import { t, uiLangPref } from './i18n';
+import { SUPPORT_URL, UPSTREAM_URL } from './support';
 import type { Key } from './i18n';
 import { CommunityPage } from './community';
 import { CopiesPage } from './copies';
@@ -17,7 +18,7 @@ import { CropEditor, FeaturesPage, ImageControlPage, RatioPage, WallpaperPage } 
 import { Tour, replayTour, restartTours } from './tour';
 import { UpdatePill, UpdateWatcher, openWhatsNew } from './updates';
 import {
-  askForOfficial, bridgeLoaded, getState, isGr3, backupCopies, extrasOn, copyList, deleteCopies, hasNameErrors, hasRatioErrors, ratioSpecs, revealBackups, writableCopy, writeCopy, menuPictures, outputFirmware, pendingChanges, refreshVolumes, selectVolume, setAppLanguage, setModel, setPage, setShowAll, useStore, wallReady,
+  askForOfficial, bridgeLoaded, getState, isGr3, backupCopies, extrasOn, copyList, deleteCopies, hasNameErrors, hasRatioErrors, ratioSpecs, revealBackups, writableCopy, writeCopy, menuPictures, outputFirmware, pendingChanges, refreshVolumes, selectVolume, setAppLanguage, setModel, setPage, setShowAll, useStore, wallReady, monoRecipesOn,
 } from './store';
 import type { State } from './store';
 
@@ -38,6 +39,7 @@ function Sidebar() {
         <button className={`nav ${page === 'community' ? 'on' : ''}`} data-tour="nav-community" onClick={() => setPage('community')}>{Ico.users}<span>{t('navCommunity')}</span></button>
       </nav>
       <div className="grow" />
+      <SupportLinks />
       {!onWeb && <button className={`nav low ${page === 'copies' ? 'on' : ''}`} data-tour="nav-copies" onClick={() => setPage('copies')}>{Ico.archive}<span>{t('navCopies')}</span></button>}
       <div className="side-props">
         <FirmwareRow />
@@ -54,6 +56,16 @@ function Sidebar() {
         <HelpMenu />
       </div>
     </aside>
+  );
+}
+
+/** 1.3: the support link (PayPal) and, under it, the project GR Mod Film is a fork of. */
+function SupportLinks() {
+  return (
+    <div className="support">
+      <button type="button" className="nav low support-link" title={t('supportSub')} onClick={() => { void host.openPage(SUPPORT_URL); }}>{Ico.coffee}<span>{t('supportTitle')}</span></button>
+      <button type="button" className="about-link upstream" onClick={() => { void host.openPage(UPSTREAM_URL); }}>{t('upstreamCredit')}</button>
+    </div>
   );
 }
 
@@ -91,7 +103,7 @@ function CopyActions() {
 /** Whether the page's output buttons can make a firmware file now. */
 function canOutput(s: State): boolean {
   const isIC = s.page === 'ic' || s.page === 'ratio'; const isWall = s.page === 'wall';
-  return !!s.info && s.info.models.includes(s.model) && (isIC ? s.info.capabilities.build : isWall ? (s.info.capabilities.wallpaper || s.info.capabilities.menuPictures) : s.info.capabilities.factoryEntry) && !s.busy && (isIC ? (pendingChanges(s).length + ratioSpecs(s).length > 0 || extrasOn(s) || (s.model !== 'MONO' && s.info.family !== 'gr3x' && s.extras.length > 0) || menuPictures(s).length > 0) && !hasNameErrors(s) && !hasRatioErrors(s) : isWall ? wallReady(s) && !hasNameErrors(s) && !hasRatioErrors(s) : true);
+  return !!s.info && s.info.models.includes(s.model) && (isIC ? s.info.capabilities.build : isWall ? (s.info.capabilities.wallpaper || s.info.capabilities.menuPictures) : s.info.capabilities.factoryEntry) && !s.busy && (isIC ? (pendingChanges(s).length + ratioSpecs(s).length > 0 || extrasOn(s) || ((s.model !== 'MONO' || monoRecipesOn(s)) && s.info.family !== 'gr3x' && s.extras.length > 0) || menuPictures(s).length > 0) && !hasNameErrors(s) && !hasRatioErrors(s) : isWall ? wallReady(s) && !hasNameErrors(s) && !hasRatioErrors(s) : true);
 }
 
 function OutputBar() {
@@ -238,6 +250,8 @@ function SettingsBody({ close }: { close?: () => void }) {
         <button type="button" className="m-row" onClick={() => then(replayTour, 480)}>{Ico.help}<span>{t('tourReplay')}</span></button>
         <button type="button" className="m-row" onClick={() => then(restartTours, 480)}>{Ico.refresh}<span>{t('tourRestart')}</span></button>
         {isAndroid && <button type="button" className="m-row" onClick={() => then(() => { void checkUpdates(true); }, 300)}>{Ico.download}<span>{t('updCheck')}</span></button>}
+        <button type="button" className="m-row" onClick={() => { void host.openPage(SUPPORT_URL); }}>{Ico.coffee}<span>{t('supportTitle')}<small className="muted"> · {t('supportSub')}</small></span></button>
+        <button type="button" className="m-row" onClick={() => { void host.openPage(UPSTREAM_URL); }}>{Ico.users}<span>{t('upstreamCredit')}</span></button>
       </div>
       <div className="m-sheet-foot">
         <span className="about-link m-version">GR Mod v{host.info?.version || ''}</span>

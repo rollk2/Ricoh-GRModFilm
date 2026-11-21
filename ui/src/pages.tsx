@@ -22,6 +22,7 @@ import {
   filmCountChoosable, removeFilm, setFilmCount,
   hasLookLayout, isGr3, KEEP_VISIBLE, lookHiddenNow, lookMonoOnly, lookName, lookOrderAvailable, lookOrderNow, moveLook, moveLookTo, resetLookLayout, setLookHidden,
   setWallName, wallMax, wallMenuProblem, exportRatios, exportRecipes, importRatios, importRecipes,
+  monoRecipesOn,
 } from './store';
 import type { ExtraSlot, RatioItem, SlotKey, WallItem } from './store';
 
@@ -308,14 +309,15 @@ function FilmCountHead() {
 /** How many slots are added (0 to MAX_EXTRA_SLOTS). */
 function ExtrasHead() {
   const n = useStore((s) => s.extras.length);
+  const mono = useStore((s) => monoRecipesOn(s));
   const options = Array.from({ length: MAX_EXTRA_SLOTS + 1 }, (_, i) => ({ value: String(i), label: String(i) }));
   return (
     <div className="card extras-head" data-tour="ic-extra">
       <div className="extras-row">
         <span className="page-icon soft-ico">{Ico.plus}</span>
         <div className="soft-text">
-          <b>{t('extraTitle')}</b>
-          <span className="muted small ellipsis">{t('extraSub', { n: MAX_EXTRA_SLOTS })}</span>
+          <b>{t(mono ? 'monoRecipesTitle' : 'extraTitle')}</b>
+          <span className="muted small ellipsis">{t(mono ? 'monoRecipesSub' : 'extraSub', { n: MAX_EXTRA_SLOTS })}</span>
         </div>
       </div>
       <div className="extras-count"><Select variant="box" value={String(n)} onChange={(v) => setExtraCount(Number(v))} options={options} label={t('extraTitle')} /></div>
@@ -637,6 +639,7 @@ function ExtraSlotCard({ x, index }: { x: ExtraSlot; index: number }) {
   const nameBad = useStore((s) => extraNameProblem(x, s));
   const problem = useStore((s) => extraProblem(x, s));
   const tile = useStore((s) => s.info!.tiles[x.icon.style]);
+  const mono = useStore((s) => monoRecipesOn(s));
   const p = x.preset;
   const k = x.key;
   return (
@@ -679,7 +682,8 @@ function ExtraSlotCard({ x, index }: { x: ExtraSlot; index: number }) {
               {x.icon.mode === 'image' && <FileButton className="btn small" accept="image/*" onFiles={(f) => { void loadIconImage(k, f[0]); }}>{t('chooseImage')}</FileButton>}
             </div>
           </Prop>
-          <HalationProp k={x.key} />
+          {!mono && <HalationProp k={x.key} />}
+          {mono && p?.result && (p.result.warnings.includes('mono-mixing') || p.result.warnings.includes('mono-toning')) && <div className="chips"><span className="chip muted" title={t('monoLutWarning')}><span className="ellipsis">{t('monoLutWarning')}</span></span></div>}
           {problem && !p?.busy && !p?.error && !nameBad && <div className="chips extra-problem"><span className="chip warn"><span className="ellipsis">{problem}</span></span></div>}
         </div>
       </div>
@@ -857,6 +861,20 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
 }
 
 /** The slot cards on the left, the preview on the right (the switches have their own page from 0.9.9: Features). */
+/** GR IV Monochrome (GR Mod Film 1.3): black-and-white recipes as added looks, each made from a .cube LUT (its tone curve only). */
+function MonoRecipes() {
+  const extras = useStore((s) => s.extras);
+  return (
+    <div className="ic" data-tour-page="ic">
+      <div className="cards">
+        <p className="muted mono-intro">{t('monoRecipesIntro')}</p>
+        <ExtrasHead />
+        {extras.map((x, i) => <ExtraSlotCard key={x.key} x={x} index={i} />)}
+      </div>
+    </div>
+  );
+}
+
 function IcBody() {
   const allSlots = useStore(s => s.info!.slots);
   const choosable = useStore((s) => filmCountChoosable(s));
@@ -988,6 +1006,7 @@ export function ImageControlPage() {
   const touring = useStore((s) => s.tour?.id === 'ic');
   useEffect(() => { if (touring) setView('slots'); }, [touring]);
   const views = !!info && info.capabilities.presets && model !== 'MONO';
+  const monoRecipes = useStore((s) => monoRecipesOn(s));
   // The menu order is a view of its own where the firmware has it (GR IV; GR III / IIIx).
   const orderView = useStore((s) => lookOrderAvailable(s));
   return (
@@ -1017,7 +1036,7 @@ export function ImageControlPage() {
       </header>
       {!info && <FirmwareHero />}
       {views && (orderView ? <IcViews view={view} /> : <IcBody />)}
-      {info && model === 'MONO' && <div className="mono-ic" data-tour-page="ic"><p className="muted">{t('monoNoSlots')}</p></div>}
+      {info && model === 'MONO' && (monoRecipes ? <MonoRecipes /> : <div className="mono-ic" data-tour-page="ic"><p className="muted">{t('monoNoSlots')}</p></div>)}
     </DropZone>
   );
 }

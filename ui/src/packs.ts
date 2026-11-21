@@ -6,8 +6,12 @@ export const RATIOS_FORMAT = 'grmod-film-ratios';
 export const RECIPES_EXT = '.grfrecipes';
 export const RATIOS_EXT = '.grfratios';
 
-/** The camera family a recipe pack is for: GR III / IIIx films, or GR IV's Cinema slots. */
-export type PackFamily = 'gr3' | 'gr4';
+/**
+ * The camera family a recipe pack is for: GR III / IIIx films, GR IV's Cinema slots, or (1.3) the GR IV Monochrome's black-and-white
+ * recipes (added looks made from .cube LUTs). A Monochrome pack is written as version 2: GR Mod Film before 1.3 read any family it did
+ * not know as GR III, it now answers that the pack comes from a newer version.
+ */
+export type PackFamily = 'gr3' | 'gr4' | 'gr4mono';
 export interface PackIcon { mode: 'keep' | 'text' | 'image'; text: string; style: 'film' | 'plain'; image?: string }
 export interface PackRecipe {
   names: Record<string, string>;
@@ -20,7 +24,7 @@ export interface PackRecipe {
 export interface PackMeta { title?: string; author?: string; description?: string; license?: string }
 /** The licence of the community collection: public domain, the author's own work. */
 export const COMMUNITY_LICENSE = 'CC0-1.0';
-export interface RecipePack extends PackMeta { format: typeof RECIPES_FORMAT; v: 1; family: PackFamily; recipes: PackRecipe[] }
+export interface RecipePack extends PackMeta { format: typeof RECIPES_FORMAT; v: 1 | 2; family: PackFamily; recipes: PackRecipe[] }
 export interface PackRatio { ratio: string; name: string }
 export interface RatioPack extends PackMeta { format: typeof RATIOS_FORMAT; v: 1; ratios: PackRatio[] }
 
@@ -41,13 +45,14 @@ function cleanMeta(d: Record<string, unknown> | PackMeta | undefined): PackMeta 
   return out;
 }
 
-function parse(text: string, format: string): Record<string, unknown> {
+function parse(text: string, format: string, newest = 1): Record<string, unknown> {
   let doc: unknown;
   try { doc = JSON.parse(text); } catch { throw new PackError('not-a-pack'); }
   if (!doc || typeof doc !== 'object') throw new PackError('not-a-pack');
   const d = doc as Record<string, unknown>;
   if (d.format !== format) throw new PackError(d.format === RECIPES_FORMAT || d.format === RATIOS_FORMAT ? 'other-kind' : 'not-a-pack');
-  if (d.v !== 1) throw new PackError(typeof d.v === 'number' && d.v > 1 ? 'newer' : 'not-a-pack');
+  if (typeof d.v !== 'number' || !Number.isInteger(d.v) || d.v < 1) throw new PackError('not-a-pack');
+  if (d.v > newest) throw new PackError('newer');
   return d;
 }
 
@@ -79,16 +84,27 @@ export function emptyRecipe(r: PackRecipe): boolean {
   return Object.keys(r.names).length === 0 && !r.code && !r.preset && !(r.halation && r.halation.preview > 0) && !(r.icon && r.icon.mode !== 'keep');
 }
 
+/** A black-and-white recipe keeps no film code nor halation, and only a .cube preset. */
+function monoRecipe(r: PackRecipe): PackRecipe {
+  const { code: _code, halation: _halation, preset, ...rest } = r;
+  return { ...rest, ...(preset && preset.kind === 'cube' ? { preset } : {}) };
+}
 export function makeRecipePack(family: PackFamily, recipes: PackRecipe[], meta?: PackMeta): string {
-  const pack: RecipePack = { format: RECIPES_FORMAT, v: 1, ...cleanMeta(meta), family, recipes: recipes.map((r) => cleanRecipe(r)!).filter((r) => !emptyRecipe(r)) };
+  const mono = family === 'gr4mono';
+  const clean = recipes.map((r) => cleanRecipe(r)!).map((r) => (mono ? monoRecipe(r) : r)).filter((r) => !emptyRecipe(r));
+  const pack: RecipePack = { format: RECIPES_FORMAT, v: mono ? 2 : 1, ...cleanMeta(meta), family, recipes: clean };
   return JSON.stringify(pack, null, 1);
 }
 export function readRecipePack(text: string): RecipePack {
-  const d = parse(text, RECIPES_FORMAT);
-  const family: PackFamily = d.family === 'gr4' ? 'gr4' : 'gr3';
-  const recipes = (Array.isArray(d.recipes) ? d.recipes : []).slice(0, MAX_RECIPES).map(cleanRecipe).filter((r): r is PackRecipe => !!r && !emptyRecipe(r));
+  const d = parse(text, RECIPES_FORMAT, 2);
+  const family: PackFamily = d.family === 'gr4mono' ? 'gr4mono' : d.family === 'gr4' ? 'gr4' : 'gr3';
+  // Version 2 is the Monochrome's: a version-2 pack of another family is not one this version wrote.
+  if (d.v === 2 && family !== 'gr4mono') throw new PackError('newer');
+  const mono = family === 'gr4mono';
+  const recipes = (Array.isArray(d.recipes) ? d.recipes : []).slice(0, MAX_RECIPES).map(cleanRecipe)
+    .map((r) => (r && mono ? monoRecipe(r) : r)).filter((r): r is PackRecipe => !!r && !emptyRecipe(r));
   if (recipes.length === 0) throw new PackError('empty');
-  return { format: RECIPES_FORMAT, v: 1, ...cleanMeta(d), family, recipes };
+  return { format: RECIPES_FORMAT, v: mono ? 2 : 1, ...cleanMeta(d), family, recipes };
 }
 
 const cleanRatio = (r: unknown): PackRatio | null => {

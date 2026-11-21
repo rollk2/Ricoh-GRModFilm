@@ -16,7 +16,19 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.2.0 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.0 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.3.0 (GR IV Monochrome 1.11, the GR IV 1.21 file)
+
+- **Black-and-white recipes**: the Image Control page of the GR IV Monochrome now adds looks of your own (up to 20), each made
+  from a `.cube` LUT. The sensor has no colour, so only the LUT's tone curve on the grey axis is used, applied on top of
+  Monochrome Standard; the app warns when a LUT tints the picture or mixes the channels (a filter, a film's colour response),
+  which a monochrome sensor cannot reproduce.
+- Each recipe has its own name, icon and parameters (contrast, sharpness, grain...), set in the camera and kept for each
+  recipe; in-camera RAW development works with them (with the camera's own aspect ratios only, as for every added look).
+- **Monochrome recipe packs**: export and import your black-and-white recipes (`.grfrecipes`, name, icon and LUT). A
+  Monochrome pack is refused on another camera; GR Mod Film 1.2 and earlier say it comes from a newer version.
+- Tried on a GR IV Monochrome 1.11 with two recipes (Agfa APX 100 and Fuji Neopan Acros 100 LUTs).
 
 ## What is new in 1.2.0 (GR IV Monochrome 1.11, the GR IV 1.21 file)
 
@@ -141,6 +153,11 @@ is always possible.
 
 The development notes (in French) are in `CAHIER_DES_CHARGES.md` and `docs/film-mode-notes.md`.
 
+## Support
+
+GR Mod Film is free. To help it stay free and keep evolving, you can [support GR Mod Film](https://www.paypal.com/qrcodes/managed/1cfe175d-3f48-4649-8a18-f6d8bc6b1e50) (PayPal).
+GR Mod Film is built on [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod) by Maxwooow.
+
 ## Thanks
 
 None of this would exist without [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod). Maxwooow mapped
@@ -197,6 +214,7 @@ Use only firmware intended for your camera model and a base version listed above
 - **Soft focus and halation:** create softer images and red or white highlight effects.
 - **Date imprint:** add a shooting date, date and time, and optionally the Image Control name to JPEGs.
 - **Monochrome looks:** use supported GR IV Monochrome looks on colour GR IV models.
+- **Black-and-white recipes:** add looks of your own to the GR IV Monochrome from `.cube` LUTs (their tone curve), with their own names, icons and parameters.
 - **Direct Flash:** use guide-number-based flash exposure on supported GR IV firmware.
 - **HDR gain maps:** create JPEGs with brighter highlights on compatible HDR displays.
 - **More ADJ options:** add ADJ lever slots on supported GR IV firmware.
