@@ -297,3 +297,46 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
 - **M3a-6** : drapeau 1 (gabarit High Contrast) **et une courbe de base neutre** à nous (format de Solarized, valeurs `i × 64`), avec la courbe APX calculée comme en 9.4.
   Si l'hypothèse tient, la courbe reçoit ce que reçoivent les courbes de Standard, sans éclaircissement ni saturation, et Soft rend l'APX attendu. Option
   `monoCurve.path = 'linear'` ; vérification `mono_curve_check.py --path linear` (114 contrôles).
+
+### 11.9 Résultat M3a-6 : la courbe APX est rendue (2026-11-21)
+- Mire, 1/13 s, f/2.8, ISO 160. L'utilisateur a indiqué « 1 Standard, 2 Soft » ; les valeurs montrent l'inverse (la photo 1 a le plancher 34 = début de la courbe APX
+  0,135, la photo 2 retrouve les paliers de Standard des séries précédentes) : **photo 1 = Soft (M3a-6), photo 2 = Standard**, à confirmer.
+- Comparaison palier par palier (Standard mesuré, Soft mesuré, Soft attendu = APX appliquée au rendu de Standard) :
+
+| Standard | Soft (M3a-6) | Attendu (APX) |
+| --- | --- | --- |
+
+### 11.9 Résultat M3a-6 : la courbe APX est rendue (2026-11-21)
+- Mire, 1/13 s, f/2.8, ISO 160. L'utilisateur a indiqué « 1 Standard, 2 Soft » ; les valeurs montrent l'inverse (la photo 1 a le plancher 34 = début de la courbe APX
+  0,135, la photo 2 retrouve les paliers de Standard des séries précédentes) : **photo 1 = Soft (M3a-6), photo 2 = Standard**, à confirmer.
+- Comparaison palier par palier (Standard mesuré, Soft mesuré, Soft attendu = APX appliquée au rendu de Standard) :
+
+| Standard | Soft (M3a-6) | Attendu (APX) |
+| --- | --- | --- |
+| 5 | 34 | 23 |
+| 6 | 35 | 24 |
+| 10 | 36 | 29 |
+| 21 | 46 | 44 |
+| 39 | 72 | 67 |
+| 64 | 115 | 101 |
+| 92 | 157 | 142 |
+| 119 | 191 | 179 |
+| 142 | 210 | 202 |
+| 163 | 220 | 216 |
+| 182 | 227 | 224 |
+| 196 | 231 | 230 |
+| 209 | 235 | 234 |
+| 220 | 238 | 238 |
+| 228 | 241 | 241 |
+| 235 | 243 | 243 |
+| 240 | 245 | 245 |
+| 244 | 247 | 247 |
+| 246 | 248 | 248 |
+| 246 | 248 | 248 |
+
+- **L'APX est obtenu** : écart nul dans les hautes lumières, de 0 à 14 niveaux (sur 255) dans les tons moyens (le rendu est un peu plus clair que prévu), noirs relevés à
+  34 comme le veut la courbe (début à 0,135, car la LUT relève aussi le noir de Standard).
+- **Conclusion de M3a** : une recette noir et blanc sur le Monochrome = descripteur **drapeau 1** (gabarit High Contrast), **courbe de base neutre** à nous (format de
+  Solarized), et la courbe de la recette calculée sur le rendu de Standard : `c[i] = 16383 × LUT(G_standard[i] / 16383)`. Le petit écart des tons moyens pourra être
+  corrigé par une calibration sur cette mire.
+- Suite : **M3b**, une vraie recette ajoutée au menu (look « APX 100 » à côté des looks d'origine), avec ce chemin de courbe et les adaptations de l'inventaire 10.3.
