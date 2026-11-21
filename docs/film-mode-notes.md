@@ -4718,3 +4718,54 @@ Aucune licence indiquée sur la page ; l'auteur ne propose pas le firmware modif
 - Crédit ajouté à `credits.json`. Son code n'est pas copié : nous reprenons ses valeurs d'adresses et de mots (faits techniques), avec crédit.
 - Il décrit aussi : un banc d'essai Wi-Fi en RAM (carte SD, script d'ingénierie du boîtier), un journal d'AF intégré, des recettes dans les emplacements Custom 1/2
   (non testé), des conseils de reprise du boîtier. Pas encore lus en détail ici.
+
+## Mesure de la durée d'AF par le date imprint, « voie 2 » : plan (2026-11-21)
+
+Demande du 2026-11-21 : mesurer la durée réelle de la mise au point sans téléphone, en l'imprimant sur la photo avec le date imprint, pour
+comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné ici ; rien n'est encore codé.
+
+### Ce qui existe déjà chez nous (GR III 2.10 / GR IIIx 1.60)
+- Un **anneau de recherche** de 8 octets à 0x558043a8 (`GR3X_DIAL_TABLE`, `dial-probe.ts`) : sept octets, le huitième est l'index. Le module de
+  date (`datestamp.c -DKEY_DIAG`, option `grainTag: 'keys'`) l'imprime après l'étiquette de grain : chaque octet s'imprime sur **deux chiffres
+  (valeur modulo 100)** ; 246 n'imprime rien. Notation `gr3xRingNote` (play-probe.ts).
+- Le temps : `tk_get_otm` 0x53050b7c (millisecondes depuis le démarrage, mot bas à [sp+4]), déjà utilisé par `hold.ts`.
+- Des sondes d'émulation (Unicorn) pour ce genre de crochet (`tools/gr3x/*_probe.py`).
+- Contrainte : l'impression par l'anneau n'existe que dans un build avec le mode pellicule, le grain et le date imprint (`adj.ts` : « grain tag: only
+  with the grain and the date imprint stage »). Le build de mesure sera donc un build GR Mod Film complet.
+
+### Ce que dit le dépôt de l'auteur sur le code d'AF (nils-fl/RicohGR, MIT) et que j'ai relu dans notre firmware
+- L'AF par contraste est dans CafProcess / CafDetection / CafWobbling (0x533f3d18 .. 0x53417990). Le répartiteur par image est **0x5340a2bc** :
+  il lit le code d'action à `this + 0xc44c` (`ldrh r4,[r6,r3]`, r6 = this + 0xc000), l'aigrille (1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80) et réécrit le
+  nouveau code en 0x5340a354 (`strh r4,[r6,r1]`, r1 = 0x44c) à sa sortie commune (0x5340a344).
+- Phases d'un appui d'après ses traces (lumière faible) : attente de l'objectif (code 2, environ 210 ms), balayage (code 4, environ 335 ms à 29 images/s),
+  acceptation et fin (codes 8 et 128, environ 70 ms) ; total médian 618 ms en stock.
+- La valeur d'un code « repos » n'est **pas** documentée : je ne sais pas si le répartiteur est appelé hors AF.
+
+### Conception
+1. Crochet unique à la sortie commune du répartiteur (0x5340a354) : l'instruction `strh` est remplacée par un branchement vers notre code, qui
+   exécute l'instruction d'origine et garde tous les registres et les drapeaux (comme `dial-probe.ts`). Coût : une vingtaine d'instructions par image
+   (200 images/s au plus), sans effet sensible sur l'AF.
+2. À chaque **changement** de code d'action : lire l'heure, attribuer le temps écoulé depuis le changement précédent à la phase de l'**ancien** code,
+   enregistrer le total depuis le premier changement d'une série.
+3. Sorties imprimées (en dizaines de millisecondes, plafonnées à 99) : attente, balayage, fin, total, nombre de changements, dernier code, drapeau d'AF
+   confirmée. Elles décrivent l'**AF qui précède la photo**.
+4. Mémoire : 16 octets environ de plus que l'anneau. La zone de mise à zéro de la ronde 10 (76 octets avant 0x558043c0) est presque pleine
+   (rouleau de pellicule, touche WB, mot de look, copie des réglages) : l'attribution doit être faite avec soin, et vérifiée par la sonde.
+
+### Étapes proposées (chacune validée avant la suivante)
+- **T-AFT0** (statique, fait ici) : crochet et champs identifiés ; les quatre inconnues ci-dessous restent à lever.
+- **T-AFT1** : build qui note, à chaque changement de code, le **nouveau code et le temps écoulé** dans l'anneau (7 octets : environ 3 changements
+  seulement). Objectif : découvrir la vraie suite de codes d'un appui sur le boîtier (le répartiteur est-il appelé hors AF, quel est le code de repos).
+  Sonde d'émulation du répartiteur avec un faux objet avant tout flashage.
+- **T-AFT2** : le chronomètre par phases (point 3) ; 10 appuis, vérification contre le téléphone sur 3 appuis.
+- **T-AFT3** : l'A/B proprement dit (fichiers A et B identiques à 19 mots près, chacun avec le chronomètre), protocole du 2026-11-21.
+
+### Inconnues et risques
+1. Le répartiteur est-il appelé en continu ou seulement pendant un AF ? (T-AFT1)
+2. Valeur du code de repos, et code qui marque « mise au point confirmée » (8 puis 128 ?). (T-AFT1)
+3. Mots de RAM libres pour l'état du chronomètre. (étude de `round10.ts`, sonde)
+4. Le chronomètre doit couvrir ce que l'utilisateur appelle « temps de mise au point » (demi-appui jusqu'au cadre vert) : l'attente avant le premier code
+   d'action n'est peut-être pas comptée. À comparer au téléphone une fois (T-AFT2).
+5. Un crochet dans le code d'AF : une erreur peut figer l'appareil. Atténuation : sonde d'émulation du répartiteur (registres, drapeaux, pile), chemin
+   de retour toujours à l'instruction d'origine, build d'essai seulement.
+6. Le build de mesure est un build film complet : l'utilisateur doit confirmer les options qu'il utilise d'habitude sur son GR III.

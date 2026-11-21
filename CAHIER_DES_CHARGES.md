@@ -177,6 +177,7 @@ Décisions des 2026-11-10 et 2026-11-11.
 ### Après la v1 stabilisée (ambitieux, à étudier)
 12. Améliorer l'autofocus en basse lumière.
     - Piste (2026-11-20) : la recherche de nflaschel (https://gr.nflaschel.de/, GR IIIx 1.60) : marges d'acceptation du pic plus basses et 49 images/s au lieu de 29 en pénombre, de 23 à 39 % de temps de mise au point en moins annoncés (un seul boîtier, sur trépied ; netteté non vérifiée). Les adresses et valeurs d'origine sont les mêmes dans notre GR III 2.10 et GR IIIx 1.60. Option de moteur `afDim` (neuf mots) faite, build d'essai GR III 2.10 à mesurer ; l'exposant (b/y)^0,875 n'est pas fait (code non publié). À publier en mode expérimental, avec un crédit à l'auteur. GR IV : table de marges différente, à étudier. Voir `docs/film-mode-notes.md`.
+    - Mesure de la durée d'AF par le date imprint (demande du 2026-11-21) pour comparer deux firmwares sans téléphone : crochet sur le répartiteur d'AF par contraste (`0x5340a2bc`, sortie en `0x5340a354`), phases attente / balayage / fin imprimées en dizaines de millisecondes par l'anneau de recherche du date imprint. Plan en quatre étapes T-AFT0 à T-AFT3 dans `docs/film-mode-notes.md`. Rien n'est codé : en attente de feu vert et des options de build habituelles de l'utilisateur.
 13. Améliorer l'autonomie de la batterie.
 
 ### Nouvelles fonctions
