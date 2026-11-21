@@ -230,6 +230,8 @@ export interface FirmwareSummary {
   noMovie?: boolean;
   /** True when the file has the custom buttons (GR Mod Film 1.2, GR IV 1.21). */
   customButtons?: boolean;
+  /** True when the added slots are black-and-white recipes (GR Mod Film 1.3, GR IV Monochrome 1.11). */
+  monoRecipes?: boolean;
   /** ADJ lever slots (6..8) when the file has more than the camera's five. */
   adjSlots?: number;
 }
@@ -807,6 +809,7 @@ export class Engine {
       ...(features.exposurePreview ? { exposurePreview: true } : {}),
       ...(features.noMovie ? { noMovie: true } : {}),
       ...(features.customButtons ? { customButtons: true } : {}),
+      ...(features.monoRecipes ? { monoRecipes: true } : {}),
     });
     if (!specs) return modified(false, [], aligned);
     let ratios: BuiltRatio[] = [];

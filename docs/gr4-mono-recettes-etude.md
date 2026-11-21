@@ -489,3 +489,12 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   `mono_recipe_probe.py` 102 / 102 (courbes calculées par l'application), `nomovie_probe.py`, `holdbuttons_probe.py` 48.
 - Build de test M5-2 : ce firmware (fait par le site, avec ses icônes). À vérifier sur le boîtier : icônes « GR1 » et « GR2 » dans Image Control, noms « APX 100 »
   et « GR Mod 2 », rendus comme M4.
+- **Résultat sur le boîtier (2026-11-21)** : tous les tests OK (noms, icônes « GR1 » et « GR2 » dans le menu et au levier ADJ, rendus de la mire conformes à M4,
+  réglages propres conservés, contraste +2 au levier répété sans extinction, vidéo absente, boutons, développement RAW). M5-3 (ombres) non retenu.
+
+### 14.4 M5-4 : finition (2026-11-21)
+- Test du produit `core/test/gr4-monorecipes.test.ts` (firmware Mono 1.11) : conversion d'un `.cube` (matrice identité, même courbe sur R, G, B, croissante),
+  avertissement de mélange, refus d'un `.xmp` ; build complet à deux recettes avec suppression de la vidéo et boutons, vérifié et relu (`monoRecipes` maintenant
+  rapporté par `inspect`) ; refus sans place ajoutée ; refus sur le firmware 1.20.
+- README : section « What is new in 1.3.0 » et ligne dans la liste des fonctions.
+- Reste, sur décision de l'utilisateur : numéro de version 1.3.0, PR vers `main`, publication du site et de la release.
