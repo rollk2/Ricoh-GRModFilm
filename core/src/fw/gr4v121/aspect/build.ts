@@ -188,7 +188,7 @@ export interface TestOptions {
   /** GR Mod Film 1.2: the last key codes (see `keydiag.ts`), printed by the date imprint; needs the date imprint, no guard. */
   keyDiag?: boolean;
   /** GR IV Monochrome recipes, test M3a (`monocurve.ts`): one black-and-white factory look (25..30) gets this tone curve (256 values 0..16383). */
-  monoCurve?: { style: number; curve: readonly number[]; path?: 'own' | 'standard' };
+  monoCurve?: { style: number; curve: readonly number[]; path?: 'own' | 'standard' | 'linear' };
   /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
   hdrDiag?: boolean;
   /** Exposure preview off (issue #17), always on: the live view keeps a normal brightness (`lvpreview.ts`). */

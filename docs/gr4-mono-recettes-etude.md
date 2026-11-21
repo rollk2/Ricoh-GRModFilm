@@ -285,3 +285,15 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   traitement (+0x14) ; son consommateur reste à trouver.
 - Test décisif **M3a-5** : le même chemin (drapeau 0) avec la courbe **seuil**. Si Soft reste normal, le drapeau 0 ignore les pointeurs ; il faudra alors
   comprendre le chemin du drapeau 1 (courbe de base en mot 0, que Solarized remplace aussi) et y construire la recette.
+
+### 11.8 Résultat M3a-5 et piste M3a-6 (2026-11-21)
+- M3a-5 (drapeau 0, courbe seuil) : Soft reste **normal** (paliers 3, 5, 11, 21, 37, 62, 88, 116 … 242), exactement comme en M3a-4. **Certitude : le drapeau 0 ignore les
+  pointeurs de courbe du descripteur.** Ces deux photos donnent au passage le rendu natif de Soft : identique à Standard dans les hautes lumières, un peu plus sombre dans
+  les ombres et les tons moyens (52 → 37, 79 → 62, 104 → 88).
+- Ce qui reste valable : le **drapeau 1** applique bien notre courbe, mais après la **courbe de base** du mot 0 du descripteur. Les mesures 11.3 et 11.4 collent à
+  `base(u)` avec u l'indice des courbes de Standard (0,235 → 0,72 mesuré 0,715 ; 0,506 → 0,91 mesuré 0,93) : la courbe de base est celle qui éclaircit et sature.
+- Format des courbes de base (lu) : celle de Standard commence par un en-tête paramétrique (1, 257, 1, 0, puis des paramètres de coude) ; celle de **Solarized** est une
+  table simple : en-tête **257, 257, 1, 0** puis 257 valeurs de 0 à 16383.
+- **M3a-6** : drapeau 1 (gabarit High Contrast) **et une courbe de base neutre** à nous (format de Solarized, valeurs `i × 64`), avec la courbe APX calculée comme en 9.4.
+  Si l'hypothèse tient, la courbe reçoit ce que reçoivent les courbes de Standard, sans éclaircissement ni saturation, et Soft rend l'APX attendu. Option
+  `monoCurve.path = 'linear'` ; vérification `mono_curve_check.py --path linear` (114 contrôles).
