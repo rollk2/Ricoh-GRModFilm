@@ -340,3 +340,40 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   Solarized), et la courbe de la recette calculée sur le rendu de Standard : `c[i] = 16383 × LUT(G_standard[i] / 16383)`. Le petit écart des tons moyens pourra être
   corrigé par une calibration sur cette mire.
 - Suite : **M3b**, une vraie recette ajoutée au menu (look « APX 100 » à côté des looks d'origine), avec ce chemin de courbe et les adaptations de l'inventaire 10.3.
+
+## 12. M3b : une recette ajoutée au menu (2026-11-21, en cours)
+
+Ordre confirmé par l'utilisateur pour M3a-6 : R0000170 = Standard, R0000171 = Soft. Les mesures de 11.9 mettent le plancher 34 (début de la courbe APX) sur la photo
+Soft, ce qui est cohérent avec cet ordre (les pièces jointes étaient arrivées dans l'ordre inverse).
+
+### 12.1 Ce que M3b demande (d'après l'inventaire 10.3 et le module des paramètres propres)
+Les styles ajoutés reposent sur un module natif (`tools/gr4v121/slotparams/slot_params.c`) écrit pour Cinema Yellow : champs de ses 13 paramètres par jeu (FIELD), valeurs
+d'usine (FACTORY), lignes du développement RAW (look 9), foncteurs de changement, champs de la vue en direct. Pour une recette noir et blanc, tout cela doit être refait pour
+**Monochrome Standard (25)** : 11 paramètres (2 à 7, 17 à 21), look RAW 15. clang (cible armv7) est disponible ici pour recompiler le module.
+
+### 12.2 M3b-1 fait : les champs des paramètres de Monochrome Standard (lu par émulation)
+Outil : `tools/gr4v121/look_fields_probe.py` (getters lancés avec deux motifs ; vérifié d'abord sur Cinema Yellow, qui retrouve exactement la table FIELD du module,
+à 0xb44 près : les getters lisent la copie miroir).
+
+| Paramètre | photo, jeux 0 à 3 | vidéo, jeux 0 à 3 |
+| --- | --- | --- |
+| 2 | 0x9b7, 0x9ef, 0xa27, 0xa5f | 0xa97, 0xaac, 0xac1, 0xad6 |
+| 3 | 0x9bc, 0x9f4, 0xa2c, 0xa64 | 0xa9a, 0xaaf, 0xac4, 0xad9 |
+| 4 | 0x9c1, 0x9f9, 0xa31, 0xa69 | 0xa9d, 0xab2, 0xac7, 0xadc |
+| 5 | 0x9c6, 0x9fe, 0xa36, 0xa6e | 0xaa0, 0xab5, 0xaca, 0xadf |
+| 6 | 0x9cb, 0xa03, 0xa3b, 0xa73 | 0xaa3, 0xab8, 0xacd, 0xae2 |
+| 7 | 0x9d0, 0xa08, 0xa40, 0xa78 | 0xaa6, 0xabb, 0xad0, 0xae5 |
+| 17 | 0x9d6, 0xa0e, 0xa46, 0xa7e | 0xaa9, 0xabe, 0xad3, 0xae8 |
+| 18 | 0x9db, 0xa13, 0xa4b, 0xa83 | aucun |
+| 19 | 0x9df, 0xa17, 0xa4f, 0xa87 | aucun |
+| 20 | 0x9e0, 0xa18, 0xa50, 0xa88 | aucun |
+| 21 | 0x9e1, 0xa19, 0xa51, 0xa89 | aucun |
+
+Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé).
+
+### 12.3 Reste à faire pour M3b
+1. Valeurs d'usine de ces champs (UserDataInitValue) ; valeurs neutres.
+2. Foncteurs de changement de Monochrome Standard (équivalent de FUNCTOR_FIELDS) et champs de la vue en direct.
+3. Lignes du développement RAW du look 15 ; listes de paramètres des « maker notes » qui contiennent 25.
+4. Module natif paramétré par le look de référence (18 ou 25) et recompilé ; variante noir et blanc de `installExtraSlots` (gabarits 25 / 27, base neutre, visibilité
+   Monochrome, liste des paramètres) ; sondes d'émulation ; build de test avec une recette « APX 100 ».
