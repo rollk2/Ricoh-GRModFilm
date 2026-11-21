@@ -157,3 +157,43 @@ Un paramètre « existe » pour un style quand son getter lit un champ propre (v
 - Le modèle qui correspond à chaque variante.
 - Le nom de chaque paramètre (2 à 7, 17 à 21).
 - Le test de visibilité et le choix des enregistrements par la vue en direct pour un style ≥ 38 sur le Monochrome : c'est l'objet de M2 (émulateur).
+
+## 10. Résultats de M2 (émulateur, 2026-11-21)
+
+Sonde : `tools/gr4v121/mono_looks_probe.py` (29 contrôles, firmware officiel 1.11 et un build GR Mod avec un style ajouté de test). Certitude : **lu et exécuté** en émulation.
+
+### 10.1 Visibilité des looks par modèle (fonction 0x533de9ac)
+- GR IV couleur : looks couleur 11 à 24 visibles, looks noir et blanc 25 à 32 cachés.
+- Monochrome : looks couleur cachés, **looks 25 à 30 et 32 visibles**, 31 (Pictorialist) caché partout.
+- Style ajouté 38, tel que GR Mod le construit aujourd'hui : **visible sur le GR IV couleur, caché sur le Monochrome** (le crochet de `slots.ts` le traite en look couleur).
+
+### 10.2 Numéros de développement RAW (fonction 0x53382ed8)
+- Looks noir et blanc : 25 → 15, 26 → 16, 27 → 17, 28 → 18, 29 → 19, 30 → 22, 31 → 20, 32 → 21. Cinema Yellow : 18 → 9.
+- Aujourd'hui les styles ajoutés se développent en RAW comme Cinema Yellow (9) ; pour le Monochrome ce sera **15 (Monochrome Standard)**.
+
+### 10.3 Inventaire : ce qui traite un style ajouté « comme Cinema Yellow » et doit le traiter « comme un look noir et blanc »
+Tout est dans `core/src/fw/gr4v121/aspect/slots.ts` ; pour une recette Monochrome, le look de référence proposé est **Monochrome Standard (25)** pour les paramètres et
+le développement, et **High Contrast (27)** pour le gabarit du descripteur de courbe (drapeau « courbe propre » à 1).
+
+| Où (slots.ts) | Rôle | Aujourd'hui | Pour le Monochrome |
+| --- | --- | --- | --- |
+| gabarits d'enregistrements (`installExtraSlots`) | tonalité, multi-axes, YCbCr, courbes | Cinema Yellow | 25 (tonalité, YCbCr noir et blanc), 27 (descripteur à courbe propre) |
+| crochet de visibilité 0x533de9ac | menu | visible si modèle couleur | visible si Monochrome |
+| 0x5393a710 | champs d'entrée communs (grain) | 18 | 25 |
+| getters / setters des paramètres (`installOwnParameters`) | valeurs propres de chaque style | 13 paramètres de Cinema Yellow (0 à 6, 8, 17 à 21) | 11 paramètres d'un look noir et blanc (2 à 7, 17 à 21) |
+| foncteurs de changement (0x53279e34…) | copie des champs | champs de 18 | champs de 25 |
+| 0x531c86b8, 0x531a6ef4 | liste des paramètres de l'écran (et du développement RAW) | liste de 18 | liste de 25 |
+| 0x5373a4ac | étape de filtre numérique (grain) | 18 | 25 |
+| paramètres de la vue en direct (`installPreviewMapping`) | aperçu | 18 | 25 |
+| développement RAW (`installRawDevelopment`) | numéro RAW | 9 | 15 |
+| listes de paramètres des « maker notes », informations de lecture | métadonnées | 18 | 25 |
+
+### 10.4 Décision de conception proposée
+- Une option de build « styles ajoutés noir et blanc » (pour le Monochrome) qui change **le look de référence** de tous ces crochets (18 → 25, RAW 9 → 15, gabarits 25 / 27),
+  la **visibilité** (Monochrome au lieu des modèles couleur) et la **liste des paramètres** (2 à 7, 17 à 21). Les styles couleur actuels restent inchangés pour les GR IV couleur.
+- Un même firmware ne mélange pas les deux : l'application construit des styles noir et blanc quand le modèle choisi est le Monochrome.
+
+### 10.5 Ce que M2 laisse pour M3
+- Que la courbe propre est bien appliquée à la luminance (mire de gris sur le boîtier).
+- Les noms des paramètres 2 à 7 et 17 à 21 sur l'écran de paramètres.
+- Le comportement réel du paramètre 7 (filtre ou virage) sur un style ajouté.
