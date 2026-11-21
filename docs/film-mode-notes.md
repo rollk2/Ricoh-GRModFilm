@@ -4769,3 +4769,11 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
 5. Un crochet dans le code d'AF : une erreur peut figer l'appareil. Atténuation : sonde d'émulation du répartiteur (registres, drapeaux, pile), chemin
    de retour toujours à l'instruction d'origine, build d'essai seulement.
 6. Le build de mesure est un build film complet : l'utilisateur doit confirmer les options qu'il utilise d'habitude sur son GR III.
+
+### T-AFT1 : fait (2026-11-21)
+- `fw/gr3x/af-time.ts` (option de test `afTime`, avec `grainTag: 'keys'`) : crochet à la sortie du répartiteur d'AF (0x5340a354) ; à chaque changement du code d'action,
+  une case de l'anneau : dizaines = durée de l'ancien code en pas de 50 ms (9 = 450 ms ou plus), unités = rang du bit de l'ancien code + 1. Heure du dernier changement
+  au mot 0x55804388 (celui de la sonde de film, exclue de ce build).
+- Preuve : `tools/gr3x/af_time_probe.py` (11 contrôles : registres, stockage, codage, bouclage de l'anneau). Build : build film complet (mode pellicule, grain, boutons,
+  Save/Load, 2 films, ratio 65:24, SR par vitesse, AF Point) + `afTime` ; auto-contrôles passés.
+- Protocole de test : `docs/protocole-T-AFT1.md`.
