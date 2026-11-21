@@ -45,16 +45,14 @@ export function monoLutFromCube(text: string): MonoLut {
 }
 
 /**
- * The curve of a black-and-white added slot (256 values 0..16383): the LUT applied to what Monochrome Standard renders, `c[i] = LUT(S[i])`
- * with S Monochrome Standard's (green) curve of the firmware, kept non-decreasing. Tested on a GR IV Monochrome (tests M3a-6, M3b).
+ * The curve of a black-and-white added slot (256 values 0..16383): the LUT's neutral axis itself, `c[i] = 16383 × LUT(i / 255)`, kept
+ * non-decreasing. On the path of the added slots (curve descriptor flag 1, neutral base curve), the curve's input i is already what
+ * Monochrome Standard renders (i / 255): measured on a grey chart with two LUTs (GR Mod Film 1.3, M5-3, docs/gr4-mono-recettes-etude.md
+ * section 14.5). Until then the LUT was applied to Monochrome Standard's green curve, which darkened the shadows by up to 15 levels.
  */
-export function monoRecipeCurve(neutral: ArrayLike<number>, standard: ArrayLike<number>): Uint16Array {
-  if (neutral.length !== 256 || standard.length !== 256) throw new Error('mono recipe: 256 values');
-  const at = (v: number): number => {
-    const t = Math.min(Math.max(v, 0), 1) * 255, i = Math.min(Math.floor(t), 254);
-    return neutral[i] + (neutral[i + 1] - neutral[i]) * (t - i);
-  };
+export function monoRecipeCurve(neutral: ArrayLike<number>): Uint16Array {
+  if (neutral.length !== 256) throw new Error('mono recipe: 256 values');
   const out = new Uint16Array(256);
-  for (let i = 0; i < 256; i++) out[i] = Math.max(i ? out[i - 1] : 0, Math.min(16383, Math.round(16383 * at(standard[i] / 16383))));
+  for (let i = 0; i < 256; i++) out[i] = Math.max(i ? out[i - 1] : 0, Math.min(16383, Math.max(0, Math.round(16383 * neutral[i]))));
   return out;
 }

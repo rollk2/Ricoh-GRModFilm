@@ -490,7 +490,7 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - Build de test M5-2 : ce firmware (fait par le site, avec ses icônes). À vérifier sur le boîtier : icônes « GR1 » et « GR2 » dans Image Control, noms « APX 100 »
   et « GR Mod 2 », rendus comme M4.
 - **Résultat sur le boîtier (2026-11-21)** : tous les tests OK (noms, icônes « GR1 » et « GR2 » dans le menu et au levier ADJ, rendus de la mire conformes à M4,
-  réglages propres conservés, contraste +2 au levier répété sans extinction, vidéo absente, boutons, développement RAW). M5-3 (ombres) non retenu.
+  réglages propres conservés, contraste +2 au levier répété sans extinction, vidéo absente, boutons, développement RAW). M5-3 (ombres) : voir 14.5.
 
 ### 14.4 M5-4 : finition (2026-11-21)
 - Test du produit `core/test/gr4-monorecipes.test.ts` (firmware Mono 1.11) : conversion d'un `.cube` (matrice identité, même courbe sur R, G, B, croissante),
@@ -498,3 +498,21 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   rapporté par `inspect`) ; refus sans place ajoutée ; refus sur le firmware 1.20.
 - README : section « What is new in 1.3.0 » et ligne dans la liste des fonctions.
 - Reste, sur décision de l'utilisateur : numéro de version 1.3.0, PR vers `main`, publication du site et de la release.
+
+### 14.5 M5-3 : les ombres (2026-11-21)
+- Mesures sur les photos du test M5-2 (mire, mêmes réglages). **Ordre des photos réattribué** : la photo 1 plafonne à 240, le blanc de la LUT Acros (0,94 × 255),
+  la photo 3 atteint 255 : photo 1 = Neopan, photo 2 = APX 100, photo 3 = Standard (même inversion qu'en M3a-6).
+- Écart mesuré moins attendu (attendu = LUT appliquée au rendu de Standard) : hautes lumières justes (0 à 4 niveaux), ombres et bas des tons moyens **trop sombres**,
+  jusqu'à -15 niveaux (APX) et -10 (Neopan). Même forme pour les deux LUT, comme en M3b : écart systématique, pas du bruit.
+- Inversion par LUT : la valeur que la courbe a reçue (LUT⁻¹ de la mesure) est la même pour les deux LUT à 1 niveau près ; et la **position i** de cette valeur dans
+  la courbe verte de Monochrome Standard vaut le rendu de Standard à 1 ou 2 niveaux près sur toute la gamme (47 → 46,8, 77 → 77,6, 131 → 132,1, 197 → 198,4).
+- Conclusion : sur le chemin des places ajoutées (drapeau 1, base neutre), **l'entrée i de la courbe est déjà le rendu de Monochrome Standard** (i / 255). La bonne
+  courbe est `c[i] = 16383 × LUT(i / 255)` ; passer d'abord par la courbe verte de Standard (`c[i] = LUT(G[i])`, sections 11 et 12) assombrissait les ombres.
+  Monochrome Standard lui-même utilise le drapeau 0 (base officielle, pointeurs de courbes ignorés), d'où la confusion. Certitude : élevée (deux LUT concordantes).
+- Correction : `monoRecipeCurve(neutral)` (plus de courbe de Standard), moteur et test unitaire à jour. Les empreintes des recettes changent : après le flash, les
+  réglages propres des recettes repartent de zéro.
+- Build de vérification (site : APX 100 + Neopan, sans vidéo) : moteur vérifié, `mono_recipe_probe.py` 102 / 102, `nomovie_probe.py`. À valider sur la mire.
+- **Résultat sur le boîtier (2026-11-21)** : mire, mêmes réglages ; photos reçues dans l'ordre inverse de la prise de vue (identifiées au blanc : Standard 255, Neopan 240).
+  Écart mesuré moins attendu sur les 33 paliers distincts : **APX 100 moyen +0,3, absolu moyen 0,4, max +1,2 ; Neopan moyen +0,5, absolu moyen 0,7, max +2,0**
+  (avant la correction : jusqu'à -15 et -10 dans les ombres). Les recettes suivent leur LUT sur toute la gamme. **M5-3 validé.**
+- Publication : option B retenue par l'utilisateur (la correction entre dans `main` avant le tag `v1.3.0`).

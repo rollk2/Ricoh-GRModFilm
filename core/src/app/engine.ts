@@ -44,7 +44,6 @@ import type { Gr3xLookOptions } from '../fw/gr3x/image-control';
 import { GR3X_MAX_FILMS } from '../fw/gr3x/image-control';
 import { GR3X_FIRST_FILM } from '../fw/gr3x/jpeg-stage';
 import { convertGr3xCube, convertGr3xXmp } from '../color/gr3x-import';
-import { monoStandardCurve } from '../fw/gr4v121/aspect/slots';
 import type { CameraModel } from '../wallpaper';
 
 export const SHUTDOWN_W = 720;
@@ -999,8 +998,7 @@ export class Engine {
     if (!this.info.features.monoRecipes) throw new FirmwareError('bad-edit', 'black-and-white recipes need GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (kind !== 'cube') throw new FirmwareError('mono-cube-only', 'black-and-white recipes are made from .cube LUTs');
     const lut = monoLutFromCube(text);
-    const standard = monoStandardCurve(this.decoded.subarray(this.g4.RTOS_OFFSET, this.g4.RTOS_OFFSET + this.g4.RTOS_LENGTH));
-    const curve = monoRecipeCurve(lut.neutral, standard);
+    const curve = monoRecipeCurve(lut.neutral);
     const warnings = [...(lut.toning > MONO_TONING_LIMIT ? ['mono-toning'] : []), ...(lut.mixing > MONO_MIXING_LIMIT ? ['mono-mixing'] : [])];
     const knots = Array.from({ length: 17 }, (_, i) => curve[Math.min(255, i * 16)] / 16383);
     const ck = [0, 1, 2].map(() => Float64Array.from(knots));
