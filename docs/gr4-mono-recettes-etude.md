@@ -395,3 +395,13 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   ajouté est **identique octet pour octet** avant et après la modification.
 - Option de test `monoRecipes` (moteur et `build.ts`). Build : 1.2.0 + recette « APX 100 ». Sonde `mono_recipe_probe.py` : 56 contrôles ; autres sondes et tests GR IV passent.
 - Protocole : `docs/protocole-M3b-mono.md`.
+
+### 12.6 Résultat M3b (2026-11-21) : la recette ajoutée fonctionne
+- Retour de l'utilisateur : recette « APX 100 » utilisable, **développement RAW dans l'appareil sans souci**. Limite constatée (connue de GR Mod, pas propre aux recettes) :
+  le développement RAW ne propose pas les **ratios ajoutés**, seulement ceux de l'appareil.
+- Mire (Standard → APX 100, mêmes conditions) : hautes lumières et tons moyens conformes à la courbe attendue (108 → 159 pour 165 attendu, 134 → 196 pour 195, 157 → 215
+  pour 212, 197 → 231 pour 230) ; ombres un peu plus sombres que prévu (27 → 43 pour 51, 50 → 67 pour 81) ; noirs relevés à 34 comme le veut la LUT.
+- **M3 est validé** : une recette noir et blanc ajoutée au menu du Monochrome, avec le rendu de la LUT, ses réglages propres et le développement RAW.
+- Reste (M4 / M5) : nommer les paramètres 2 à 7, 17 à 21 d'après l'écran ; recettes depuis une LUT `.cube` dans l'application (courbe neutre de la LUT, avertissement
+  si la LUT colore ou mélange les canaux) ; plusieurs recettes ; icônes ; packs de recettes Monochrome ; calibration éventuelle des ombres ; passage de l'option de test
+  `monoRecipes` en fonction du produit.
