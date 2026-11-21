@@ -7,7 +7,7 @@ import { upload } from './host-android';
 import { DOWNLOADS } from './webhost';
 import { firmwareFromZip, isZip } from './zip';
 import { COMMUNITY_LICENSE, emptyRecipe, makeRatioPack, makeRecipePack, mergeRatios, PackError, placeRecipes, RATIOS_EXT, readRatioPack, readRecipePack, RECIPES_EXT } from './packs';
-import type { CommunityEntry, CommunityIndex, PackMeta, PackRecipe } from './packs';
+import type { CommunityEntry, CommunityIndex, PackFamily, PackMeta, PackRecipe } from './packs';
 import type { ParkedEntry, Volume } from './host';
 import { setUiLangPref, t, uiLangPref } from './i18n';
 import type { Key } from './i18n';
@@ -1835,13 +1835,26 @@ const packProblem = (e: unknown): string => t(e instanceof PackError ? (({ 'othe
 
 /** A slot with nothing in it (no preset, name, film code, halation level or drawn icon). */
 const slotEmpty = (x: SlotState): boolean => !x.preset && !Object.values(x.names).some((n) => n && n.trim()) && !x.code && !(x.halation && x.halation.preview > 0) && x.icon.mode === 'keep';
-const packFamily = (s: State = state): 'gr3' | 'gr4' => (familyOf(s.model) === 'gr3' ? 'gr3' : 'gr4');
+const packFamily = (s: State = state): PackFamily => (s.model === 'MONO' ? 'gr4mono' : familyOf(s.model) === 'gr3' ? 'gr3' : 'gr4');
 /** Where recipes go: every film the firmware can have (GR III / IIIx), or GR IV's two Cinema slots. */
 const recipeSlots = (s: State = state): SlotId[] => (s.info ? s.info.slots.map((x) => x.id) : availableSlots(s));
+
+/** An added slot with nothing in it: no preset, no name (a new one already has its « GR<n> » icon). */
+const extraEmpty = (x: ExtraSlot): boolean => !x.preset && !x.name.trim();
+const packIcon = (i: IconState): PackRecipe['icon'] => ({ mode: i.mode, text: i.text, style: i.style, ...(i.image ? { image: i.image } : {}) });
 
 /** The open work as a recipe pack's text, or null when no film has anything. */
 function recipePackText(meta?: PackMeta): string | null {
   const s = state;
+  // GR IV Monochrome (1.3): the recipes are the added looks, each with its name, icon and .cube.
+  if (s.model === 'MONO') {
+    const mono: PackRecipe[] = s.extras.filter((x) => !extraEmpty(x)).map((x) => ({
+      names: (x.name.trim() ? { en: x.name.trim() } : {}) as Record<string, string>,
+      icon: packIcon(x.icon),
+      ...(x.preset && x.preset.kind === 'cube' ? { preset: { fileName: x.preset.fileName, kind: x.preset.kind, text: x.preset.text } } : {}),
+    }));
+    return mono.length ? makeRecipePack('gr4mono', mono, meta) : null;
+  }
   const recipes: PackRecipe[] = availableSlots(s).map((id) => s.slots[id]).filter((x) => !slotEmpty(x)).map((x) => ({
     names: Object.fromEntries(Object.entries(x.names).filter(([, v]) => v && v.trim())) as Record<string, string>,
     ...(x.code ? { code: x.code } : {}),
@@ -1869,6 +1882,7 @@ export async function importRecipes(text?: string): Promise<void> {
   let pack;
   try { pack = readRecipePack(text); } catch (e) { toast(packProblem(e), 'error'); return; }
   if (pack.family !== packFamily()) { toast(t('packOtherCamera'), 'error'); return; }
+  if (pack.family === 'gr4mono') { await importMonoRecipes(pack.recipes); return; }
   const slots = recipeSlots();
   const filled = availableSlots().filter((id) => !slotEmpty(state.slots[id])).length;
   let mode: 'replace' | 'add' = 'replace';
@@ -1891,6 +1905,42 @@ export async function importRecipes(text?: string): Promise<void> {
   scheduleSave();
   const skipped = pack.recipes.length - targets.length;
   toast(t('packRecipesDone', { n: targets.length }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
+}
+/**
+ * GR IV Monochrome (1.3): a pack's recipes become added looks. « Replace » takes the added looks away first, « Add » puts the pack's
+ * after them; at most MAX_EXTRA_SLOTS either way.
+ */
+async function importMonoRecipes(recipes: PackRecipe[]): Promise<void> {
+  if (!monoRecipesOn()) { toast(t('packOtherCamera'), 'error'); return; }
+  const filled = state.extras.filter((x) => !extraEmpty(x)).length;
+  let mode: 'replace' | 'add' = 'replace';
+  if (filled > 0) {
+    const c = await choose(t('packRecipesTitle'), [t('packRecipesLine', { n: recipes.length, m: filled })], t('packReplace'), t('packAdd'));
+    if (!c) return;
+    mode = c === 'alt' ? 'add' : 'replace';
+  }
+  if (mode === 'replace') while (state.extras.length) removeExtraSlot(state.extras[state.extras.length - 1].key);
+  else for (const x of [...state.extras]) if (extraEmpty(x)) removeExtraSlot(x.key);
+  const room = Math.max(0, MAX_EXTRA_SLOTS - state.extras.length), take = recipes.slice(0, room);
+  let first: string | undefined;
+  for (const r of take) {
+    const before = state.extras.length;
+    addExtraSlot();
+    if (state.extras.length === before) break;
+    const key = state.extras[state.extras.length - 1].key;
+    first ??= key;
+    const name = (r.names.en || Object.values(r.names)[0] || '').trim();
+    if (name) setExtraName(key, name);
+    if (r.icon && r.icon.mode !== 'keep') setIcon(key, { mode: r.icon.mode, text: r.icon.text, style: r.icon.style, image: r.icon.image });
+    if (r.preset) {
+      if (host.available) void host.storeSet(presetKey(key), r.preset.text).catch(() => undefined);
+      void runPreset(key, r.preset.fileName, r.preset.kind, r.preset.text);
+    }
+  }
+  if (first) setActiveSlot(first);
+  scheduleSave();
+  const skipped = recipes.length - take.length;
+  toast(t('packRecipesDone', { n: take.length }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
 }
 function clearSlot(id: SlotId): void {
   setSlot(id, emptySlot());

@@ -27,6 +27,24 @@ describe('recipe packs', () => {
     expect(fail(JSON.stringify({ format: 'grmod-film-recipes', v: 2, recipes: [] }))).toBe('newer');
     expect(fail(makeRecipePack('gr3', [{ names: {} }]))).toBe('empty');
   });
+  it('GR IV Monochrome packs: version 2, a name, an icon and a .cube only; older versions see a newer pack', () => {
+    const apx = { names: { en: 'APX 100' }, icon: { mode: 'text' as const, text: 'GR1', style: 'film' as const },
+      preset: { fileName: 'apx.cube', kind: 'cube' as const, text: 'LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1' } };
+    const text = makeRecipePack('gr4mono', [apx, { ...portra, names: { en: 'Portra' } }]);
+    const raw = JSON.parse(text);
+    expect(raw.v).toBe(2);
+    expect(raw.family).toBe('gr4mono');
+    // Film code, halation and a preset that is not a .cube are not kept.
+    expect(raw.recipes[1]).toEqual({ names: { en: 'Portra' }, icon: portra.icon });
+    const pack = readRecipePack(text);
+    expect(pack.family).toBe('gr4mono');
+    expect(pack.recipes).toEqual([apx, { names: { en: 'Portra' }, icon: portra.icon }]);
+    // A version-2 pack of another family was not written by this version.
+    const fail = (t: string): string => { try { readRecipePack(t); return 'read'; } catch (e) { return (e as PackError).code; } };
+    expect(fail(JSON.stringify({ ...raw, family: 'gr4' }))).toBe('newer');
+    expect(fail(JSON.stringify({ ...raw, v: 3 }))).toBe('newer');
+    expect(readRecipePack(makeRecipePack('gr4', [portra])).family).toBe('gr4');
+  });
   it('places recipes from the first slot, or in the empty ones only', () => {
     const slots = ['A', 'B', 'C', 'D'];
     expect(placeRecipes(slots, () => false, 2, 'replace')).toEqual(['A', 'B']);

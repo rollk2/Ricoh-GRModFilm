@@ -474,3 +474,18 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 ### 14.2 M5-1 : les icônes
 - Déjà en place dans l'application : `extraSpecs` (mode Monochrome) passe l'icône de chaque place (texte « GR1 », « GR2 »... par défaut, ou une image), comme en
   couleur. Le build de test M4, construit hors de l'application, avait des icônes vides. Reste à voir une icône sur le boîtier.
+
+### 14.3 M5-2 : packs de recettes Monochrome (2026-11-21)
+- Format (`ui/src/packs.ts`) : famille `gr4mono`, écrite en **version 2** du format des packs de recettes. Une version de GR Mod Film antérieure à 1.3 lisait toute
+  famille inconnue comme GR III : avec la version 2, elle répond « pack d'une version plus récente » au lieu de poser des recettes noir et blanc sur des films couleur.
+  Une version 2 d'une autre famille est refusée (« newer »). Une recette Monochrome garde son nom (`names.en`), son icône et sa LUT `.cube` ; code de film, halation
+  et preset `.xmp` sont retirés à l'écriture comme à la lecture.
+- Application (`ui/src/store.ts`) : sur le Monochrome, l'export prend les **places ajoutées** (une place sans LUT ni nom est ignorée) ; l'import les recrée
+  (« Remplacer » retire les places existantes, « Ajouter » les met après, 20 au plus), avec nom, icône et LUT reconvertie. Un pack Monochrome est refusé sur
+  un autre modèle et inversement (message « pack pour un autre appareil », qui cite maintenant le GR IV Monochrome). Collection communautaire : libellé
+  « GR IV Monochrome ».
+- Vérifié : test `core/test/packs.test.ts` (version 2, nettoyage, refus) ; site piloté par Playwright : deux recettes (APX 100 nommée, Neopan), export, site neuf,
+  import (noms et icônes « GR1 », « GR2 » retrouvés), « No movie », téléchargement ; refus du pack sur le modèle GR IV. Firmware obtenu : vérifié par le moteur,
+  `mono_recipe_probe.py` 102 / 102 (courbes calculées par l'application), `nomovie_probe.py`, `holdbuttons_probe.py` 48.
+- Build de test M5-2 : ce firmware (fait par le site, avec ses icônes). À vérifier sur le boîtier : icônes « GR1 » et « GR2 » dans Image Control, noms « APX 100 »
+  et « GR Mod 2 », rendus comme M4.

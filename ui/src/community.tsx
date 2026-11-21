@@ -11,7 +11,7 @@ type Look = { state: 'loading' } | { state: 'error' } | { state: 'ready'; index:
 
 function PackCard({ e }: { e: CommunityEntry }) {
   const busy = useStore((s) => !!s.busy);
-  const camera = e.family === 'gr4' ? 'GR IV' : e.family === 'gr3' ? 'GR III / IIIx' : '';
+  const camera = e.family === 'gr4mono' ? 'GR IV Monochrome' : e.family === 'gr4' ? 'GR IV' : e.family === 'gr3' ? 'GR III / IIIx' : '';
   return (
     <div className="card community-pack">
       <div className="soft-text">
