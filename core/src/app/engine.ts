@@ -271,6 +271,8 @@ export interface BuildOptions {
   keyDiag?: boolean;
   /** Test builds only (GR IV Monochrome 1.11): one black-and-white look's tone curve replaced (recipes, test M3a). */
   monoCurve?: { style: number; curve: number[]; path?: 'own' | 'standard' | 'linear' };
+  /** Test builds only (GR IV Monochrome 1.11): the added slots are black-and-white recipes (test M3b). */
+  monoRecipes?: boolean;
   /** Test builds: the HDR gain map's diagnostics segment (APP15 "GRMODHDR") in every JPEG. */
   hdrDiag?: boolean;
   /** Test builds only (GR IV 1.20): exposure preview always off (issue #17). */
@@ -1149,6 +1151,7 @@ export class Engine {
       ...(options && options.halationDiag ? { halationDiag: true } : {}),
       ...(options && options.keyDiag ? { keyDiag: true } : {}),
       ...(options && options.monoCurve ? { monoCurve: options.monoCurve } : {}),
+      ...(options && options.monoRecipes ? { monoRecipes: true } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),
     };

@@ -386,3 +386,12 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - **Valeurs d'usine** : `UserDataInitValue` n'écrit pas ces champs dans l'objet émulé (il initialise un autre objet) ; dans le module, ces valeurs ne servent qu'à une
   réparation (jeu entièrement à zéro, cas du test 027 sur GR IV couleur), qui ne concerne pas le Monochrome. Valeurs de départ retenues pour une recette (comme pour les
   styles couleur, « 0 » de l'écran) : paramètres 2 à 6 et 17, 18 au milieu de l'échelle (4) ; 7 à 0 (désactivé, hypothèse) ; grain 19 à 0, 20 et 21 à 1.
+
+### 12.5 M3b-3 fait : la recette ajoutée, prête à tester (2026-11-21)
+- `slot_params.c` : variante `MONO_LOOK` (look de référence 25, 11 paramètres, champs de 12.2, développement RAW sur le look 15, positions RAW 2..7, 14, 15, 16 et grain,
+  enregistrement « GRM1 » distinct). `gen_slotparams.py --mono` écrit `slotparams-mono-native.ts` ; le module couleur régénéré est **identique octet pour octet**.
+- `slots.ts` : option `mono` (look de référence par une structure `LookRef` : colonne 28, gabarits de 25, descripteur de High Contrast avec base neutre, post-courbe noir
+  et blanc, matrice identité imposée, visibilité Monochrome seulement, 72 foncteurs, 10 listes de métadonnées, RAW 15, paramètres neutres). Un firmware couleur avec un style
+  ajouté est **identique octet pour octet** avant et après la modification.
+- Option de test `monoRecipes` (moteur et `build.ts`). Build : 1.2.0 + recette « APX 100 ». Sonde `mono_recipe_probe.py` : 56 contrôles ; autres sondes et tests GR IV passent.
+- Protocole : `docs/protocole-M3b-mono.md`.

@@ -189,6 +189,8 @@ export interface TestOptions {
   keyDiag?: boolean;
   /** GR IV Monochrome recipes, test M3a (`monocurve.ts`): one black-and-white factory look (25..30) gets this tone curve (256 values 0..16383). */
   monoCurve?: { style: number; curve: readonly number[]; path?: 'own' | 'standard' | 'linear' };
+  /** GR IV Monochrome recipes, test M3b (`slots.ts` with `mono`): the added slots are black-and-white recipes on Monochrome Standard. */
+  monoRecipes?: boolean;
   /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
   hdrDiag?: boolean;
   /** Exposure preview off (issue #17), always on: the live view keeps a normal brightness (`lvpreview.ts`). */
@@ -1171,7 +1173,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
     halation.push({ style, light: colour.ownCurves ? halationLight(colour.curves, colour.postQ9) : halationLight() });
   }
   // Last: the added slots compose with the monochrome looks' visibility check.
-  if (slots.length > 0) icons = installExtraSlots(patch, icons, slots, { stashLook: (!!features.dateStamp && !!features.guard) || halation.length > 0, layout: features.lookLayout });
+  if (slots.length > 0) icons = installExtraSlots(patch, icons, slots, { stashLook: (!!features.dateStamp && !!features.guard) || halation.length > 0, layout: features.lookLayout, mono: !!test.monoRecipes });
   else if (features.lookLayout) {
     validateLookLayout(features.lookLayout, 0);
     installLookOrder(patch, features.lookLayout.order);

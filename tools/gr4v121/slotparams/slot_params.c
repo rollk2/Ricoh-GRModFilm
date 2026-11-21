@@ -23,13 +23,27 @@
 #ifndef SLOT_COUNT
 #error SLOT_COUNT (1..20) is set by gen_slotparams.py
 #endif
-#define CY 18u
+#ifdef MONO_LOOK
+/* GR IV Monochrome (GR Mod Film): the added styles are black-and-white recipes and use Monochrome Standard's (25) fields, its
+ * 11 parameters (2..7, 17..21) and RAW development's look 15 (docs/gr4-mono-recettes-etude.md, section 12). */
+#define REF 25u
+#else
+#define REF 18u
+#endif
 #define FIRST 38u
 #define OWNERS 21u                /* Cinema Yellow and up to twenty added slots */
 #define COMBOS 8u                 /* photo sets 0..3, movie sets 0..3 */
+#ifdef MONO_LOOK
+#define NP 11u
+#else
 #define NP 13u
+#endif
 #define REC_ID 12u
+#ifdef MONO_LOOK
+#define REC_MAGIC 0x314d5247u     /* 'GRM1': the Monochrome recipes' table, never read as the colour one */
+#else
 #define REC_MAGIC 0x32505247u     /* 'GRP2' (test 027's 'GRP1' tables were built from an empty record) */
+#endif
 #define REC_VERSION 4u            /* 4: firmware 1.20 (added slots are styles 38..; a 1.11 table, version 3, numbers them from 34: not taken, the added slots start neutral); 3: GR Mod 0.8.2 (20 slots, fingerprints); 2: 0.7.1..0.8.1 (6 slots); 1: tests 028..033 */
 #define STATE_MAGIC 0x50534c54u
 #define TBYTES (OWNERS * COMBOS * NP)
@@ -56,6 +70,41 @@ extern const uint32_t slot_prints[];
 
 /* Offsets in the settings object of Cinema Yellow's fields, per parameter and combination
  * (0 = none: four parameters exist for photos only). The setters write these. */
+#ifdef MONO_LOOK
+static const uint16_t FIELD[NP][COMBOS] = {
+    {0x9b7, 0x9ef, 0xa27, 0xa5f, 0xa97, 0xaac, 0xac1, 0xad6},
+    {0x9bc, 0x9f4, 0xa2c, 0xa64, 0xa9a, 0xaaf, 0xac4, 0xad9},
+    {0x9c1, 0x9f9, 0xa31, 0xa69, 0xa9d, 0xab2, 0xac7, 0xadc},
+    {0x9c6, 0x9fe, 0xa36, 0xa6e, 0xaa0, 0xab5, 0xaca, 0xadf},
+    {0x9cb, 0xa03, 0xa3b, 0xa73, 0xaa3, 0xab8, 0xacd, 0xae2},
+    {0x9d0, 0xa08, 0xa40, 0xa78, 0xaa6, 0xabb, 0xad0, 0xae5},
+    {0x9d6, 0xa0e, 0xa46, 0xa7e, 0xaa9, 0xabe, 0xad3, 0xae8},
+    {0x9db, 0xa13, 0xa4b, 0xa83, 0, 0, 0, 0},
+    {0x9df, 0xa17, 0xa4f, 0xa87, 0, 0, 0, 0},
+    {0x9e0, 0xa18, 0xa50, 0xa88, 0, 0, 0, 0},
+    {0x9e1, 0xa19, 0xa51, 0xa89, 0, 0, 0, 0},
+};
+
+/* Monochrome Standard's factory values are not known (UserDataInitValue fills another object): only the repair of a set whose
+ * fields are all zero uses them, a case of the colour test 027; the neutral values stand in. */
+static const uint8_t FACTORY[NP] = {4, 4, 4, 4, 4, 0, 4, 4, 0, 1, 1};
+
+/* Neutral values ("0" on the parameter screen): the middle of the -4..+4 scales, parameter 7 (black-and-white only) off, grain off
+ * with strength and size 1, as for the colour recipes. */
+static const uint8_t NEUTRAL[NP] = {4, 4, 4, 4, 4, 0, 4, 4, 0, 1, 1};
+
+/* Entry of each parameter's setter (parameters 2..7, 17..21 of the 23). */
+static const uint32_t native_setters[NP] = {
+    0x533beac8, 0x533bf808, 0x533c0488, 0x533c1108, 0x533c1d88, 0x533c2ac8,
+    0x533c4a24, 0x533c56a4, 0x533c5cf8, 0x533c62ec, 0x533c68e0,
+};
+
+/* Entry of each parameter's getter. */
+static const uint32_t native_getters[NP] = {
+    0x533c8df8, 0x533c9910, 0x533ca388, 0x533cae00, 0x533cb878, 0x533cc390,
+    0x533ce070, 0x533ceae8, 0x533cf058, 0x533cf580, 0x533cfaa8,
+};
+#else
 static const uint16_t FIELD[NP][COMBOS] = {
     {0x15b, 0x207, 0x2b3, 0x35f, 0x51d, 0x599, 0x615, 0x691},
     {0x165, 0x211, 0x2bd, 0x369, 0x526, 0x5a2, 0x61e, 0x69a},
@@ -91,6 +140,7 @@ static const uint32_t native_getters[NP] = {
     0x533c8028, 0x533c8710, 0x533c8df8, 0x533c9910, 0x533ca388, 0x533cae00, 0x533cb878,
     0x533ccb10, 0x533ce070, 0x533ceae8, 0x533cf058, 0x533cf580, 0x533cfaa8,
 };
+#endif
 
 /* In-camera RAW development (RawDevelopmentModel): per custom base (0..3, the photo sets) and
  * look (0..22 in 1.20, 1.11: 0..20) it keeps 19 bytes of parameters (1.11: 18; 1.20 inserted
@@ -98,7 +148,11 @@ static const uint32_t native_getters[NP] = {
  * Cinema Yellow's (look 9). Like the settings fields, those bytes belong to one owner per base,
  * the others' values wait here (see sp_raw_*). */
 #define RAW_BASES 4u
-#define RAW_CY 9u
+#ifdef MONO_LOOK
+#define RAW_REF 15u               /* Monochrome Standard */
+#else
+#define RAW_REF 9u                /* Cinema Yellow */
+#endif
 #define RAW_FIRST 23u
 #define RAW_LOOK 0x9du            /* + base: the base's look */
 #define RAW_LOOKS 23u            /* looks per base, 0 = as shot (1.11: 21) */
@@ -143,7 +197,7 @@ static uint32_t style_of(int c) {
 
 /* Owner index of a style: Cinema Yellow 0, added slot k k+1, anything else -1. */
 static int owner_of(uint32_t style) {
-    if (style == CY) return 0;
+    if (style == REF) return 0;
     if (style >= FIRST && style < FIRST + SLOT_COUNT) return (int)(style - FIRST + 1);
     return -1;
 }
@@ -222,9 +276,9 @@ static uint32_t route_get(uint32_t j, uint32_t mode, uint32_t set, uint32_t styl
     int si = owner_of(style);
     if (si < 0) return native_get(mode, set, style, native_getters[j]);
     int c = combo(mode, set);
-    if (c < 0 || j >= NP || FIELD[j][c] == 0) return native_get(mode, set, CY, native_getters[j]);
+    if (c < 0 || j >= NP || FIELD[j][c] == 0) return native_get(mode, set, REF, native_getters[j]);
     State *s = state();
-    if (!s || !s->loaded || si == owner(c)) return native_get(mode, set, CY, native_getters[j]);
+    if (!s || !s->loaded || si == owner(c)) return native_get(mode, set, REF, native_getters[j]);
     return s->t[si][c][j];
 }
 
@@ -236,9 +290,9 @@ uint32_t sp_route_set(uint32_t j, uint32_t mode, uint32_t set, uint32_t style, u
     int si = owner_of(style);
     if (si < 0) return style;
     int c = combo(mode, set);
-    if (c < 0 || j >= NP || FIELD[j][c] == 0) return CY;
+    if (c < 0 || j >= NP || FIELD[j][c] == 0) return REF;
     State *s = state();
-    if (!s || !s->loaded || si == owner(c)) return CY;
+    if (!s || !s->loaded || si == owner(c)) return REF;
     if (s->t[si][c][j] != (uint8_t)value) { s->t[si][c][j] = (uint8_t)value; s->dirty = 1; }
     return HANDLED;
 }
@@ -249,7 +303,7 @@ static void move_owner(State *s, int c, int from, int to) {
     for (uint32_t j = 0; j < NP; j++)
         if (FIELD[j][c]) s->t[from][c][j] = settings_object[FIELD[j][c]];
     for (uint32_t j = 0; j < NP; j++)
-        if (FIELD[j][c]) native_set(s->t[to][c][j], mode, set, CY, native_setters[j]);
+        if (FIELD[j][c]) native_set(s->t[to][c][j], mode, set, REF, native_setters[j]);
     s->dirty = 1;
 }
 
@@ -268,17 +322,21 @@ uint32_t sp_style_set(void *obj, uint32_t style, uint32_t c, uint32_t entry) {
 
 /* ---- RAW development ------------------------------------------------------------------- */
 /* Where parameter j sits in a look's 19 bytes (11..12: the two grain bytes, after them). */
+#ifdef MONO_LOOK
+static const uint8_t RAW_POS[NP] = {2, 3, 4, 5, 6, 7, 14, 15, 16, RAW_ROW, RAW_ROW + 1};
+#else
 static const uint8_t RAW_POS[NP] = {0, 1, 2, 3, 4, 5, 6, 8, 14, 15, 16, RAW_ROW, RAW_ROW + 1};
+#endif
 
 static int raw_owner(uint32_t look) {
-    if (look == RAW_CY) return 0;
+    if (look == RAW_REF) return 0;
     if (look >= RAW_FIRST && look < RAW_FIRST + SLOT_COUNT) return (int)(look - RAW_FIRST + 1);
     return -1;
 }
 
 /* Cinema Yellow's bytes of a base: its row and its grain pair. */
-static volatile uint8_t *raw_row(uint8_t *m, uint32_t b) { return m + RAW_ROWS + b * RAW_BASE_STRIDE + RAW_CY * RAW_ROW; }
-static volatile uint8_t *raw_grain(uint8_t *m, uint32_t b) { return m + RAW_GRAIN + (b * RAW_LOOKS + RAW_CY) * 2u; }
+static volatile uint8_t *raw_row(uint8_t *m, uint32_t b) { return m + RAW_ROWS + b * RAW_BASE_STRIDE + RAW_REF * RAW_ROW; }
+static volatile uint8_t *raw_grain(uint8_t *m, uint32_t b) { return m + RAW_GRAIN + (b * RAW_LOOKS + RAW_REF) * 2u; }
 
 static void raw_save(State *s, uint32_t b, int o) {
     volatile uint8_t *row = raw_row(s->raw.model, b), *g = raw_grain(s->raw.model, b);
@@ -308,7 +366,7 @@ void sp_raw_init(uint8_t *model) {
             if (o == own) continue;
             volatile uint8_t *v = s->raw.v[b][o];
             for (uint32_t i = 0; i < RAW_VALUES; i++) v[i] = 0;
-            uint32_t style = o == 0 ? CY : FIRST + (uint32_t)o - 1;
+            uint32_t style = o == 0 ? REF : FIRST + (uint32_t)o - 1;
             for (uint32_t j = 0; j < NP; j++) v[RAW_POS[j]] = (uint8_t)route_get(j, 0, b, style);
         }
     }

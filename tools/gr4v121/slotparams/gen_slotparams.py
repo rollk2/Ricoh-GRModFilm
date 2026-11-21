@@ -36,7 +36,13 @@ SETTERS = [0x533bdac8, 0x533be2c8, 0x533beac8, 0x533bf808, 0x533c0488, 0x533c110
 GETTERS = [0x533c8028, 0x533c8710, 0x533c8df8, 0x533c9910, 0x533ca388, 0x533cae00, 0x533cb878, 0x533cc390, 0x533ccb10,
            0x533ccd70, 0x533ccf30, 0x533cd0e8, 0x533cd260, 0x533cd400, 0x533cd6f0, 0x533cda10, 0x533cdd30, 0x533ce070,
            0x533ceae8, 0x533cf058, 0x533cf580, 0x533cfaa8, 0x533cffd0]
-PARAMS = [0, 1, 2, 3, 4, 5, 6, 8, 17, 18, 19, 20, 21]
+import sys
+# --mono: the GR IV Monochrome's black-and-white recipes (Monochrome Standard's 11 parameters, -DMONO_LOOK), written to
+# slotparams-mono-native.ts; without it the colour module, as before.
+MONO = '--mono' in sys.argv
+PARAMS = [2, 3, 4, 5, 6, 7, 17, 18, 19, 20, 21] if MONO else [0, 1, 2, 3, 4, 5, 6, 8, 17, 18, 19, 20, 21]
+if MONO:
+    TARGET = REPO / 'core/src/fw/gr4v121/aspect/slotparams-mono-native.ts'
 STYLE_SETTERS = [0x532bc6d4, 0x532bc864, 0x532bc9f4, 0x532bcb84, 0x533062bc, 0x53306450, 0x533065e4, 0x53306778]
 EXPORTS = (['sp_load', 'sp_save', 'sp_raw_init', 'sp_raw_own', 'sp_raw_sync'] + [f'sp_get_stub_{j}' for j in range(len(PARAMS))]
            + [f'sp_set_stub_{j}' for j in range(len(PARAMS))] + [f'sp_style_stub_{k}' for k in range(len(STYLE_SETTERS))])
@@ -71,7 +77,7 @@ def run(command):
 def compile_module(count, origin, bindings, relocs):
     with tempfile.TemporaryDirectory(prefix='grmod-slotparams-') as folder:
         d = Path(folder)
-        (d / 'm.c').write_text(f'#define SLOT_COUNT {count}\n' + SOURCE.read_text(encoding='utf-8') + stubs(), encoding='utf-8')
+        (d / 'm.c').write_text(f'#define SLOT_COUNT {count}\n' + ('#define MONO_LOOK 1\n' if MONO else '') + SOURCE.read_text(encoding='utf-8') + stubs(), encoding='utf-8')
         script = ' '.join(f'{name} = {value:#x};' for name, value in bindings.items())
         script += (f' SECTIONS {{ . = {origin:#x}; .text : {{ *(.text*) *(.rodata*) }} '
                    '/DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) } }')
@@ -196,10 +202,11 @@ def main():
         '',
         "import type { NativeModule } from './native';",
         '',
-        '/** Parameters 0..6, 8, 17..21 of the 23: the ones Cinema Yellow has (getter, setter, default). */',
-        f'export const SLOT_PARAMETERS: readonly number[] = {json.dumps(PARAMS)};',
+        ('/** Parameters 2..7, 17..21 of the 23: the ones Monochrome Standard has (getter, setter, default). */' if MONO else
+         '/** Parameters 0..6, 8, 17..21 of the 23: the ones Cinema Yellow has (getter, setter, default). */'),
+        f'export const {"MONO_SLOT_PARAMETERS" if MONO else "SLOT_PARAMETERS"}: readonly number[] = {json.dumps(PARAMS)};',
         '',
-        'export const SLOT_PARAMS_MODULE: NativeModule = ' + json.dumps(out, separators=(',', ':')) + ' as unknown as NativeModule;',
+        f'export const {"MONO_SLOT_PARAMS_MODULE" if MONO else "SLOT_PARAMS_MODULE"}: NativeModule = ' + json.dumps(out, separators=(',', ':')) + ' as unknown as NativeModule;',
         '',
     ]
     TARGET.write_text('\n'.join(lines), encoding='utf-8')
