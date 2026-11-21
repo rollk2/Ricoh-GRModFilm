@@ -490,7 +490,7 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - Build de test M5-2 : ce firmware (fait par le site, avec ses icônes). À vérifier sur le boîtier : icônes « GR1 » et « GR2 » dans Image Control, noms « APX 100 »
   et « GR Mod 2 », rendus comme M4.
 - **Résultat sur le boîtier (2026-11-21)** : tous les tests OK (noms, icônes « GR1 » et « GR2 » dans le menu et au levier ADJ, rendus de la mire conformes à M4,
-  réglages propres conservés, contraste +2 au levier répété sans extinction, vidéo absente, boutons, développement RAW). M5-3 (ombres) non retenu.
+  réglages propres conservés, contraste +2 au levier répété sans extinction, vidéo absente, boutons, développement RAW). M5-3 (ombres) : voir 14.5.
 
 ### 14.4 M5-4 : finition (2026-11-21)
 - Test du produit `core/test/gr4-monorecipes.test.ts` (firmware Mono 1.11) : conversion d'un `.cube` (matrice identité, même courbe sur R, G, B, croissante),
@@ -512,3 +512,7 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - Correction : `monoRecipeCurve(neutral)` (plus de courbe de Standard), moteur et test unitaire à jour. Les empreintes des recettes changent : après le flash, les
   réglages propres des recettes repartent de zéro.
 - Build de vérification (site : APX 100 + Neopan, sans vidéo) : moteur vérifié, `mono_recipe_probe.py` 102 / 102, `nomovie_probe.py`. À valider sur la mire.
+- **Résultat sur le boîtier (2026-11-21)** : mire, mêmes réglages ; photos reçues dans l'ordre inverse de la prise de vue (identifiées au blanc : Standard 255, Neopan 240).
+  Écart mesuré moins attendu sur les 33 paliers distincts : **APX 100 moyen +0,3, absolu moyen 0,4, max +1,2 ; Neopan moyen +0,5, absolu moyen 0,7, max +2,0**
+  (avant la correction : jusqu'à -15 et -10 dans les ombres). Les recettes suivent leur LUT sur toute la gamme. **M5-3 validé.**
+- Publication : option B retenue par l'utilisateur (la correction entre dans `main` avant le tag `v1.3.0`).
