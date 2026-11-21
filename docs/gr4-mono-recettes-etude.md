@@ -456,3 +456,21 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - **Incident** : une extinction inopinée de l'appareil pendant le changement du contraste d'une recette ; redémarrage sans souci, non reproduit pour l'instant.
   Cause inconnue. À étudier en premier dans M5 (piste : le module des réglages propres, qui écrit les valeurs de la place ajoutée, ou une recette autre que la
   première, que la sonde ne couvrait pas avant le build M4).
+
+## 14. M5 (2026-11-21)
+
+### 14.1 M5-0 : l'extinction inopinée du build M4
+- Circonstances (utilisateur) : recette « agfa apx 100 » (style 38), contraste changé **au levier ADJ**, vers **+2** ; **non reproduit** en refaisant le même geste.
+- Analyse statique faite :
+  - module des réglages propres (`slot_params.c`) : toutes les valeurs passent par des index bornés (`combo`, `j < NP`, `owner_of`), la table est en mémoire
+    allouée au chargement ; un réglage au levier pour la recette sélectionnée va directement aux champs de Monochrome Standard (le firmware tel qu'il est) ;
+  - générateur des paramètres de visée et d'ADJ (0x532A2CF8), foncteurs de changement (72), lecteurs directs, listes de paramètres : les styles ajoutés y sont
+    lus comme 25 (Monochrome Standard) ;
+  - recherche dans tout le programme des calculs `style - 25` servant d'index (tables des 8 looks monochromes) : 3 sites, **tous bornés** (`cmp #7`, cas par défaut
+    pour 38 et 39) ; **aucun** index `style - 25` sans borne.
+- Conclusion : **pas de cause trouvée** dans le code ajouté ; un seul cas, non reproduit. Certitude : moyenne (l'émulateur ne rejoue pas tout le chemin du levier ADJ).
+  Classé « à surveiller » : si l'extinction revient, noter recette, réglage, valeur, levier ou menu, et si c'était le premier réglage après le flash.
+
+### 14.2 M5-1 : les icônes
+- Déjà en place dans l'application : `extraSpecs` (mode Monochrome) passe l'icône de chaque place (texte « GR1 », « GR2 »... par défaut, ou une image), comme en
+  couleur. Le build de test M4, construit hors de l'application, avait des icônes vides. Reste à voir une icône sur le boîtier.
