@@ -449,3 +449,10 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - Moteur : fichier vérifié. Sondes : `mono_recipe_probe.py`, généralisée à plusieurs recettes (`curves` dans curve.json), **102 contrôles** ; `nomovie_probe.py` passe.
 - À vérifier sur le boîtier : les deux noms dans Image Control (Monochrome seulement), deux rendus distincts, réglages propres à chaque recette après extinction,
   développement RAW avec chacune.
+
+### 13.5 Résultat du build de test M4 (2026-11-21)
+- Retour de l'utilisateur : **tous les points au vert** (deux recettes dans Image Control, rendus distincts sur la mire, réglages propres conservés, développement RAW,
+  vidéo absente, boutons).
+- **Incident** : une extinction inopinée de l'appareil pendant le changement du contraste d'une recette ; redémarrage sans souci, non reproduit pour l'instant.
+  Cause inconnue. À étudier en premier dans M5 (piste : le module des réglages propres, qui écrit les valeurs de la place ajoutée, ou une recette autre que la
+  première, que la sonde ne couvrait pas avant le build M4).
