@@ -377,3 +377,12 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 3. Lignes du développement RAW du look 15 ; listes de paramètres des « maker notes » qui contiennent 25.
 4. Module natif paramétré par le look de référence (18 ou 25) et recompilé ; variante noir et blanc de `installExtraSlots` (gabarits 25 / 27, base neutre, visibilité
    Monochrome, liste des paramètres) ; sondes d'émulation ; build de test avec une recette « APX 100 ».
+
+### 12.4 M3b-2 fait : foncteurs, listes des métadonnées, valeurs de départ (2026-11-21)
+- **Foncteurs de changement** de Monochrome Standard : les 72 champs (7 paramètres × 8 jeux + 4 paramètres photo × 4 jeux) ont chacun exactement un foncteur dans la zone
+  0x53270850..0x532a0850, de la même forme que ceux de Cinema Yellow (chargement du look puis comparaison avec **25**, `cmp r3,#0x19` / `#0xc19`). Le mécanisme de
+  `installChangeFunctors` s'applique tel quel avec 25.
+- **Listes « looks qui ont ce paramètre »** des métadonnées : 21 listes, 8 contiennent 18, **10 contiennent 25**.
+- **Valeurs d'usine** : `UserDataInitValue` n'écrit pas ces champs dans l'objet émulé (il initialise un autre objet) ; dans le module, ces valeurs ne servent qu'à une
+  réparation (jeu entièrement à zéro, cas du test 027 sur GR IV couleur), qui ne concerne pas le Monochrome. Valeurs de départ retenues pour une recette (comme pour les
+  styles couleur, « 0 » de l'écran) : paramètres 2 à 6 et 17, 18 au milieu de l'échelle (4) ; 7 à 0 (désactivé, hypothèse) ; grain 19 à 0, 20 et 21 à 1.
