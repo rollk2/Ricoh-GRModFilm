@@ -103,3 +103,57 @@ Analyse : `tools/gr4v121/cube_mono_analysis.py` (lecture seule des fichiers). Le
    il faudra convertir la courbe dans le domaine du boîtier.
 2. Si la courbe d'un style ajouté s'applique **après** les réglages Contraste / Hautes lumières / Ombres de l'appareil, ou les remplace.
 3. La **licence** des LUT G'MIC, avant de publier des recettes dérivées.
+
+## 9. Résultats de M1 (étude statique, 2026-11-21)
+
+Firmware lu : GR IV 1.21 = GR IV Monochrome 1.11 (`fwdc248b.bin`). Lecture des tables de styles décrites dans `slots.ts` et émulation des 23 « getters » de paramètres.
+Niveau de certitude : **lu** pour les adresses et les valeurs ; **déduit** pour le sens des paramètres (marqué « hypothèse »).
+
+### 9.1 Les tables de styles
+- Les styles 0 à 24 sont les colonnes 0 à 24 ; les looks noir et blanc 25 à 32 sont les colonnes **28 à 35** (table octet 0x5407bd2c, lue : `0..24, 28..35`).
+- Les **trois variantes** (lignes des tables) sont identiques pour tous les looks utiles, sauf la variante 2 pour Grainy et Solid (descripteur de courbe propre). Laquelle est le
+  Monochrome n'est pas établi ; les styles ajoutés reçoivent les mêmes enregistrements dans les trois, comme aujourd'hui.
+
+### 9.2 Ce qui distingue un look noir et blanc d'un look couleur (lu)
+| Élément | Standard (11) | Cinema Yellow (18) | Monochrome Standard (25) | High Contrast (27) | Solarized (32) |
+| --- | --- | --- | --- | --- | --- |
+| Matrice de couleur (Q13) | quasi identité | mélange coloré | **identité** | identité | identité |
+| Tableau « après courbe » (mot 2) | 0x5501bd34 (couleur) | 0x5501bd34 | **0x5501c0a0 (noir et blanc)** | 0x5501c0a0 | 0x5501c0a0 |
+| Enregistrement YCbCr | 0x5501c8c8 (couleur) | 0x5501c8c8 | **0x5501c8a4 (noir et blanc)** | 0x5501c8a4 | 0x5501c8a4 |
+| Descripteur de courbes | courbes R, G, B de Standard | idem, drapeau 1 | **courbes de Standard**, drapeau 0 | **courbe propre**, la même pour R, G, B, drapeau 1 | courbe de base et courbe propres |
+| Bloc multi-axes | neutre | propre | neutre | neutre | neutre |
+
+- **Format des courbes (lu)** : 256 valeurs de 0 à 16383 (14 bits) par canal, non décroissantes en général (Solarized ne l'est pas, exprès). Standard a un noir à 899 (0,055).
+  High Contrast est une courbe en S unique pour les trois canaux. Le code de couleur de GR Mod les décrit ainsi : entrée « i/256 » en domaine affiché, après la courbe de base
+  (`core/src/color/camera.ts`).
+- Conséquence : un **style ajouté pour le Monochrome** doit copier un look noir et blanc (Monochrome Standard ou High Contrast), pas Cinema Yellow : matrice identité, tableau après
+  courbe et YCbCr noir et blanc, et une **courbe propre unique** pour R, G, B, comme High Contrast.
+
+### 9.3 Paramètres réglables (émulation des 23 getters, avec un objet de réglages rempli d'un motif)
+Un paramètre « existe » pour un style quand son getter lit un champ propre (valeur du motif) ; sinon il renvoie la valeur neutre (4 = milieu de l'échelle -4..+4).
+
+| Paramètre | Standard | Cinema Yellow | Looks noir et blanc 25 à 29 | Hypothèse |
+| --- | --- | --- | --- | --- |
+| 0, 1 | oui | oui | **non** | saturation, teinte (couleur) |
+| 2 à 6 | oui | oui | oui | contraste, hautes lumières, ombres, netteté, ombrage / clarté |
+| 7 | non | non | **oui** (noir et blanc seulement) | filtre ou virage noir et blanc |
+| 8 | non | oui | non | virage de Cinema (couleur) |
+| 17 | oui | oui | oui | clarté ou ombrage |
+| 18 | oui | oui | en partie (25, 27, 29) | à identifier |
+| 19 à 21 | non (Standard : 0, 1, 1) | oui | oui | grain : effet, force, taille |
+
+- Un style ajouté pour le Monochrome exposerait donc les paramètres **2 à 7 et 17 à 21**, sans 0, 1 et 8. Aujourd'hui les styles ajoutés reprennent ceux de Cinema Yellow
+  (0 à 6, 8, 17 à 21) : à changer pour le Monochrome.
+- Les **noms** des paramètres ne sont pas encore reliés aux numéros : à confirmer en M2 (textes de l'écran de paramètres) ou M3 (sur le boîtier).
+
+### 9.4 De la LUT à la courbe du boîtier (procédé proposé)
+1. Courbe de la LUT sur l'axe neutre (13 points, sRGB affiché) ; interpolée en 256 points.
+2. La LUT s'applique à une image déjà rendue ; sur le boîtier, l'image « déjà rendue » est celle de Monochrome Standard, dont les courbes sont celles de Standard. La courbe du
+   style ajouté est donc **la LUT appliquée après la courbe de Standard** : `c[i] = 16383 × LUT(G_standard[i] / 16383)` (canal vert de Standard comme approximation de la luminance).
+3. La même courbe pour R, G et B ; matrice identité.
+4. À vérifier en M3 : une mire de gris photographiée en Monochrome Standard et avec le style « APX 100 », comparée à la courbe attendue.
+
+### 9.5 Ce que M1 laisse ouvert
+- Le modèle qui correspond à chaque variante.
+- Le nom de chaque paramètre (2 à 7, 17 à 21).
+- Le test de visibilité et le choix des enregistrements par la vue en direct pour un style ≥ 38 sur le Monochrome : c'est l'objet de M2 (émulateur).
