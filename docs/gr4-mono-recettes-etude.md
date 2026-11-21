@@ -442,3 +442,10 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 ### 13.3 Reste à faire (M5)
 - Plusieurs recettes et icônes sur le boîtier ; packs de recettes propres au Monochrome ; calibration éventuelle des ombres (M3b : un peu plus sombres que prévu) ;
   tests du produit complet (build avec suppression de la vidéo et boutons).
+
+### 13.4 Build de test M4 (2026-11-21)
+- L'utilisateur ne peut pas construire l'application sur son Mac : firmware de test construit par le moteur de la branche (même code que l'application),
+  Monochrome 1.11, suppression de la vidéo, boutons standard, **deux recettes** : « agfa apx 100 » (styles 38) et « fuji neopan » (Acros 100, style 39).
+- Moteur : fichier vérifié. Sondes : `mono_recipe_probe.py`, généralisée à plusieurs recettes (`curves` dans curve.json), **102 contrôles** ; `nomovie_probe.py` passe.
+- À vérifier sur le boîtier : les deux noms dans Image Control (Monochrome seulement), deux rendus distincts, réglages propres à chaque recette après extinction,
+  développement RAW avec chacune.

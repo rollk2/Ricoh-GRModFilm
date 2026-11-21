@@ -3,7 +3,7 @@
 
   python3 -I mono_recipe_probe.py --official OFFICIAL.rtos --built BUILT.rtos --curve curve.json
 
-The built file has one added slot (style 38) as a black-and-white recipe. Checks:
+The built file has N added slots (styles 38..37+N, N = the number of curves in curve.json: 'curves', or one 'curve') as black-and-white recipes. Checks:
   - visibility (0x533de9ac): style 38 on the Monochrome only; the factory looks as in the official file;
   - the style tables (tone, multi-axis, YCbCr, gamma: 3 variants x 39 columns): column 38's tone record is Monochrome Standard's with an identity
     matrix and its black-and-white post-curve array, its YCbCr and multi-axis records are Monochrome Standard's, its curve descriptor is High
@@ -57,12 +57,12 @@ class Cam:
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--official', required=True); ap.add_argument('--built', required=True); ap.add_argument('--curve', required=True)
-    a = ap.parse_args(); curve = json.load(open(a.curve))['curve']
+    a = ap.parse_args(); cj = json.load(open(a.curve)); curves = cj.get('curves') or [cj['curve']]; N = len(curves)
     o, b = Cam(a.official), Cam(a.built); n = 0
     # visibility
     for mono in (0, 1):
         b.model = o.model = mono
-        assert b.call(0x533de9ac, 0x60300000, 38, mono) == (1 if mono else 0), ('style 38 visibility', mono); n += 1
+        for k in range(N): assert b.call(0x533de9ac, 0x60300000, 38 + k, mono) == (1 if mono else 0), ('style visibility', 38 + k, mono); n += 1
         for s in (11, 18, 25, 27, 32):
             assert b.call(0x533de9ac, 0x60300000, s, mono) == o.call(0x533de9ac, 0x60300000, s, mono), ('factory look', s, mono); n += 1
     rec = {}
@@ -74,26 +74,27 @@ def main():
     for name, acc in ACCESSORS.items():
         tb, to = table_of(b, acc), table_of(o, acc)
         stride = (b.word(acc) & 0xff)
-        assert stride == 39, (name, stride)
+        assert stride == 38 + N, (name, stride)
         for v in range(3):
-            for c in range(38): assert b.word(tb + 4 * (v * 39 + c)) == o.word(to + 4 * (v * 38 + c)), (name, v, c)
-            rec[(name, v)] = b.word(tb + 4 * (v * 39 + 38))
-        assert rec[(name, 0)] == rec[(name, 1)] == rec[(name, 2)]; n += 1
+            for c in range(38): assert b.word(tb + 4 * (v * stride + c)) == o.word(to + 4 * (v * 38 + c)), (name, v, c)
+            for k in range(N): rec[(name, v, k)] = b.word(tb + 4 * (v * stride + 38 + k))
+        for k in range(N): assert rec[(name, 0, k)] == rec[(name, 1, k)] == rec[(name, 2, k)]; n += 1
     tt = table_of(o, ACCESSORS['tone']); yt = table_of(o, ACCESSORS['ycc']); mt = table_of(o, ACCESSORS['ma']); gt = table_of(o, ACCESSORS['gamma'])
     t25, y25, m25, g30 = o.word(tt + 4 * 28), o.word(yt + 4 * 28), o.word(mt + 4 * 28), o.word(gt + 4 * 30)
-    tr = rec[('tone', 0)]
-    assert b.word(tr + 8) == o.word(t25 + 8), 'black-and-white post-curve array'; n += 1
-    assert [b.word(tr + 4 * i) for i in range(21) if i not in (1, 2)] == [o.word(t25 + 4 * i) for i in range(21) if i not in (1, 2)], 'tone record as 25'; n += 1
-    m = struct.unpack('<9h', bytes(b.u.mem_read(b.word(tr + 4), 18))); assert m == (8192, 0, 0, 0, 8192, 0, 0, 0, 8192), m; n += 1
-    assert rec[('ycc', 0)] == y25, 'YCbCr record of 25'; n += 1
-    ma = rec[('ma', 0)]; assert [b.word(ma + 4 * i) for i in (0, 1, 3, 4, 5)] == [o.word(m25 + 4 * i) for i in (0, 1, 3, 4, 5)], 'multi-axis record'; n += 1
-    g = rec[('gamma', 0)]; desc = bytes(b.u.mem_read(g, 20)); hc = bytes(o.u.mem_read(g30, 20))
-    assert desc[4] == 1 and desc[5] == 0 and desc[6:8] == hc[6:8], desc.hex(); n += 1
-    base = struct.unpack_from('<I', desc, 0)[0]; bt = struct.unpack('<261H', bytes(b.u.mem_read(base, 522)))
-    assert bt[:4] == (257, 257, 1, 0) and list(bt[4:]) == [min(16383, i * 64) for i in range(257)], 'neutral base'; n += 1
-    for i in range(3):
-        ptr = struct.unpack_from('<I', desc, 8 + 4 * i)[0]
-        assert list(struct.unpack('<256H', bytes(b.u.mem_read(ptr, 512)))) == curve, ('curve', i); n += 1
+    for k in range(N):
+        tr = rec[('tone', 0, k)]
+        assert b.word(tr + 8) == o.word(t25 + 8), 'black-and-white post-curve array'; n += 1
+        assert [b.word(tr + 4 * i) for i in range(21) if i not in (1, 2)] == [o.word(t25 + 4 * i) for i in range(21) if i not in (1, 2)], 'tone record as 25'; n += 1
+        m = struct.unpack('<9h', bytes(b.u.mem_read(b.word(tr + 4), 18))); assert m == (8192, 0, 0, 0, 8192, 0, 0, 0, 8192), m; n += 1
+        assert rec[('ycc', 0, k)] == y25, 'YCbCr record of 25'; n += 1
+        ma = rec[('ma', 0, k)]; assert [b.word(ma + 4 * i) for i in (0, 1, 3, 4, 5)] == [o.word(m25 + 4 * i) for i in (0, 1, 3, 4, 5)], 'multi-axis record'; n += 1
+        g = rec[('gamma', 0, k)]; desc = bytes(b.u.mem_read(g, 20)); hc = bytes(o.u.mem_read(g30, 20))
+        assert desc[4] == 1 and desc[5] == 0 and desc[6:8] == hc[6:8], desc.hex(); n += 1
+        base = struct.unpack_from('<I', desc, 0)[0]; bt = struct.unpack('<261H', bytes(b.u.mem_read(base, 522)))
+        assert bt[:4] == (257, 257, 1, 0) and list(bt[4:]) == [min(16383, i * 64) for i in range(257)], 'neutral base'; n += 1
+        for i in range(3):
+            ptr = struct.unpack_from('<I', desc, 8 + 4 * i)[0]
+            assert list(struct.unpack('<256H', bytes(b.u.mem_read(ptr, 512)))) == curves[k], ('curve', k, i); n += 1
     # getters of style 38 read Monochrome Standard's fields (patterns: low byte, high byte of the offset)
     P1 = bytes(k & 0xff for k in range(0x2000)); P2 = bytes((k >> 8) & 0xff for k in range(0x2000))
     def field(cam, g, style, mode, sset):
@@ -103,9 +104,9 @@ def main():
     for p in (2, 3, 4, 5, 6, 7, 17, 18, 19, 20, 21):
         for mode, sset in ((0, 0), (0, 2), (1, 1)):
             if p >= 18 and mode == 1: continue
-            assert field(b, GETTERS[p], 38, mode, sset) == field(o, GETTERS[p], 25, mode, sset), ('getter', p, mode, sset); n += 1
+            for k in range(N): assert field(b, GETTERS[p], 38 + k, mode, sset) == field(o, GETTERS[p], 25, mode, sset), ('getter', 38 + k, p, mode, sset); n += 1
     # parameter list
-    assert b.call(0x531c86b8, 0x60300000, 38) == o.call(0x531c86b8, 0x60300000, 25), 'parameter list'; n += 1
+    for k in range(N): assert b.call(0x531c86b8, 0x60300000, 38 + k) == o.call(0x531c86b8, 0x60300000, 25), ('parameter list', 38 + k); n += 1
     print('ok', n)
 
 
