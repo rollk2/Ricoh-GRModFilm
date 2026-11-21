@@ -229,3 +229,15 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   Standard / Soft ne s'explique pas par la courbe APX. Si l'exposition était automatique, le filtre rouge a été compensé (photo 154) et les trois expositions ne sont pas
   comparables. **Inconnue à lever : le mode d'exposition des trois photos** (les copies reçues n'ont pas d'EXIF).
 - Le test M3a-2 (courbe seuil) reste le test décisif.
+
+### 11.3 Deuxième série M3a, en exposition manuelle (2026-11-21)
+- Trépied, mode M, 1/13 s, f/2.8, ISO 160, mesure multizone (EXIF lu par l'utilisateur) ; photos : Standard, Soft (courbe APX), Soft + Red Filter ; copies 2000 × 1333.
+- **La courbe est appliquée** : Soft est beaucoup plus clair que Standard sur toute l'échelle, et le filtre rouge assombrit Soft d'environ un diaphragme. Le bord noir de l'écran
+  ne change presque pas (34 → 35).
+- **Mais l'effet est bien plus fort que prévu** (niveaux 0 à 1, Standard → Soft mesuré, Soft attendu) : 0,18 → 0,65 (attendu 0,30) ; 0,25 → 0,83 (0,39) ;
+  0,50 → 0,93 (0,75) ; 0,71 → 0,98 (0,88).
+- Lecture : en inversant les deux courbes, l'entrée de notre courbe vaut environ **deux fois** celle de la courbe de Standard dans les ombres et les tons moyens (rapport 1,9 à 2,1,
+  puis 1,5 vers les hautes lumières et la saturation). Soit le look Soft ajoute son propre traitement de tonalité, soit une courbe propre (drapeau 1) est indexée dans un
+  autre domaine que les courbes de Standard. Ce n'est pas encore tranché.
+- Test suivant, **M3a-3** : Soft avec une courbe **linéaire** (sortie = entrée). Comparé à Standard à exposition identique, il donne directement la relation entre l'entrée
+  d'une courbe propre et le rendu de Standard, donc la correction à appliquer pour toutes les recettes.
