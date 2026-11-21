@@ -239,6 +239,8 @@ Décisions des 2026-11-10 et 2026-11-11.
 
 28. Mise au point manuelle (MF) avec la molette avant (demande du 2026-11-20). En MF, la molette avant règle la mise au point (aujourd'hui, le réglage de la distance se fait par une autre commande). À étudier d'abord : quel code la molette avant envoie en MF (codes 9 et 10 relevés pour la molette avant du GR III, voir l'entrée « Fn maintenu + molette avant ») et ce que fait déjà le boîtier de ces codes dans ce mode ; la fonction de mise au point manuelle que la molette arrière appelle ; le pas de réglage (un cran = une impulsion d'objectif ?) et l'interaction avec l'agrandissement automatique (MF Auto Magnification). Modèles : GR III / IIIx d'abord ; GR IV (Monochrome) à étudier ensuite, selon ses molettes. Option de l'application, désactivée par défaut. Estimation : à faire après la phase d'étude, non engagée.
 
+29. Recettes pour le GR IV Monochrome (demande du 2026-11-21), capteur exclusivement noir et blanc : styles ajoutés visibles sur le Monochrome, copiés d'un look monochrome (pas de Cinema Yellow), sans paramètres de couleur ; page Image Control du Monochrome à la place du message « no colour slots » ; packs de recettes propres au Monochrome. Étude et plan en cinq étapes M1 à M5 dans `docs/gr4-mono-recettes-etude.md`. Rien n'est codé : en attente des exemples de rendus souhaités et de l'accord sur le périmètre de M3.
+
 ### Reprises des forks de GR Mod
 Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre est permis, en citant chaque auteur dans le README (section Thanks) et dans les messages de commit.
 
