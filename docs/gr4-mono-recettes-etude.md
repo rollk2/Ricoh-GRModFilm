@@ -220,3 +220,12 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   enregistrement noir et blanc qui ignore les courbes R, G, B) ; ou la table en RAM est reconstruite au démarrage depuis une autre source que l'image d'initialisation.
 - Test de diagnostic M3a-2 : la même modification avec une courbe **seuil** (noir sous la moitié, blanc au-dessus) sur Soft : impossible à manquer à l'écran de l'appareil.
   Si Soft ne devient pas tout noir et blanc pur, la table n'est pas celle qui sert ; sinon, c'est la conversion de la courbe APX qu'il faut revoir.
+
+### 11.2 Ordre confirmé par l'utilisateur (2026-11-21)
+- R0000152 = Monochrome Standard, R0000153 = Soft (courbe APX), R0000154 = Soft + Red Filter.
+- Donc : **Soft (APX) est plus sombre que Standard partout** (fond 214 → 166, tons moyens 128 → 75, noir du bord 38 → 0), alors que la courbe APX devait **éclaircir**
+  (0,50 → 0,74, noirs 0,06 → 0,14) ; et Soft + Red Filter est **aussi clair que Standard**.
+- Aucune des hypothèses de domaine de courbe (courbe appliquée après Standard, deux fois, ou en linéaire avant la courbe de base) ne donne un assombrissement : la différence
+  Standard / Soft ne s'explique pas par la courbe APX. Si l'exposition était automatique, le filtre rouge a été compensé (photo 154) et les trois expositions ne sont pas
+  comparables. **Inconnue à lever : le mode d'exposition des trois photos** (les copies reçues n'ont pas d'EXIF).
+- Le test M3a-2 (courbe seuil) reste le test décisif.
