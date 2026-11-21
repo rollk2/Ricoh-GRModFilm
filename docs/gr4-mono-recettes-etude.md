@@ -253,3 +253,11 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   (rendu de Soft linéaire en fonction de Standard) sur toute l'échelle.
 - Étape suivante : une **mire de gris complète** (`docs/assets/mire-gris-m3a.png` : 21 paliers de 0 à 255, puis 21 paliers de 0 à 64 pour les ombres) photographiée en Standard
   et en Soft (courbe linéaire, firmware M3a-3 toujours en place), pour mesurer la relation sur toute l'échelle et calculer une vraie courbe APX.
+
+### 11.5 Mire de gris, première série (2026-11-21) : à réattribuer
+- Reçu : trois photos de la mire (copies 2000 × 1333, sans EXIF), sans indication de quel look et quelle exposition pour chacune.
+- Mesures (rangée des 21 paliers) : photo 1 = très sombre, plancher **34**, maximum 91 ; photo 2 = très claire, plancher **34**, maximum 229 ; photo 3 = intermédiaire,
+  plancher **3**, maximum 189 (rangée des ombres : 3 → 23, bien détaillée).
+- Constat qui remet en cause l'attribution des séries précédentes : dans **chaque** série (APX, linéaire, mire), deux photos ont un noir plancher à 34 (0,133) et une à environ 3.
+  Or la courbe APX commence à 0,135 (34) et la courbe linéaire à 0 : le plancher identifie la courbe utilisée, et l'ordre « Standard, Soft, Soft + filtre » supposé jusqu'ici
+  ne colle pas partout. **Les conclusions 11.3 et 11.4 sont suspendues** tant que chaque photo n'est pas attribuée avec certitude (look et exposition).
