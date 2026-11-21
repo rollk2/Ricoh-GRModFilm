@@ -27,16 +27,15 @@ describe('mono recipes', () => {
     expect(red.mixing).toBeGreaterThan(MONO_MIXING_LIMIT);
   });
 
-  it('the curve is the LUT applied to Monochrome Standard, non-decreasing, within 0..16383', () => {
-    const standard = Uint16Array.from({ length: 256 }, (_, i) => Math.round(16383 * Math.pow(i / 255, 0.8)));
+  it('the curve is the LUT\'s neutral axis (the input is already Monochrome Standard\'s rendering), non-decreasing, within 0..16383', () => {
     const identity = monoLutFromCube(cube(17, (r, g, b) => [r, g, b]));
-    const same = monoRecipeCurve(identity.neutral, standard);
-    for (let i = 0; i < 256; i++) expect(Math.abs(same[i] - standard[i])).toBeLessThanOrEqual(2);
+    const same = monoRecipeCurve(identity.neutral);
+    for (let i = 0; i < 256; i++) expect(Math.abs(same[i] - Math.round(16383 * i / 255))).toBeLessThanOrEqual(2);
     // A LUT that dips is kept non-decreasing.
     const dip = monoLutFromCube(cube(17, (r, g, b) => { const y = luma(r, g, b); const v = y < 0.5 ? y : Math.max(0, y - 0.2 * Math.sin((y - 0.5) * Math.PI)); return [v, v, v]; }));
-    const c = monoRecipeCurve(dip.neutral, standard);
+    const c = monoRecipeCurve(dip.neutral);
     for (let i = 1; i < 256; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
     expect(Math.max(...c)).toBeLessThanOrEqual(16383);
-    expect(() => monoRecipeCurve(new Float64Array(10), standard)).toThrow();
+    expect(() => monoRecipeCurve(new Float64Array(10))).toThrow();
   });
 });
