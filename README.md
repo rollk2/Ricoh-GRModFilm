@@ -153,6 +153,11 @@ is always possible.
 
 The development notes (in French) are in `CAHIER_DES_CHARGES.md` and `docs/film-mode-notes.md`.
 
+## Support
+
+GR Mod Film is free. To help it stay free and keep evolving, you can [support GR Mod Film](https://www.paypal.com/qrcodes/managed/1cfe175d-3f48-4649-8a18-f6d8bc6b1e50) (PayPal).
+GR Mod Film is built on [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod) by Maxwooow.
+
 ## Thanks
 
 None of this would exist without [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod). Maxwooow mapped

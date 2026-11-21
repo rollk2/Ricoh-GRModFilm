@@ -9,10 +9,17 @@ import (
 )
 
 // communityPages are the only places POST /api/open-page shows: the project's
-// repository on GitHub (the collection's upload page, its issues) and its site.
-var communityPages = []struct{ host, path string }{
-	{"github.com", "/rollk2/Ricoh-GRModFilm/"},
-	{"rollk2.github.io", "/Ricoh-GRModFilm/"},
+// repository on GitHub (the collection's upload page, its issues) and its site,
+// then (1.3) two exact pages: the author's PayPal page (support link) and the
+// repository of GR Mod, the project GR Mod Film is a fork of.
+var communityPages = []struct {
+	host, path string
+	exact      bool
+}{
+	{"github.com", "/rollk2/Ricoh-GRModFilm/", false},
+	{"rollk2.github.io", "/Ricoh-GRModFilm/", false},
+	{"www.paypal.com", "/qrcodes/managed/1cfe175d-3f48-4649-8a18-f6d8bc6b1e50", true},
+	{"github.com", "/Maxwooow/Ricoh-GRMod", true},
 }
 
 // communityPage reports whether address is an https page of the project (no
@@ -26,7 +33,13 @@ func communityPage(address string) bool {
 		return false
 	}
 	for _, p := range communityPages {
-		if u.Host == p.host && strings.HasPrefix(u.Path, p.path) {
+		if u.Host != p.host {
+			continue
+		}
+		if p.exact && u.Path == p.path && u.RawQuery == "" && u.Fragment == "" {
+			return true
+		}
+		if !p.exact && strings.HasPrefix(u.Path, p.path) {
 			return true
 		}
 	}

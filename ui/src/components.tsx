@@ -55,6 +55,7 @@ export const Ico = {
   preview: <svg viewBox="0 0 20 20" {...P}><path d="M1.8 10c2.2-3.6 5-5.4 8.2-5.4s6 1.8 8.2 5.4c-2.2 3.6-5 5.4-8.2 5.4S4 13.6 1.8 10z" /><circle cx="10" cy="10" r="2.6" /></svg>,
   mono: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="7.2" /><path d="M10 2.8a7.2 7.2 0 0 1 0 14.4z" fill="currentColor" stroke="none" /></svg>,
   help: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="7.2" /><path d="M7.9 8a2.2 2.2 0 1 1 3.3 1.9c-.8.5-1.2 1-1.2 1.8" /><circle cx="10" cy="13.9" r="0.6" fill="currentColor" /></svg>,
+  coffee: <svg viewBox="0 0 20 20" {...P}><path d="M4 8h10v4.2a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" /><path d="M14 9.2h1.2a2 2 0 0 1 0 4H14" /><path d="M7.4 3.4c-.6.8.6 1.4 0 2.4M10.6 3.4c-.6.8.6 1.4 0 2.4" /></svg>,
   users: <svg viewBox="0 0 20 20" {...P}><circle cx="7.5" cy="7" r="2.6" /><path d="M2.8 16c0-2.7 2.1-4.6 4.7-4.6s4.7 1.9 4.7 4.6" /><circle cx="13.6" cy="7.6" r="2.1" /><path d="M13.4 11.6c2.2 0 3.8 1.6 3.8 3.9" /></svg>,
   external: <svg viewBox="0 0 20 20" {...P}><path d="M8 5H5.5A1.5 1.5 0 0 0 4 6.5v8A1.5 1.5 0 0 0 5.5 16h8a1.5 1.5 0 0 0 1.5-1.5V12M11 4h5v5M16 4l-7 7" /></svg>,
 };

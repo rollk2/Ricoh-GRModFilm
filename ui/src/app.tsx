@@ -9,6 +9,7 @@ import { PushDialog } from './camera';
 import { AndroidUpdate, checkUpdates, isAndroid } from './update-dialog';
 import { haptic, setBackFallback } from './host-android';
 import { t, uiLangPref } from './i18n';
+import { SUPPORT_URL, UPSTREAM_URL } from './support';
 import type { Key } from './i18n';
 import { CommunityPage } from './community';
 import { CopiesPage } from './copies';
@@ -38,6 +39,7 @@ function Sidebar() {
         <button className={`nav ${page === 'community' ? 'on' : ''}`} data-tour="nav-community" onClick={() => setPage('community')}>{Ico.users}<span>{t('navCommunity')}</span></button>
       </nav>
       <div className="grow" />
+      <SupportLinks />
       {!onWeb && <button className={`nav low ${page === 'copies' ? 'on' : ''}`} data-tour="nav-copies" onClick={() => setPage('copies')}>{Ico.archive}<span>{t('navCopies')}</span></button>}
       <div className="side-props">
         <FirmwareRow />
@@ -54,6 +56,16 @@ function Sidebar() {
         <HelpMenu />
       </div>
     </aside>
+  );
+}
+
+/** 1.3: the support link (PayPal) and, under it, the project GR Mod Film is a fork of. */
+function SupportLinks() {
+  return (
+    <div className="support">
+      <button type="button" className="nav low support-link" title={t('supportSub')} onClick={() => { void host.openPage(SUPPORT_URL); }}>{Ico.coffee}<span>{t('supportTitle')}</span></button>
+      <button type="button" className="about-link upstream" onClick={() => { void host.openPage(UPSTREAM_URL); }}>{t('upstreamCredit')}</button>
+    </div>
   );
 }
 
@@ -238,6 +250,8 @@ function SettingsBody({ close }: { close?: () => void }) {
         <button type="button" className="m-row" onClick={() => then(replayTour, 480)}>{Ico.help}<span>{t('tourReplay')}</span></button>
         <button type="button" className="m-row" onClick={() => then(restartTours, 480)}>{Ico.refresh}<span>{t('tourRestart')}</span></button>
         {isAndroid && <button type="button" className="m-row" onClick={() => then(() => { void checkUpdates(true); }, 300)}>{Ico.download}<span>{t('updCheck')}</span></button>}
+        <button type="button" className="m-row" onClick={() => { void host.openPage(SUPPORT_URL); }}>{Ico.coffee}<span>{t('supportTitle')}<small className="muted"> · {t('supportSub')}</small></span></button>
+        <button type="button" className="m-row" onClick={() => { void host.openPage(UPSTREAM_URL); }}>{Ico.users}<span>{t('upstreamCredit')}</span></button>
       </div>
       <div className="m-sheet-foot">
         <span className="about-link m-version">GR Mod v{host.info?.version || ''}</span>
