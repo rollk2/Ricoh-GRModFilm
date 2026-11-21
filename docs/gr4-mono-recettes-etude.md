@@ -261,3 +261,17 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
 - Constat qui remet en cause l'attribution des séries précédentes : dans **chaque** série (APX, linéaire, mire), deux photos ont un noir plancher à 34 (0,133) et une à environ 3.
   Or la courbe APX commence à 0,135 (34) et la courbe linéaire à 0 : le plancher identifie la courbe utilisée, et l'ordre « Standard, Soft, Soft + filtre » supposé jusqu'ici
   ne colle pas partout. **Les conclusions 11.3 et 11.4 sont suspendues** tant que chaque photo n'est pas attribuée avec certitude (look et exposition).
+
+### 11.6 Mire attribuée (2026-11-21) : 11.3 et 11.4 confirmés, nouvelle piste M3a-4
+- Attribution donnée par l'utilisateur : photo 1 Standard, photo 2 Soft (courbe linéaire, M3a-3), photo 3 Soft + Red Filter, toutes à 1/13 s, f/2.8, ISO 160.
+- Le « plancher » n'identifiait pas la courbe : c'est le noir de l'écran (qui émet un peu de lumière) ; le filtre rouge l'assombrit, d'où 3 au lieu de 34. **Les
+  conclusions 11.3 et 11.4 tiennent.**
+- La mire confirme la relation : Standard 0,14 → Soft 0,49 ; 0,18 → 0,77 ; 0,26 → 0,86 ; 0,36 → 0,90 (mêmes valeurs que les dégradés de 11.4).
+- Problème que cela révèle : par le chemin « courbe propre » (drapeau 1), le signal **sature vers 0,99 dès que Standard dépasse environ 0,7** ; une recette construite
+  sur ce chemin perdrait le détail des hautes lumières, quelle que soit sa courbe.
+- Rapprochement avec le modèle de couleur de GR Mod (`core/src/color/camera.ts`) : sur le GR IV couleur, une courbe propre reçoit S(linéaire), qui **égale** le rendu de
+  Standard ; sur le Monochrome, Standard rend nettement plus sombre que S(linéaire). Le drapeau 1 n'est donc pas le bon chemin pour le Monochrome.
+- **M3a-4** : Soft reçoit le descripteur de **Monochrome Standard** (drapeau 0) dont seuls les trois pointeurs de courbe sont remplacés par la courbe APX calculée
+  comme en 9.4 (`APX(G_standard)`). Si le drapeau 0 lit bien ces pointeurs, la courbe reçoit exactement ce que reçoivent les courbes de Standard, et Soft doit rendre
+  l'APX attendu (0,50 → 0,74, noirs relevés, hautes lumières douces), sans saturation. Option `monoCurve.path = 'standard'` ; vérification :
+  `mono_curve_check.py --path standard` (114 contrôles).
