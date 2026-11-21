@@ -21,7 +21,7 @@ import * as Gr4Program120 from '../fw/gr4v120';
 import * as Gr4Program121 from '../fw/gr4v121';
 import type { BuildResult, BuiltRatio, ClarityChange, ClarityEdit, ExtensionFeatures, ExtraSlotSpec, LookLayout, ShutdownPictureSpec, SoftFocusLevel, SoftFocusStrength, FactoryEntry, LangCode, Layout, NameValidation, Range, RatioSpec, SlotEdit, SlotId as NativeSlotId } from '../fw';
 import { BRIDGE_SHA256, BRIDGE_SIZE, isBridgeFirmware, makeBridgeFirmware, officialFromBridge } from '../fw/bridge';
-import { convertCube, convertXmp, hueCopy0, hueFromQ10, HUE_BLOCK_BYTES, quantizeSlot } from '../color';
+import { convertCube, convertXmp, hueCopy0, hueFromQ10, HUE_BLOCK_BYTES, MONO_MIXING_LIMIT, MONO_TONING_LIMIT, monoLutFromCube, monoRecipeCurve, quantizeSlot } from '../color';
 import type { SlotParams } from '../color';
 import { JpegError, checkShutdownJpeg, decodeBaselineJpeg, encodeExactJpeg, inspectJpeg } from '../jpeg';
 import type { Sampling } from '../jpeg';
@@ -44,6 +44,7 @@ import type { Gr3xLookOptions } from '../fw/gr3x/image-control';
 import { GR3X_MAX_FILMS } from '../fw/gr3x/image-control';
 import { GR3X_FIRST_FILM } from '../fw/gr3x/jpeg-stage';
 import { convertGr3xCube, convertGr3xXmp } from '../color/gr3x-import';
+import { monoStandardCurve } from '../fw/gr4v121/aspect/slots';
 import type { CameraModel } from '../wallpaper';
 
 export const SHUTDOWN_W = 720;
@@ -90,6 +91,8 @@ export interface FirmwareInfo {
     noMovie?: boolean;
     /** GR Mod Film 1.2: every function on every button, Hold lines, Macro Button line, ADJ Red Filter (GR IV Monochrome 1.11). */
     customButtons?: boolean;
+    /** GR Mod Film 1.3: black-and-white recipes as added slots (GR IV Monochrome 1.11). */
+    monoRecipes?: boolean;
     /** GR III / IIIx: the most films a build can have (9; 20 on GR III 2.10, where
      * the number is chosen with BuildOptions.filmCount and Halation is set in the camera). */
     maxFilms?: number };
@@ -271,8 +274,6 @@ export interface BuildOptions {
   keyDiag?: boolean;
   /** Test builds only (GR IV Monochrome 1.11): one black-and-white look's tone curve replaced (recipes, test M3a). */
   monoCurve?: { style: number; curve: number[]; path?: 'own' | 'standard' | 'linear' };
-  /** Test builds only (GR IV Monochrome 1.11): the added slots are black-and-white recipes (test M3b). */
-  monoRecipes?: boolean;
   /** Test builds: the HDR gain map's diagnostics segment (APP15 "GRMODHDR") in every JPEG. */
   hdrDiag?: boolean;
   /** Test builds only (GR IV 1.20): exposure preview always off (issue #17). */
@@ -296,6 +297,8 @@ export interface BuildOptions {
   noMovie?: boolean;
   /** GR IV 1.21 / Monochrome 1.11: every function on every button, the Hold lines, the Macro Button line and ADJ Red Filter; always on, `false` only for tests. */
   customButtons?: boolean;
+  /** GR IV Monochrome 1.11 (1.21 file): the added slots are black-and-white recipes on Monochrome Standard (their presets converted with `mono`). */
+  monoRecipes?: boolean;
   /** GR III / IIIx (round 10): with Mode Memory's Focus unticked, the AF point back to the centre at power-on. */
   afReset?: boolean; afDim?: boolean; afTime?: boolean;
   /** GR III / IIIx (round 10): an « AF Point » box in Mode Memory; unticked, the AF point back to the centre at power-on. */
@@ -574,7 +577,7 @@ export class Engine {
       factoryRatios: ['3:2', '4:3', '16:9', '1:1'],
       // The 1.12 bridge firmware goes back to 1.11 only: no bridge for 1.20.
       capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, bridge: !bridge && g4 === Gr4Program111, menuPictures: true, lookLayout: true },
-      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true } : {}) },
+      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true } : {}) },
       version: g4.FIRMWARE_VERSION,
       looks: { factory: [...g4.aspect.FACTORY_LOOK_IDS], extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
       sha256: await sha256Hex(raw),
@@ -962,7 +965,8 @@ export class Engine {
    * Without it the result is what GR Mod 0.6.1 and earlier made. `refine` (.cube only, default
    * off) adds the guarded CIEDE2000 refinement. GR III / IIIx take .xmp and .cube too.
    */
-  convertPreset(kind: 'xmp' | 'cube', text: string, onProgress?: (f: number) => void, options: { post?: boolean; refine?: boolean; hue?: boolean; legacyFit?: boolean } = {}): PresetResult {
+  convertPreset(kind: 'xmp' | 'cube', text: string, onProgress?: (f: number) => void, options: { post?: boolean; refine?: boolean; hue?: boolean; legacyFit?: boolean; mono?: boolean } = {}): PresetResult {
+    if (options.mono) return this.convertMonoPreset(kind, text);
     if (this.info.family === 'gr3x') {
       // The second (post-curve) matrix, as on GR IV: GR III's matrix module has the stage (films only).
       const post = options.post !== false;
@@ -982,6 +986,26 @@ export class Engine {
     const c = kind === 'xmp' ? convertXmp(text, { onProgress, post, ...(hueStd ? { hueStd } : {}) }) : convertCube(text, { onProgress, post, refine: options.refine === true, ...(hueStd ? { hueStd } : {}) });
     const q = quantizeSlot(c.params, this.mStdQ13);
     return { kind: c.kind, title: c.title, meanDE: c.meanDE, p95DE: c.p95DE, meanDE2000: c.meanDE2000, p95DE2000: c.p95DE2000, warnings: c.warnings, unsupported: c.unsupported, params: c.params, matrixQ13: q.matrixQ13, curves: q.curves, ...(q.postQ9 ? { postQ9: q.postQ9 } : {}), ...(c.hueQ10 ? { hueQ10: c.hueQ10 } : {}) };
+  }
+
+  /**
+   * A black-and-white recipe (GR IV Monochrome): the .cube's tone curve on the neutral axis, applied to what Monochrome Standard renders
+   * (identity matrix, the same curve for R, G, B). A LUT that colours or mixes the channels gets a warning: the sensor has no colour.
+   */
+  private convertMonoPreset(kind: 'xmp' | 'cube', text: string): PresetResult {
+    if (!this.info.features.monoRecipes) throw new FirmwareError('bad-edit', 'black-and-white recipes need GR IV firmware 1.21 (GR IV Monochrome 1.11)');
+    if (kind !== 'cube') throw new FirmwareError('mono-cube-only', 'black-and-white recipes are made from .cube LUTs');
+    const lut = monoLutFromCube(text);
+    const standard = monoStandardCurve(this.decoded.subarray(this.g4.RTOS_OFFSET, this.g4.RTOS_OFFSET + this.g4.RTOS_LENGTH));
+    const curve = monoRecipeCurve(lut.neutral, standard);
+    const warnings = [...(lut.toning > MONO_TONING_LIMIT ? ['mono-toning'] : []), ...(lut.mixing > MONO_MIXING_LIMIT ? ['mono-mixing'] : [])];
+    const knots = Array.from({ length: 17 }, (_, i) => curve[Math.min(255, i * 16)] / 16383);
+    const ck = [0, 1, 2].map(() => Float64Array.from(knots));
+    return {
+      kind: 'cube', title: lut.title, meanDE: 0, p95DE: 0, warnings, unsupported: [],
+      params: { M1: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], ck },
+      matrixQ13: Int16Array.from([8192, 0, 0, 0, 8192, 0, 0, 0, 8192]), curves: [curve.slice(), curve.slice(), curve.slice()],
+    };
   }
 
   /** Standard's hue-sector block (copy 0) as 12 matrices. */
@@ -1136,6 +1160,9 @@ export class Engine {
     const noMovie = !!(options && options.noMovie);
     // Standard on this file, as the Hold buttons are on the GR III: every build has them (`customButtons: false` only for tests).
     const customButtons = !!this.info.features.customButtons && !(options && options.customButtons === false);
+    const monoRecipes = !!(options && options.monoRecipes);
+    if (monoRecipes && !this.info.features.monoRecipes) throw new FirmwareError('bad-edit', 'black-and-white recipes need GR IV firmware 1.21 (GR IV Monochrome 1.11)');
+    if (monoRecipes && extraSlots.length === 0) throw new FirmwareError('bad-edit', 'black-and-white recipes without added slots');
     if (noMovie && !this.info.features.noMovie) throw new FirmwareError('bad-edit', 'no movie needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (hdrGainMap && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the HDR gain map cannot be combined with the clarity-table soft focus of 0.4.x');
     if (directFlash && clarity.length > 0) throw new FirmwareError('bad-clarity', 'Direct Flash cannot be combined with the clarity-table soft focus of 0.4.x');
@@ -1145,13 +1172,12 @@ export class Engine {
     if (extraSlots.length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'added slots cannot be combined with the clarity-table soft focus of 0.4.x');
     if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
     if (Object.keys(cinemaHalation).length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'halation cannot be combined with the clarity-table soft focus of 0.4.x');
-    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}) };
+    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}) };
     const test = {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),
       ...(options && options.keyDiag ? { keyDiag: true } : {}),
       ...(options && options.monoCurve ? { monoCurve: options.monoCurve } : {}),
-      ...(options && options.monoRecipes ? { monoRecipes: true } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),
     };

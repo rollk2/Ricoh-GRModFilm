@@ -4777,3 +4777,8 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
 - Preuve : `tools/gr3x/af_time_probe.py` (11 contrôles : registres, stockage, codage, bouclage de l'anneau). Build : build film complet (mode pellicule, grain, boutons,
   Save/Load, 2 films, ratio 65:24, SR par vitesse, AF Point) + `afTime` ; auto-contrôles passés.
 - Protocole de test : `docs/protocole-T-AFT1.md`.
+
+## GR IV Monochrome : recettes depuis une LUT dans l'application (2026-11-21)
+- `core/src/color/mono.ts` : axe neutre de la LUT (moyenne des canaux, 256 points), coloration (seuil 2 / 255) et mélange des canaux (seuil 8 / 255) signalés ;
+  courbe `c[i] = 16383 × LUT(S[i] / 16383)`, `S` = courbe verte de Monochrome Standard du firmware. Certitude : élevée (méthode validée sur boîtier en M3a-6 et M3b).
+- Fichier construit par le site : vérifié par le moteur, sonde `mono_recipe_probe.py` 56 / 56. Détails : `docs/gr4-mono-recettes-etude.md` section 13.

@@ -980,6 +980,22 @@ function isLookStashed(p: Patch): boolean {
  * The added slots of a grown RTOS image (and its ICONBIN data) as they were built, so that a
  * file can be re-created and compared. Null when the image does not hold `count` added slots.
  */
+/** Monochrome Standard's curve (green, 256 values 0..16383) of this RTOS, through the curve table (column 28): the recipes' reference. */
+export function monoStandardCurve(rtos: Uint8Array): number[] {
+  const p = new Patch(rtos);
+  const desc = wordOf(p.readMapped(GAMMA_TABLE + 4 * 28, 4));
+  const g = new DataView(p.readMapped(wordOf(p.readMapped(desc + 12, 4)), 512).buffer);
+  return Array.from({ length: 256 }, (_, i) => g.getUint16(2 * i, true));
+}
+
+/** True when the curve descriptor's base curve is the neutral table of a black-and-white recipe (257, 257, 1, 0, then i x 64). */
+function hasNeutralBase(p: Patch, desc: number): boolean {
+  const b = new DataView(p.readMapped(wordOf(p.readMapped(desc, 4)), 8 + 257 * 2).buffer);
+  if ([0, 2, 4, 6].map((o) => b.getUint16(o, true)).join(',') !== '257,257,1,0') return false;
+  for (let i = 0; i <= 256; i++) if (b.getUint16(8 + 2 * i, true) !== Math.min(16383, i * 64)) return false;
+  return true;
+}
+
 export function readExtraSlots(rtos: Uint8Array, iconbin: Uint8Array, count: number): ExtraSlotSpec[] | null {
   try {
     if (!(count >= 1 && count <= MAX_EXTRA_SLOTS)) return null;
@@ -1009,7 +1025,7 @@ export function readExtraSlots(rtos: Uint8Array, iconbin: Uint8Array, count: num
       }) as [number[], number[], number[]];
       const post = wordOf(p.readMapped(rec + POST_WORD, 4));
       let postQ9: number[] | undefined;
-      if (post !== stdShared) {
+      if (post !== stdShared && !hasNeutralBase(p, desc)) {
         const e = new DataView(p.readMapped(wordOf(p.readMapped(post + 4 * POST_NEUTRAL, 4)), 18).buffer);
         postQ9 = Array.from({ length: 9 }, (_, i) => e.getInt16(2 * i, true) / 16);
       }

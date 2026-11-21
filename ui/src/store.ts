@@ -508,7 +508,9 @@ export function setModel(model: CameraModel): void {
     set({ info: undefined, raw: undefined, fwName: undefined,
       copyInfo: {}, copySel: [], ratios: state.ratios.map(({ preview, ...r }) => r) });
   }
+  const wasMono = monoRecipesOn();
   set({ model });
+  if (wasMono !== monoRecipesOn()) reconvertExtras();
   // The other camera's work comes back (its pictures are encoded again once read).
   if (differentFamily) enterFamily(familyOf(model));
   else for (const w of state.wall) void encodeWall(w.id);
@@ -596,7 +598,7 @@ export function askForOfficial(): void { setOnlineOpen(true, 'bridge-loaded'); }
 // ------------------------------------------------------------------ presets
 const PRESET_ERRORS: Record<string, Key> = {
   'not-xmp': 'errNotXmp', 'no-table': 'errNoTable', 'look-profile-missing': 'errLookMissing', 'unsupported-table': 'errUnsupportedTable', 'bad-table': 'errUnsupportedTable',
-  'not-cube': 'errNotXmp', 'bad-cube': 'errBadCube', 'gr3x-cube-only': 'gr3xCubeOnly',
+  'not-cube': 'errNotXmp', 'bad-cube': 'errBadCube', 'gr3x-cube-only': 'gr3xCubeOnly', 'mono-cube-only': 'monoCubeOnly',
 };
 /** The newest conversion of each slot: an older one that finishes later is dropped. */
 const presetRuns = new Map<SlotKey, number>();
@@ -608,8 +610,10 @@ async function runPreset(id: SlotKey, fileName: string, kind: 'xmp' | 'cube', te
   presetRuns.set(id, run);
   // GR IV added slots also try hue sectors; the conversion keeps them only when they come out closer.
   const hue = isExtra(id) && state.info.family !== 'gr3x';
+  // GR IV Monochrome: an added slot is a black-and-white recipe (the .cube's tone curve on Monochrome Standard).
+  const mono = isExtra(id) && monoRecipesOn();
   try {
-    const result = await engine.convert(kind, text, hue ? { hue: true } : {});
+    const result = await engine.convert(kind, text, mono ? { mono: true } : hue ? { hue: true } : {});
     if (presetRuns.get(id) !== run || slotOf(id)?.preset?.text !== text) return; // replaced, removed or converted again meanwhile
     patchSlot(id, { preset: { fileName, kind, text, busy: false, result } });
   } catch (e) {
@@ -854,10 +858,20 @@ export function extraProblem(x: ExtraSlot, s: State = state): string | null {
   if (!x.icon.pixels) return t('extraNeedsIcon');
   return null;
 }
-export function hasExtraErrors(s: State = state): boolean { return s.model !== 'MONO' && s.extras.some((x) => !!extraProblem(x, s)); }
+export function hasExtraErrors(s: State = state): boolean { return (s.model !== 'MONO' || monoRecipesOn(s)) && s.extras.some((x) => !!extraProblem(x, s)); }
+/** GR IV Monochrome 1.11: the added slots are black-and-white recipes made from .cube LUTs (GR Mod Film 1.3). */
+export function monoRecipesOn(s: State = state): boolean { return s.model === 'MONO' && !!s.info?.features.monoRecipes; }
+/** Re-converts the added slots' presets when the model changes between the Monochrome and a colour model (the conversion differs). */
+function reconvertExtras(): void {
+  for (const x of state.extras) if (x.preset && !x.preset.busy) void runPreset(x.key, x.preset.fileName, x.preset.kind, x.preset.text);
+}
 /** What the added slots give the build (none on the Monochrome, which has no colour looks). */
 export function extraSpecs(s: State = state): ExtraSlotSpec[] {
-  if (s.model === 'MONO') return [];
+  if (s.model === 'MONO' && !monoRecipesOn(s)) return [];
+  if (s.model === 'MONO') return s.extras.map((x) => {
+    const r = x.preset!.result!;
+    return { name: extraName(x, s), matrixQ13: r.matrixQ13, curves: r.curves, icon: x.icon.pixels! };
+  });
   return s.extras.map((x) => {
     const r = x.preset!.result!;
     return { name: extraName(x, s), matrixQ13: r.matrixQ13, curves: r.curves, ...(r.postQ9 ? { postQ9: r.postQ9 } : {}), ...(r.hueQ10 ? { hueQ10: r.hueQ10 } : {}), icon: x.icon.pixels!, halation: true };
@@ -1564,7 +1578,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
       set({ busy: t('building') });
       const clarity = soft && sourceInfo.features.softFocus === 'clarity' ? [...GR3X_SOFT_FOCUS] : [];
       const built = await engine.build(changes.map((c) => c.request), ratios, clarity,
-        { ...(brightAuto ? { brightAuto } : {}), adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(hdr ? { hdrGainMap: true } : {}), ...(exposurePreview ? { exposurePreview: true } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
+        { ...(brightAuto ? { brightAuto } : {}), adjSoftFocus: soft && sourceInfo.features.softFocus === 'adj', dateStamp, monoUnlock, ...(directFlash ? { directFlash } : {}), ...(hdr ? { hdrGainMap: true } : {}), ...(exposurePreview ? { exposurePreview: true } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(extras.length ? { extraSlots: extras } : {}), ...(extras.length && monoRecipesOn() ? { monoRecipes: true } : {}), ...(pictures.length ? { shutdownPictures: pictures } : {}),
           ...(films ? { filmCount: films } : {}), ...(lookLayout ? { lookLayout } : {}),
           // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed),
           // the Hold lines of Fn and the 4-way pad (Snap DOF left out from 0.9.4: Fn + the front dial), the film lines

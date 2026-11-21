@@ -408,3 +408,37 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - Confirmé par l'utilisateur (2026-11-21) : les réglages propres de la recette fonctionnent (indépendants de Monochrome Standard, conservés à l'extinction) ; l'écran
   de réglages d'APX 100 présente **les mêmes réglages que les autres looks d'Image Control** (ceux de Monochrome Standard). Les numéros 2 à 7 et 17 à 21 n'ont pas besoin
   d'être nommés dans l'application : elle ne règle que la courbe ; les valeurs se règlent dans l'appareil.
+
+## 13. M4 : recettes noir et blanc depuis une LUT dans GR Mod Film (2026-11-21)
+
+### 13.1 Ce que fait l'application
+- Avec le firmware du **GR IV Monochrome 1.11** ouvert, la page Image Control ne montre plus le message « no colour slots » mais la section **recettes noir et blanc** :
+  on ajoute des places (comme pour les recettes couleur) et on charge un fichier `.cube` sur chacune. Le nom tapé devient le nom du look dans l'appareil (sinon
+  `GR Mod <place>`, comme en couleur).
+- Seuls les fichiers `.cube` sont acceptés (erreur `mono-cube-only` pour un autre format). Pas de halation ni de réglage de couleur sur ces places.
+- Conversion (`core/src/color/mono.ts`) :
+  - `monoLutFromCube` lit la LUT sur l'**axe neutre** (R = G = B = i / 255, 256 points, moyenne des trois canaux) ;
+  - elle mesure aussi la **coloration** (écart d'un canal à la moyenne, seuil 2 / 255) et le **mélange des canaux** (gris donné par une couleur comparé au gris de sa
+    luminance, seuil 8 / 255, sur une grille de 9 × 9 × 9 couleurs). Au dessus d'un seuil, l'application affiche un avertissement : le capteur n'a pas de couleur,
+    ce que la LUT fait aux couleurs (virage, filtre, réponse spectrale d'une pellicule) ne peut pas être reproduit, seule la courbe des gris l'est ;
+  - `monoRecipeCurve` calcule la courbe de la place : `c[i] = 16383 × LUT(S[i] / 16383)` avec `S` la courbe (verte) de Monochrome Standard lue dans le firmware,
+    gardée croissante. C'est la méthode de M3a-6 et M3b.
+- Moteur (`core/src/app/engine.ts`) : option `monoRecipes`, fonction `monoRecipes` annoncée pour le programme 1.21 ; `convertPreset(..., mono)` ; la construction pose
+  le drapeau `FEATURE2_MONO_RECIPES` (128) dans le paquet, relu ensuite. Les places sont construites par `installExtraSlots(..., { mono: true })` (section 12).
+- Interface : `ui/src/store.ts` (`monoRecipesOn`, conversion en mode mono, reconversion au changement de modèle), `ui/src/pages.tsx` (section, avertissement),
+  `ui/src/app.tsx` (bouton de téléchargement actif pour le Monochrome avec des recettes), `ui/src/i18n.ts` (textes zh et en).
+
+### 13.2 Vérifications
+- Les 4 LUT fournies (dont Agfa APX 100) se construisent par le moteur, fichiers vérifiés ; toutes déclenchent l'avertissement de mélange des canaux (ce sont des
+  émulations de pellicule qui tiennent compte des couleurs).
+- Site construit (`npx vite build --mode web`) et piloté par Playwright : firmware Mono 1.11 chargé, modèle « GR IV Monochrome », une place, LUT APX 100, téléchargement.
+  Le fichier obtenu est reconnu et vérifié par le moteur (`verified: true`).
+- Sonde `tools/gr4v121/mono_recipe_probe.py` sur ce fichier : **56 contrôles sur 56** (visibilité Monochrome seulement, tables, enregistrements copiés de Monochrome
+  Standard, base neutre, courbe identique sur R, G, B, champs des réglages, liste des paramètres).
+- Écart avec la courbe de M3b : au plus 47 sur 16383 (moins d'un niveau sur 255). M3b avait relevé 13 points de la LUT à la main ; l'application lit la LUT entière,
+  elle est donc plus fidèle.
+- Test unitaire `core/test/mono-recipe.test.ts` (LUT grise sans avertissement, virage et filtre rouge détectés, courbe croissante et bornée) ; tests GR IV passent.
+
+### 13.3 Reste à faire (M5)
+- Plusieurs recettes et icônes sur le boîtier ; packs de recettes propres au Monochrome ; calibration éventuelle des ombres (M3b : un peu plus sombres que prévu) ;
+  tests du produit complet (build avec suppression de la vidéo et boutons).
