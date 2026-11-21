@@ -58,3 +58,48 @@ Statut : **étude, rien n'est codé.** Ce document dit ce qui existe, ce qui blo
 - Le Monochrome et le GR IV couleur partagent le même fichier firmware : toute modification des styles ajoutés doit être **sans effet sur le GR IV couleur** (déjà couvert par les tests actuels
   de non-régression des sorties) et sur les 25 à 30 d'origine.
 - Un style qui lit un enregistrement mal copié **arrête l'appareil** (le test 022 du fork l'avait déjà montré sur un GR IV couleur) : la sonde M2 doit tout vérifier avant tout flashage.
+
+## 8. Exemples fournis (2026-11-21) : quatre LUT `.cube`
+
+Quatre LUT 3D de 13 points par axe, produites par G'MIC (« Created by: G'MIC ») : **Fuji Neopan Acros 100**, **Agfa APX 100**, **Polaroid 672**, **Kodak HIE (infrarouge)**.
+Analyse : `tools/gr4v121/cube_mono_analysis.py` (lecture seule des fichiers). Les LUT elles-mêmes ne sont pas versionnées : leur licence n'est pas indiquée.
+
+### Ce qu'elles contiennent
+- Les quatre donnent une sortie **parfaitement grise** (R = G = B partout) : **aucun virage** (pas de sépia ni de teinte), y compris Polaroid 672.
+- Chacune combine deux choses :
+  1. un **mélange des couleurs** de l'entrée (la sensibilité spectrale du film) ;
+  2. une **courbe de tonalité** (la réponse du film en luminance).
+
+### Ce qui est transposable sur un capteur noir et blanc
+- **La courbe de tonalité, oui** : c'est exactement ce que règle l'enregistrement de courbe d'un style. Courbe sur l'axe neutre (entrée → sortie, 13 points de 0 à 1) :
+
+| Entrée | Acros 100 | APX 100 | Polaroid 672 | HIE infra |
+| --- | --- | --- | --- | --- |
+| 0,000 | 0,019 | 0,065 | 0,010 | 0,067 |
+| 0,083 | 0,072 | 0,172 | 0,043 | 0,149 |
+| 0,167 | 0,134 | 0,280 | 0,093 | 0,228 |
+| 0,250 | 0,204 | 0,394 | 0,163 | 0,318 |
+| 0,333 | 0,280 | 0,517 | 0,250 | 0,424 |
+| 0,417 | 0,360 | 0,639 | 0,346 | 0,542 |
+| 0,500 | 0,442 | 0,744 | 0,444 | 0,662 |
+| 0,583 | 0,523 | 0,815 | 0,538 | 0,773 |
+| 0,667 | 0,601 | 0,861 | 0,622 | 0,856 |
+| 0,750 | 0,678 | 0,894 | 0,699 | 0,915 |
+| 0,833 | 0,758 | 0,922 | 0,774 | 0,971 |
+| 0,917 | 0,844 | 0,952 | 0,853 | 0,999 |
+| 1,000 | 0,940 | 0,985 | 0,941 | 0,999 |
+
+  Lecture : Acros, une courbe presque droite et un peu sombre (noirs à 0,02, blancs à 0,94) ; APX, des noirs levés (0,065) et des hautes lumières très compressées
+  (rendu clair, doux en haut) ; Polaroid 672, des ombres profondes et un contraste montant (courbe en S léger, blancs à 0,94) ; HIE, des noirs levés et des hautes lumières
+  qui saturent à 0,999 dès 0,92 (blancs brûlés, typiques de l'infrarouge).
+- **Le mélange des couleurs, non** : un capteur sans filtre coloré ne voit pas les couleurs, la photo n'a qu'une luminance. Ajustement linéaire approximatif du gris de sortie sur les
+  entrées (indicatif, les courbes étant non linéaires) : Acros r 0,13 g 0,73 b 0,08 (très vert) ; APX r 0,14 g 0,55 b 0,25 ; Polaroid r 0,32 g 0,46 b 0,25 (équilibré) ;
+  HIE r 0,50 g 0,38 b 0,11 (rouge, l'effet infrarouge).
+- **Une exception utile** : le GR IV Monochrome a un **filtre rouge physique** (la fonction Red Filter, ajoutée au levier ADJ dans la 1.2.0). Un rendu « HIE » sur le Monochrome
+  serait donc : **Red Filter activé + la courbe HIE**, ce qui rapproche aussi le ciel sombre et la végétation claire de l'infrarouge, sans l'égaler (un filtre rouge n'est pas un film infrarouge).
+
+### Questions ouvertes pour M1
+1. Le **domaine** de l'enregistrement de courbe d'un style (linéaire ou gamma, nombre de points, 8 ou 12 bits) : les LUT sont très probablement définies en sRGB encodé (G'MIC),
+   il faudra convertir la courbe dans le domaine du boîtier.
+2. Si la courbe d'un style ajouté s'applique **après** les réglages Contraste / Hautes lumières / Ombres de l'appareil, ou les remplace.
+3. La **licence** des LUT G'MIC, avant de publier des recettes dérivées.
