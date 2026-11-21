@@ -275,3 +275,13 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   comme en 9.4 (`APX(G_standard)`). Si le drapeau 0 lit bien ces pointeurs, la courbe reçoit exactement ce que reçoivent les courbes de Standard, et Soft doit rendre
   l'APX attendu (0,50 → 0,74, noirs relevés, hautes lumières douces), sans saturation. Option `monoCurve.path = 'standard'` ; vérification :
   `mono_curve_check.py --path standard` (114 contrôles).
+
+### 11.7 Résultat M3a-4 (descripteur de Monochrome Standard, drapeau 0) (2026-11-21)
+- Mire, mêmes conditions (1/13 s, f/2.8, ISO 160), photo 1 Standard, photo 2 Soft.
+- Soft est **presque identique à Standard** : identique dans les hautes lumières (204 → 204, 221 → 223, 239 → 241), un peu plus sombre dans les ombres et les tons moyens
+  (54 → 39, 81 → 64, 105 → 91). Rien de l'APX attendu (54 → 87, 81 → 126, 105 → 162).
+- Lecture : avec le drapeau 0, **les pointeurs de courbe du descripteur ne semblent pas utilisés** (le léger écart serait le rendu propre de Soft, jamais photographié
+  avec le firmware d'origine). Le descripteur n'est lu qu'à un endroit (0x5393c568, accesseur 0x5394f5e8), qui range son adresse dans un bloc de paramètres du
+  traitement (+0x14) ; son consommateur reste à trouver.
+- Test décisif **M3a-5** : le même chemin (drapeau 0) avec la courbe **seuil**. Si Soft reste normal, le drapeau 0 ignore les pointeurs ; il faudra alors
+  comprendre le chemin du drapeau 1 (courbe de base en mot 0, que Solarized remplace aussi) et y construire la recette.
