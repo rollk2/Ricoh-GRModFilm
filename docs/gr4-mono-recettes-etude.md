@@ -208,3 +208,15 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   les trois variantes de la table des courbes. Vérification : `tools/gr4v121/mono_curve_check.py`. Protocole : `docs/protocole-M3a-mono.md`.
 - Courbe APX calculée comme proposé en 9.4 : `c[i] = 16383 × LUT(G_standard[i] / 16383)`, LUT interpolée linéairement entre ses 13 points.
 - **M3b** (ensuite) : le style ajouté noir et blanc, une fois M3a validé et les constantes de Monochrome Standard relevées.
+
+### 11.1 Premier résultat M3a (2026-11-21)
+- Reçu : trois photos d'un écran d'ordinateur (dégradés), sans EXIF (copies redimensionnées à 2000 × 1333), annoncées « Standard, Soft, Soft + Red Filter ».
+- Mesures (niveaux 0 à 255 au centre des mêmes cases, fond blanc, bord noir de l'écran) : la 2e photo est nettement plus sombre partout (fond 214 → 166, bord 38 → 0) ;
+  la 1re et la 3e sont **presque identiques** (fond 214 et 217, bord 38 et 33, tons moyens à quelques niveaux près, l'écart restant venant du cadrage).
+- Lecture la plus probable : la photo sombre est celle **avec le filtre rouge** (le blanc d'un écran est fait de rouge, vert et bleu ; le filtre en retire la majeure partie,
+  en exposition manuelle l'image s'assombrit) ; alors **Standard et Soft (APX) donnent le même rendu** : la courbe APX attendue (tons moyens 0,50 → 0,74, noirs 0,06 → 0,14)
+  **n'apparaît pas**. À confirmer par l'utilisateur (ordre des photos).
+- Causes possibles, non tranchées : la courbe d'un look noir et blanc n'est pas lue dans la table de courbes 0x55054158 au moment de la prise de vue (autre table, ou
+  enregistrement noir et blanc qui ignore les courbes R, G, B) ; ou la table en RAM est reconstruite au démarrage depuis une autre source que l'image d'initialisation.
+- Test de diagnostic M3a-2 : la même modification avec une courbe **seuil** (noir sous la moitié, blanc au-dessus) sur Soft : impossible à manquer à l'écran de l'appareil.
+  Si Soft ne devient pas tout noir et blanc pur, la table n'est pas celle qui sert ; sinon, c'est la conversion de la courbe APX qu'il faut revoir.
