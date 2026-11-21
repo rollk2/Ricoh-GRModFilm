@@ -405,3 +405,6 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - Reste (M4 / M5) : nommer les paramètres 2 à 7, 17 à 21 d'après l'écran ; recettes depuis une LUT `.cube` dans l'application (courbe neutre de la LUT, avertissement
   si la LUT colore ou mélange les canaux) ; plusieurs recettes ; icônes ; packs de recettes Monochrome ; calibration éventuelle des ombres ; passage de l'option de test
   `monoRecipes` en fonction du produit.
+- Confirmé par l'utilisateur (2026-11-21) : les réglages propres de la recette fonctionnent (indépendants de Monochrome Standard, conservés à l'extinction) ; l'écran
+  de réglages d'APX 100 présente **les mêmes réglages que les autres looks d'Image Control** (ceux de Monochrome Standard). Les numéros 2 à 7 et 17 à 21 n'ont pas besoin
+  d'être nommés dans l'application : elle ne règle que la courbe ; les valeurs se règlent dans l'appareil.
