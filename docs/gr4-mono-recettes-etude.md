@@ -241,3 +241,15 @@ le développement, et **High Contrast (27)** pour le gabarit du descripteur de c
   autre domaine que les courbes de Standard. Ce n'est pas encore tranché.
 - Test suivant, **M3a-3** : Soft avec une courbe **linéaire** (sortie = entrée). Comparé à Standard à exposition identique, il donne directement la relation entre l'entrée
   d'une courbe propre et le rendu de Standard, donc la correction à appliquer pour toutes les recettes.
+
+### 11.4 Résultat M3a-3, courbe linéaire (2026-11-21)
+- Mêmes conditions (trépied, M). Photos : Standard, Soft (courbe linéaire), Soft + Red Filter.
+- **Soft avec une courbe neutre est aussi clair que Soft avec la courbe APX** (Standard 0,19 → 0,71 ; 0,25 → 0,84 ; 0,50 → 0,93 ; 0,78 → 0,99). L'éclaircissement ne vient donc
+  **pas de la forme de notre courbe** : il vient du **chemin « courbe propre »** (drapeau 1) lui-même.
+- Modèle qui colle le mieux dans les tons moyens et clairs : avec le drapeau 1, la courbe propre reçoit un signal **déjà passé par la courbe de base** (table 0x540b6590,
+  très raide dans les ombres) : sortie = courbe_propre(S(u)), alors que Standard donne courbe_Standard(u). Écart au modèle : 0,01 à 0,06. Il ne colle pas dans le noir
+  profond (le bord noir de l'écran reste à 0,13 dans les deux), où la mire n'a pas de points : à mesurer.
+- Conséquence pour les recettes : la courbe propre doit être **calculée pour ce domaine**, `propre(v) = cible(Standard(S⁻¹(v)))`, ou mieux, à partir d'une **calibration mesurée**
+  (rendu de Soft linéaire en fonction de Standard) sur toute l'échelle.
+- Étape suivante : une **mire de gris complète** (`docs/assets/mire-gris-m3a.png` : 21 paliers de 0 à 255, puis 21 paliers de 0 à 64 pour les ombres) photographiée en Standard
+  et en Soft (courbe linéaire, firmware M3a-3 toujours en place), pour mesurer la relation sur toute l'échelle et calculer une vraie courbe APX.
