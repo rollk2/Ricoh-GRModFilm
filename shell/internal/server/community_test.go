@@ -24,8 +24,11 @@ func TestCommunityPage(t *testing.T) {
 		"https://github.com/Maxwooow/Ricoh-GRMod":                                         true,
 		"https://github.com/Maxwooow/Ricoh-GRModEvil":                                     false,
 		"https://github.com/Maxwooow/Ricoh-GRMod/issues":                                  false,
-		"file:///etc/passwd": false,
-		"":                   false,
+		"https://github.com/abpy/FujifilmCameraProfiles":                                  true,
+		"https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/":               true,
+		"https://patdavid.net/about":                                                      false,
+		"file:///etc/passwd":                                                              false,
+		"":                                                                                false,
 	} {
 		if got := communityPage(address); got != want {
 			t.Errorf("%q: %v, want %v", address, got, want)

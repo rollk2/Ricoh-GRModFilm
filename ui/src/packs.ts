@@ -19,11 +19,18 @@ export interface PackRecipe {
   halation?: { on: boolean; preview: 0 | 1 | 2 | 3; colour?: 'red' | 'white' };
   icon?: PackIcon;
   preset?: { fileName: string; kind: 'xmp' | 'cube'; text: string };
+  /** 1.3.2, GR IV: an added look rather than a Cinema slot (Cinema Yellow, Cinema Green). Older versions put it on a Cinema slot. */
+  added?: boolean;
 }
-/** 1.0: what a shared pack says of itself (the community collection, community/README.md). */
-export interface PackMeta { title?: string; author?: string; description?: string; license?: string }
+/** 1.0: what a shared pack says of itself (the community collection, community/README.md); `source` (1.3.2): the page of a third-party author. */
+export interface PackMeta { title?: string; author?: string; description?: string; license?: string; source?: string }
 /** The licence of the community collection: public domain, the author's own work. */
 export const COMMUNITY_LICENSE = 'CC0-1.0';
+/**
+ * 1.3.2: licences the collection also takes for packs made from a third party's published LUTs (the maintainer adds them), each with
+ * its author and the page it comes from (`author`, `source`); attribution and share-alike are kept by the pack's own licence.
+ */
+export const COMMUNITY_THIRD_PARTY_LICENSES = ['CC-BY-SA-4.0', 'CC-BY-NC-SA-4.0'] as const;
 export interface RecipePack extends PackMeta { format: typeof RECIPES_FORMAT; v: 1 | 2; family: PackFamily; recipes: PackRecipe[] }
 export interface PackRatio { ratio: string; name: string }
 export interface RatioPack extends PackMeta { format: typeof RATIOS_FORMAT; v: 1; ratios: PackRatio[] }
@@ -41,7 +48,9 @@ const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.slic
 function cleanMeta(d: Record<string, unknown> | PackMeta | undefined): PackMeta {
   const m = (d ?? {}) as Record<string, unknown>, out: PackMeta = {};
   const title = str(m.title, 60).trim(), author = str(m.author, 40).trim(), description = str(m.description, 300).trim(), license = str(m.license, 20).trim();
+  const source = str(m.source, 200).trim();
   if (title) out.title = title; if (author) out.author = author; if (description) out.description = description; if (license) out.license = license;
+  if (/^https:\/\/[^\s"<>]+$/.test(source)) out.source = source;
   return out;
 }
 
@@ -77,6 +86,7 @@ function cleanRecipe(r: unknown): PackRecipe | null {
   if (p && typeof p === 'object' && typeof p.text === 'string' && p.text.length > 0 && p.text.length < 120_000_000) {
     out.preset = { fileName: str(p.fileName, 200) || 'preset', kind: p.kind === 'cube' ? 'cube' : 'xmp', text: p.text };
   }
+  if (x.added === true) out.added = true;
   return out;
 }
 /** True when a recipe carries nothing (no name, code, preset, halation level or drawn icon). */
@@ -86,7 +96,7 @@ export function emptyRecipe(r: PackRecipe): boolean {
 
 /** A black-and-white recipe keeps no film code nor halation, and only a .cube preset. */
 function monoRecipe(r: PackRecipe): PackRecipe {
-  const { code: _code, halation: _halation, preset, ...rest } = r;
+  const { code: _code, halation: _halation, added: _added, preset, ...rest } = r;
   return { ...rest, ...(preset && preset.kind === 'cube' ? { preset } : {}) };
 }
 export function makeRecipePack(family: PackFamily, recipes: PackRecipe[], meta?: PackMeta): string {
@@ -156,6 +166,8 @@ export interface CommunityEntry {
   title: string; author: string; description: string;
   /** Recipes: the camera family, and each film's name (English, else the first given). */
   family?: PackFamily; items: string[];
+  /** 1.3.2: a third-party pack's licence and the page it comes from (absent for the collection's CC0 packs). */
+  license?: string; source?: string;
 }
 export interface CommunityIndex { v: 1; packs: CommunityEntry[] }
 
@@ -172,11 +184,14 @@ export function communityEntry(path: string, text: string, size: number): Commun
   let pack: RecipePack | RatioPack;
   try { pack = kind === 'recipes' ? readRecipePack(text) : readRatioPack(text); } catch (e) { throw new Error(`${path}: not a valid ${kind} pack (${e instanceof PackError ? e.code : 'unreadable'})`); }
   if (!pack.title) throw new Error(`${path}: the pack has no title`);
-  if (pack.license !== COMMUNITY_LICENSE) throw new Error(`${path}: the collection takes ${COMMUNITY_LICENSE} packs only (licence: ${pack.license ?? 'none'})`);
+  const thirdParty = (COMMUNITY_THIRD_PARTY_LICENSES as readonly string[]).includes(pack.license ?? '');
+  if (pack.license !== COMMUNITY_LICENSE && !thirdParty) throw new Error(`${path}: the collection takes ${COMMUNITY_LICENSE} packs (or ${COMMUNITY_THIRD_PARTY_LICENSES.join(', ')} for a third party's LUTs; licence: ${pack.license ?? 'none'})`);
+  if (thirdParty && (!pack.author || !pack.source)) throw new Error(`${path}: a ${pack.license} pack names its author and the page it comes from (author, source)`);
   const items = 'recipes' in pack
     ? pack.recipes.map((r, i) => r.names.en || Object.values(r.names)[0] || r.code || `Film ${i + 1}`)
     : pack.ratios.map((r) => (r.name ? `${r.ratio} ${r.name}` : r.ratio));
-  return { kind, file: path, size, title: pack.title, author: pack.author ?? '', description: pack.description ?? '', ...('family' in pack ? { family: pack.family } : {}), items };
+  return { kind, file: path, size, title: pack.title, author: pack.author ?? '', description: pack.description ?? '', ...('family' in pack ? { family: pack.family } : {}), items,
+    ...(thirdParty ? { license: pack.license, source: pack.source } : {}) };
 }
 /** The collection's index, packs sorted by kind then title. */
 export function communityIndex(entries: CommunityEntry[]): CommunityIndex {

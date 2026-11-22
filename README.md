@@ -170,6 +170,10 @@ the GR III / IIIx firmware, found the addresses, built the tools that patch, che
 and wrote the whole desktop program; his first release opened the way. GR Mod Film builds on top of
 his work.
 
+The recipe packs of the Community page include LUTs by [abpy](https://github.com/abpy/FujifilmCameraProfiles)
+(Fujifilm film simulations, CC BY-NC-SA 4.0) and by [Pat David](https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/)
+(black-and-white film emulations shipped with [G'MIC](https://gmic.eu/), CC BY-SA 4.0); thanks to them.
+
 ---
 
 The rest of this file is GR Mod's own documentation (it also describes the GR IV, which GR Mod Film

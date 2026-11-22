@@ -20,6 +20,16 @@ reviewed; the maintainer then accepts it, asks for a change, or declines it.
   public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): anyone may use, change and
   build firmware with it, without any condition. The pack carries `"license": "CC0-1.0"`; the check refuses it
   otherwise.
+- **Third-party packs (added by the maintainer).** A few packs are made from LUTs that their authors publish under
+  a Creative Commons licence that allows sharing: they keep that licence (`CC-BY-SA-4.0` or `CC-BY-NC-SA-4.0`)
+  and name the author and the page they come from (`author`, `source`), shown on the Community page. The icons of
+  these packs are drawn for GR Mod Film (no brand logo); film names are used to say which film a LUT imitates.
+  - *Fujifilm film simulations (abpy)*, GR III and GR IV: LUTs by abpy,
+    [FujifilmCameraProfiles](https://github.com/abpy/FujifilmCameraProfiles), CC BY-NC-SA 4.0 (credit, same
+    licence, never sold).
+  - *Black & white films* (two packs), GR IV Monochrome: film emulations by
+    [Pat David](https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/), as shipped with
+    [G'MIC](https://gmic.eu/), CC BY-SA 4.0 (credit, same licence).
 - **One pack per file**, with a clear title and description in English. File names: letters, digits, `.`, `_`,
   `-` only (for example `portra-like-set.grfrecipes`).
 - **Size**: at most 8 MB per pack.

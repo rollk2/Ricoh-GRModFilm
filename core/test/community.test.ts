@@ -30,8 +30,19 @@ describe('community packs', () => {
     expect(entry('ratios/warm.grfrecipes', good)).toMatch(/ends with .grfratios/);
     expect(entry('ratios/warm.grfratios', good)).toMatch(/not a valid ratios pack \(other-kind\)/);
     expect(entry('recipes/warm.grfrecipes', makeRecipePack('gr3', [recipe], { ...meta, title: '' }))).toMatch(/no title/);
-    expect(entry('recipes/warm.grfrecipes', makeRecipePack('gr3', [recipe], { ...meta, license: 'CC-BY-4.0' }))).toMatch(/CC0-1.0 packs only/);
+    expect(entry('recipes/warm.grfrecipes', makeRecipePack('gr3', [recipe], { ...meta, license: 'CC-BY-4.0' }))).toMatch(/takes CC0-1.0 packs/);
     expect(() => communityEntry('recipes/warm.grfrecipes', good, 9_000_000)).toThrow(/larger than/);
+  });
+  it('take a third party\'s CC BY-SA / CC BY-NC-SA LUTs only with their author and source page, shown on the card', () => {
+    const third = { title: 'Films', author: 'Pat David', license: 'CC-BY-SA-4.0', source: 'https://patdavid.net/x/' };
+    const e = communityEntry('recipes/films.grfrecipes', makeRecipePack('gr4mono', [{ names: { en: 'HP5 400' } }], third), 10);
+    expect(e).toMatchObject({ license: 'CC-BY-SA-4.0', source: 'https://patdavid.net/x/', family: 'gr4mono', items: ['HP5 400'] });
+    expect(entry('recipes/films.grfrecipes', makeRecipePack('gr3', [recipe], { ...third, license: 'CC-BY-NC-SA-4.0' }))).toBe('ok');
+    expect(entry('recipes/films.grfrecipes', makeRecipePack('gr3', [recipe], { ...third, source: '' }))).toMatch(/author and the page it comes from/);
+    expect(entry('recipes/films.grfrecipes', makeRecipePack('gr3', [recipe], { ...third, source: 'javascript:alert(1)' }))).toMatch(/author and the page it comes from/);
+    expect(entry('recipes/films.grfrecipes', makeRecipePack('gr3', [recipe], { ...third, author: '' }))).toMatch(/author and the page it comes from/);
+    // A CC0 pack is listed without licence nor source.
+    expect(communityEntry('recipes/warm.grfrecipes', makeRecipePack('gr3', [recipe], meta), 10)).not.toHaveProperty('license');
   });
   it('in the repository are all valid', () => {
     const root = join(__dirname, '../../community');
