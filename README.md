@@ -16,7 +16,18 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.3.1 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.2 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.3.2
+
+- **Ready-made film packs** on the Community page, one click to import:
+  - *Fujifilm film simulations* (Classic Neg, Classic Chrome, Astia, Eterna, Nostalgic Neg, Reala Ace), LUTs by
+    [abpy](https://github.com/abpy/FujifilmCameraProfiles), for the GR III / IIIx and for the GR IV;
+  - *Black & white films* for the GR IV Monochrome, 24 films in two packs (Ilford, Kodak; Agfa, Fuji, Polaroid,
+    Rollei), film emulations by [Pat David](https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/).
+  Each pack shows its licence and source. Every recipe can be removed or changed after import.
+- **GR IV recipe packs fill the added looks**, not only Cinema Yellow and Green; exporting on a GR IV includes the
+  added looks.
 
 ## What is new in 1.3.1
 
