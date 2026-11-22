@@ -124,7 +124,7 @@ export interface PatchedWord { address: number; before: number; after: number; r
  * (see `ExtensionFeatures`), and there may be no added ratio at all. Recorded at the end of the
  * RTOS section (see `package.ts`). A build with added ratios only is still written as revision 2.
  */
-export type BuildRevision = 1 | 2 | 3;
+export type BuildRevision = 1 | 2 | 3 | 4;
 export const BUILD_REVISION: BuildRevision = 2;
 
 /** Additions of this program that are not aspect ratios. */
@@ -1094,8 +1094,9 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   const cinema = (['CY', 'CG'] as const).filter((id) => features.cinemaHalation?.[id] === true);
   const adjSlots = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
   const extra = !!features.brightAuto || !!features.exposurePreview || !!features.adjSoftFocus || !!features.dateStamp || !!features.monoUnlock || slots.length > 0 || !!shutdown || !!features.guard || cinema.length > 0 || !!features.directFlash || adjSlots > 0 || !!features.hdrGainMap || !!features.noMovie || !!features.customButtons;
-  if (extra) revision = 3;
-  if (revision !== 1 && revision !== 2 && revision !== 3) fail('internal', 'unknown build revision');
+  // Revision 4 (GR Mod Film 1.3.4): the custom buttons' Hold words moved (`holdbuttons.ts`); a revision-3 file is rebuilt as it was.
+  if (extra) revision = revision === 3 ? 3 : features.customButtons ? 4 : 3;
+  if (revision !== 1 && revision !== 2 && revision !== 3 && revision !== 4) fail('internal', 'unknown build revision');
   if (rtos.length !== OFFICIAL_RTOS_LENGTH || iconbin.length !== OFFICIAL_ICONBIN_LENGTH) fail('unexpected-layout', 'RTOS or ICONBIN does not have the official length');
   if (ratios.length > MAX_CUSTOM_RATIOS) fail('too-many-ratios', `at most ${MAX_CUSTOM_RATIOS} ratios can be added`);
   if (ratios.length === 0 && !extra) fail('internal', 'nothing to install');
@@ -1114,7 +1115,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   let holdFilter = 0;
   if (features.customButtons) {
     installFnLists(patch, true);
-    holdFilter = installHoldButtons(patch, [0, 0, 0, 0, 0], { hold: HOLD_BYTES, macro: MACRO_BYTE });
+    holdFilter = installHoldButtons(patch, [0, 0, 0, 0, 0], { hold: HOLD_BYTES, macro: MACRO_BYTE }, revision);
   }
   let icons = iconbin;
   if (features.customButtons) icons = installMacroIcon(patch, icons);

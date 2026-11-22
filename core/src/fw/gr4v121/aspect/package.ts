@@ -130,7 +130,7 @@ export function readBuildRevision(rtos: Uint8Array): BuildRevision | null {
   const at = rtos.length - 4 - MAGIC_LENGTH;
   for (let i = 0; i < MAGIC_STEM.length; i++) if (rtos[at + i] !== MAGIC_STEM.charCodeAt(i)) return null;
   const digit = rtos[at + MAGIC_STEM.length] - 0x30;
-  return digit === 1 || digit === 2 || digit === 3 ? digit : null;
+  return digit === 1 || digit === 2 || digit === 3 || digit === 4 ? digit : null;
 }
 
 interface ParsedRecord {

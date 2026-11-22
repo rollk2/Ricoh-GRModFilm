@@ -561,3 +561,18 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - Tests E1 / E2 (13 recettes et l'ordre, options de compilation de diagnostic) :
   - E1 (`DIAG_SAFE_STATE`) : un pointeur hors du tas ou non aligné n'est pas suivi ; s'il ne gèle plus, le pointeur était corrompu ;
   - E2 (`DIAG_NO_STATE`) : l'état n'est jamais publié, tous les crochets tournent sans lui ; s'il gèle, ce sont les crochets eux-mêmes.
+- **Résultat E1 / E2 (2026-11-22)** : E1 (pointeur vérifié) ne gèle pas, E2 (pointeur jamais publié, donc nul) gèle : le mot
+  0x55839020 n'est plus nul après le réveil, quelque chose y écrit.
+- **Cause trouvée** : nos boutons Hold (`holdbuttons.ts`, GR Mod Film 1.2.0) rangeaient l'heure de l'appui (HOLD_TIME) en 0x55839020,
+  le pointeur d'état du module des places ajoutées (`slots.ts` SLOT_STATE), et leur état (HOLD_STATE) en 0x55839030, le mot des
+  images d'extinction (`shutdown.ts` PICTURE_MODE). Chaque appui sur une touche Hold, dont celui qui réveille l'appareil, écrasait le
+  pointeur ; le changement de look suivant le suivait (crochet « style of set », même entre looks d'usine) et l'appareil plantait.
+  Ce n'est pas un défaut de GR Mod. Reproduit dans l'émulateur : après un appui long sur Fn, 0x55839020 vaut 0x76c (l'heure).
+- **Correction (1.3.4)** : HOLD_TIME en 0x55839014, HOLD_STATE en 0x55839018 (mots utilisés seulement par les compteurs des builds de
+  test HDR). Révision de build 4 pour les fichiers avec les boutons ; un fichier de révision 3 (1.2.0 à 1.3.3) est reconstruit avec
+  les anciennes adresses et reste reconnu. Inventaire des 44 octets (0x55839014..0x5583903F) : 14 / 18 Hold (rév. 4, compteurs HDR
+  de test), 1C état HDR, 20 module des places, 24 look (date), 28 / 2C halation, 30 images d'extinction, 34 orientation, 38 look de
+  la vue (date ; anneau de touches des builds de diagnostic), 3C halation / Direct Flash (diagnostic). La zone 0x55839040..0x55839080
+  est la réserve de `_sbrk` (0x530668D4), pas libre. La zone de code 0x53… est en lecture seule (table MMU : AP 6).
+- Vérifié : sonde `hold_gap_probe.py` (marqueurs intacts en révision 4, écrasés en révision 3), `holdbuttons_probe.py` 48,
+  `nomovie_probe.py`, fichiers 1.3.3 toujours vérifiés, tests GR IV (19). Firmware de test construit par le site.
