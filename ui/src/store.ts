@@ -1862,6 +1862,14 @@ function recipePackText(meta?: PackMeta): string | null {
     icon: { mode: x.icon.mode, text: x.icon.text, style: x.icon.style, ...(x.icon.image ? { image: x.icon.image } : {}) },
     ...(x.preset ? { preset: { fileName: x.preset.fileName, kind: x.preset.kind, text: x.preset.text } } : {}),
   }));
+  // GR IV (1.3.2): the added looks too, marked as such.
+  if (packFamily(s) === 'gr4' && s.info?.family !== 'gr3x') for (const x of s.extras.filter((e) => !extraEmpty(e))) recipes.push({
+    names: (x.name.trim() ? { en: x.name.trim() } : {}) as Record<string, string>,
+    ...(x.halation ? { halation: x.halation } : {}),
+    icon: packIcon(x.icon),
+    ...(x.preset ? { preset: { fileName: x.preset.fileName, kind: x.preset.kind, text: x.preset.text } } : {}),
+    added: true,
+  });
   return recipes.length ? makeRecipePack(packFamily(s), recipes, meta) : null;
 }
 export async function exportRecipes(): Promise<void> {
@@ -1882,65 +1890,67 @@ export async function importRecipes(text?: string): Promise<void> {
   let pack;
   try { pack = readRecipePack(text); } catch (e) { toast(packProblem(e), 'error'); return; }
   if (pack.family !== packFamily()) { toast(t('packOtherCamera'), 'error'); return; }
-  if (pack.family === 'gr4mono') { await importMonoRecipes(pack.recipes); return; }
+  if (pack.family === 'gr4mono' && !monoRecipesOn()) { toast(t('packOtherCamera'), 'error'); return; }
+  // GR IV: the recipes marked as added looks (all of a Monochrome pack) go to the added slots, the others to the Cinema slots.
+  const gr4 = pack.family !== 'gr3';
+  const toAdded = gr4 ? pack.recipes.filter((r) => pack.family === 'gr4mono' || r.added) : [];
+  const toSlots = pack.recipes.filter((r) => !toAdded.includes(r));
   const slots = recipeSlots();
-  const filled = availableSlots().filter((id) => !slotEmpty(state.slots[id])).length;
+  const filled = (toSlots.length ? availableSlots().filter((id) => !slotEmpty(state.slots[id])).length : 0) + (toAdded.length ? state.extras.filter((x) => !extraEmpty(x)).length : 0);
   let mode: 'replace' | 'add' = 'replace';
   if (filled > 0) {
     const c = await choose(t('packRecipesTitle'), [t('packRecipesLine', { n: pack.recipes.length, m: filled })], t('packReplace'), t('packAdd'));
     if (!c) return;
     mode = c === 'alt' ? 'add' : 'replace';
   }
-  // « Add »: only the films shown count as taken, the ones beyond the film count are free.
-  const shown = new Set(availableSlots());
-  const targets = placeRecipes(slots, (id) => !shown.has(id as SlotId) || slotEmpty(state.slots[id as SlotId]), pack.recipes.length, mode) as SlotId[];
-  if (mode === 'replace') for (const id of slots) { if (!slotEmpty(state.slots[id])) clearSlot(id); }
-  else for (const id of targets) clearSlot(id);
-  targets.forEach((id, i) => applyRecipe(id, pack.recipes[i]));
-  if (filmCountChoosable()) {
-    const last = targets.length ? slots.indexOf(targets[targets.length - 1]) + 1 : 0;
-    setFilmCount(mode === 'replace' ? Math.max(1, last) : Math.max(state.filmCount, last));
+  let placed = 0; let first: string | undefined;
+  if (toSlots.length) {
+    // « Add »: only the films shown count as taken, the ones beyond the film count are free.
+    const shown = new Set(availableSlots());
+    const targets = placeRecipes(slots, (id) => !shown.has(id as SlotId) || slotEmpty(state.slots[id as SlotId]), toSlots.length, mode) as SlotId[];
+    if (mode === 'replace') for (const id of slots) { if (!slotEmpty(state.slots[id])) clearSlot(id); }
+    else for (const id of targets) clearSlot(id);
+    targets.forEach((id, i) => applyRecipe(id, toSlots[i]));
+    if (filmCountChoosable()) {
+      const last = targets.length ? slots.indexOf(targets[targets.length - 1]) + 1 : 0;
+      setFilmCount(mode === 'replace' ? Math.max(1, last) : Math.max(state.filmCount, last));
+    }
+    placed += targets.length; first = targets[0];
   }
-  if (targets[0]) setActiveSlot(targets[0]);
+  if (toAdded.length) {
+    const r = placeAdded(toAdded, mode);
+    placed += r.placed; first ??= r.first;
+  }
+  if (first) setActiveSlot(first);
   scheduleSave();
-  const skipped = pack.recipes.length - targets.length;
-  toast(t('packRecipesDone', { n: targets.length }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
+  const skipped = pack.recipes.length - placed;
+  toast(t('packRecipesDone', { n: placed }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
 }
 /**
- * GR IV Monochrome (1.3): a pack's recipes become added looks. « Replace » takes the added looks away first, « Add » puts the pack's
+ * GR IV (Monochrome 1.3, colour 1.3.2): a pack's added looks. « Replace » takes the added looks away first, « Add » puts the pack's
  * after them; at most MAX_EXTRA_SLOTS either way.
  */
-async function importMonoRecipes(recipes: PackRecipe[]): Promise<void> {
-  if (!monoRecipesOn()) { toast(t('packOtherCamera'), 'error'); return; }
-  const filled = state.extras.filter((x) => !extraEmpty(x)).length;
-  let mode: 'replace' | 'add' = 'replace';
-  if (filled > 0) {
-    const c = await choose(t('packRecipesTitle'), [t('packRecipesLine', { n: recipes.length, m: filled })], t('packReplace'), t('packAdd'));
-    if (!c) return;
-    mode = c === 'alt' ? 'add' : 'replace';
-  }
+function placeAdded(recipes: PackRecipe[], mode: 'replace' | 'add'): { placed: number; first?: string } {
   if (mode === 'replace') while (state.extras.length) removeExtraSlot(state.extras[state.extras.length - 1].key);
   else for (const x of [...state.extras]) if (extraEmpty(x)) removeExtraSlot(x.key);
   const room = Math.max(0, MAX_EXTRA_SLOTS - state.extras.length), take = recipes.slice(0, room);
-  let first: string | undefined;
+  let first: string | undefined, placed = 0;
   for (const r of take) {
     const before = state.extras.length;
     addExtraSlot();
     if (state.extras.length === before) break;
     const key = state.extras[state.extras.length - 1].key;
-    first ??= key;
+    first ??= key; placed++;
     const name = (r.names.en || Object.values(r.names)[0] || '').trim();
     if (name) setExtraName(key, name);
     if (r.icon && r.icon.mode !== 'keep') setIcon(key, { mode: r.icon.mode, text: r.icon.text, style: r.icon.style, image: r.icon.image });
+    if (r.halation && !monoRecipesOn()) setHalation(key, r.halation);
     if (r.preset) {
       if (host.available) void host.storeSet(presetKey(key), r.preset.text).catch(() => undefined);
       void runPreset(key, r.preset.fileName, r.preset.kind, r.preset.text);
     }
   }
-  if (first) setActiveSlot(first);
-  scheduleSave();
-  const skipped = recipes.length - take.length;
-  toast(t('packRecipesDone', { n: take.length }) + (skipped ? ` · ${t('packSkipped', { n: skipped })}` : ''), skipped ? 'info' : 'ok');
+  return { placed, first };
 }
 function clearSlot(id: SlotId): void {
   setSlot(id, emptySlot());

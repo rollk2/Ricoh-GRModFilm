@@ -10,8 +10,8 @@ import (
 
 // communityPages are the only places POST /api/open-page shows: the project's
 // repository on GitHub (the collection's upload page, its issues) and its site,
-// then (1.3) two exact pages: the author's PayPal page (support link) and the
-// repository of GR Mod, the project GR Mod Film is a fork of.
+// then exact pages: the author's PayPal page (support link), the repository of
+// GR Mod (the project GR Mod Film is a fork of) and the third-party packs' sources.
 var communityPages = []struct {
 	host, path string
 	exact      bool
@@ -20,6 +20,9 @@ var communityPages = []struct {
 	{"rollk2.github.io", "/Ricoh-GRModFilm/", false},
 	{"www.paypal.com", "/qrcodes/managed/1cfe175d-3f48-4649-8a18-f6d8bc6b1e50", true},
 	{"github.com", "/Maxwooow/Ricoh-GRMod", true},
+	// 1.3.2: the source pages of the collection's third-party packs.
+	{"github.com", "/abpy/FujifilmCameraProfiles", true},
+	{"patdavid.net", "/2013/08/film-emulation-presets-in-gmic-gimp/", true},
 }
 
 // communityPage reports whether address is an https page of the project (no

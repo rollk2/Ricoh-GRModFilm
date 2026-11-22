@@ -45,6 +45,14 @@ describe('recipe packs', () => {
     expect(fail(JSON.stringify({ ...raw, v: 3 }))).toBe('newer');
     expect(readRecipePack(makeRecipePack('gr4', [portra])).family).toBe('gr4');
   });
+  it('GR IV packs mark the added looks; a Monochrome pack does not keep the mark', () => {
+    const look = { names: { en: 'Astia' }, icon: { mode: 'text' as const, text: 'AS', style: 'film' as const }, added: true };
+    const pack = readRecipePack(makeRecipePack('gr4', [portra, look]));
+    expect(pack.recipes[1].added).toBe(true);
+    expect(pack.recipes[0]).not.toHaveProperty('added');
+    expect(readRecipePack(JSON.stringify({ format: 'grmod-film-recipes', v: 1, family: 'gr4', recipes: [{ names: { en: 'A' }, added: 'yes' }] })).recipes[0]).not.toHaveProperty('added');
+    expect(readRecipePack(makeRecipePack('gr4mono', [look])).recipes[0]).not.toHaveProperty('added');
+  });
   it('places recipes from the first slot, or in the empty ones only', () => {
     const slots = ['A', 'B', 'C', 'D'];
     expect(placeRecipes(slots, () => false, 2, 'replace')).toEqual(['A', 'B']);

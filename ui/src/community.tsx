@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Ico, Segmented } from './components';
 import { t } from './i18n';
+import { host } from './host';
 import type { CommunityEntry, CommunityIndex } from './packs';
 import { canShare, importCommunity, loadCommunity, sharePack, useStore } from './store';
 
@@ -18,6 +19,7 @@ function PackCard({ e }: { e: CommunityEntry }) {
         <b>{e.title}</b>
         <span className="muted small">{[e.author && t('communityBy', { a: e.author }), camera, t(e.kind === 'recipes' ? 'communityFilms' : 'communityRatios', { n: e.items.length })].filter(Boolean).join('  ·  ')}</span>
         {e.description && <span className="small community-desc">{e.description}</span>}
+        {e.license && <span className="small muted">{t('communityLicense', { l: e.license.replace(/-/g, ' ').replace(/ (\d)/, ' $1') })}{e.source && <>{'  ·  '}<a href={e.source} target="_blank" rel="noopener noreferrer" onClick={(ev) => { ev.preventDefault(); void host.openPage(e.source!); }}>{t('communitySource')}</a></>}</span>}
         <span className="chips community-items">{e.items.slice(0, 12).map((x, i) => <span key={i} className="chip">{x}</span>)}{e.items.length > 12 && <span className="chip">+{e.items.length - 12}</span>}</span>
       </div>
       <button className="btn primary small" disabled={busy} onClick={() => { void importCommunity(e); }}>{Ico.download}<span>{t('communityImport')}</span></button>
