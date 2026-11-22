@@ -516,3 +516,17 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   Écart mesuré moins attendu sur les 33 paliers distincts : **APX 100 moyen +0,3, absolu moyen 0,4, max +1,2 ; Neopan moyen +0,5, absolu moyen 0,7, max +2,0**
   (avant la correction : jusqu'à -15 et -10 dans les ombres). Les recettes suivent leur LUT sur toute la gamme. **M5-3 validé.**
 - Publication : option B retenue par l'utilisateur (la correction entre dans `main` avant le tag `v1.3.0`).
+
+### 14.6 Ordre et masquage des looks sur le Monochrome (2026-11-22)
+- Demande : ranger et cacher les recettes comme sur le GR III. Le moteur savait déjà le faire pour le GR IV (table d'ordre de 22 octets,
+  table recopiée et allongée avec les looks ajoutés, visibilité des looks 25..32 par 0x533DE8E8, des looks ajoutés par le crochet de
+  `slots.ts`) ; seule l'interface le refusait au Monochrome.
+- Interface : la vue « Menu order » est proposée au Monochrome ; elle liste ses 7 looks noir et blanc (Pictorialist, 31, jamais montré,
+  reste à sa place) et ses recettes ; les looks couleur, invisibles sur le Monochrome, restent à leur place dans la table. Monochrome
+  Standard (25) ne peut pas être caché (le garde-fou des réglages s'y replie).
+- Trouvé en route : l'interface listait les looks du GR IV dans l'ordre numérique, alors que l'appareil suit sa table d'ordre
+  (1.21 : 11..16, 24, 17, 18, 19, 23, 20..22, 25, 29, 26, 27, 28, 31, 32, 30). Le premier changement d'ordre aurait donc remis les looks
+  d'usine dans l'ordre numérique. `info.looks.factory` est maintenant lu dans la table du firmware (1.11, 1.20, 1.21), l'ordre numérique
+  restant le repli si la table n'est pas la permutation attendue.
+- Vérifié : site (13 recettes, HDR Tone et Delta 3200 cachés, Tri-X remonté) ; moteur (fichier vérifié, `lookLayout` relu) ; émulateur
+  (visibilité sur le Monochrome : 30, 31 et 40 cachés, le reste visible ; table d'ordre du menu conforme) ; tests GR IV et mise en page.

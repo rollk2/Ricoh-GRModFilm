@@ -580,7 +580,7 @@ export class Engine {
       capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, bridge: !bridge && g4 === Gr4Program111, menuPictures: true, lookLayout: true },
       features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true } : {}) },
       version: g4.FIRMWARE_VERSION,
-      looks: { factory: [...g4.aspect.FACTORY_LOOK_IDS], extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
+      looks: { factory: factoryLookOrder(decoded.subarray(g4.RTOS_OFFSET), g4.aspect.ORDER_TABLE, g4.aspect.FACTORY_LOOK_IDS), extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
       sha256: await sha256Hex(raw),
       slots,
       tiles: { film: g4.tileTemplate(decoded, 'film'), plain: g4.tileTemplate(decoded, 'plain') },
@@ -1265,4 +1265,17 @@ export class Engine {
     if (!res) throw new FirmwareError('unexpected-layout', `no power-off image for ${model} in this firmware`);
     return rotationScript({ model, size: res.size, count });
   }
+}
+
+/**
+ * GR IV: the factory looks in the camera's menu order, read from the firmware's order table (1.21: 11..16, 24, 17, ..., 25, 29, 26, ...;
+ * GR Mod Film 1.3.3); the numeric list when the table is not the expected permutation. The menu-order view lists them so, and an
+ * order built from it keeps the camera's order of the looks that were not moved.
+ */
+function factoryLookOrder(rtos: Uint8Array, orderTable: number, ids: readonly number[]): number[] {
+  const at = orderTable - 0x53000000;
+  if (at < 0 || at + ids.length > rtos.length) return [...ids];
+  const table = Array.from(rtos.subarray(at, at + ids.length));
+  const same = table.length === ids.length && new Set(table).size === ids.length && table.every((n) => ids.includes(n));
+  return same ? table : [...ids];
 }
