@@ -4798,3 +4798,24 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
   par l'image d'extinction livrée), 0x55804390 (anneau de touches de diagnostic, bouton WB), 0x55804398 (file du grain, diagnostic),
   0x558043A0 (journaux des formes de test du mode pellicule, recherche T-DOF5), 0x558043A8 (sonde des molettes), 0x558043B6 / B7
   (diagnostics SR). Ils ne doivent pas être combinés avec les fonctions livrées correspondantes (c'est le cas aujourd'hui).
+
+## 1.3.5 : mode pellicule en bêta, SR par vitesse en option bêta (2026-11-22)
+- Demande : le mode pellicule passe en bêta sur le GR III / IIIx (rien sur le GR IV Monochrome) ; la stabilisation selon la vitesse
+  devient une option bêta activable dans l'application, car l'objectif vibre encore à certaines vitesses malgré l'hystérésis de 2/3 IL
+  (`srHyst`, depuis la 1.0.0-RC2). La vibration n'est donc pas corrigée : l'option est coupée par défaut.
+- Application : interrupteur « SR by shutter speed (beta) » sur la page Features (GR III / IIIx complets seulement, enregistré dans le
+  projet). Sans lui, le build ne contient plus la liste de vitesses (`srSpeed` absent). Le titre « Film mode (beta) » marque le mode
+  pellicule ; il n'est proposé que sur la famille GR III / IIIx (`filmModeChoosable`).
+- Risque identifié : un boîtier passé par un build avec vitesses garde dans l'octet de Shake Reduction (`+0x4f6`, par BOX) une valeur
+  2.. (une vitesse). Le menu natif ne connaît que 0 (Off) et 1 (On). Correction : la garde des réglages (`guard.ts`, option `srClamp`)
+  ramène toute valeur supérieure à 1 à 1 (On), au chargement des réglages, à la sauvegarde et au rappel d'un mode U.
+  Code : `ldrb r2,[r0,#0x4f6]; cmp r2,#1; movhi r2,#1; strbhi r2,[r0,#0x4f6]`.
+- Rejouabilité : la recette du build enregistre le drapeau à part (`srGuard`, ronde 10 seulement, jamais avec `srSpeed`) ; les
+  fichiers 1.3.4 et antérieurs (sans drapeau) se reconstruisent à l'identique. Vérifié : un build 1.3.4 complet, un build 1.3.5 sans
+  l'option et un avec l'option sont tous reconnus et vérifiés par l'inspection.
+- Émulateur (Unicorn, fonction `fix` du build sans l'option, trouvée à 0x540F68D0, appelée par `fixAll` et par le rappel) : les 256
+  valeurs de `+0x4f6` sur des enregistrements aléatoires ; 0 et 1 inchangées, 2..255 donnent 1, aucun autre octet modifié
+  (0 écart). Le build avec l'option ne contient pas ce code. Certitude : forte pour le code ; le comportement du menu natif avec la
+  valeur 1 est celui d'origine.
+- Reste à vérifier sur le boîtier (T-SRB1) : après un build 1.3.4 avec une vitesse choisie, flasher le build 1.3.5 sans l'option :
+  Shake Reduction affiche On, la main SR est normale, pas de vibration.

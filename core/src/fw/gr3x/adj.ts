@@ -178,6 +178,8 @@ export interface Gr3xAdjFeatures {
   grainSoftware?: boolean;
   /** Film mode, round 10: Grain and Size rows on a film's Image Control parameter screen (halation-rows.ts, films.c -DGRAIN). */
   grain?: boolean;
+  /** 1.3.5: no Shake Reduction by shutter speed in this build: the settings guard puts a speed left by an earlier build back to On. */
+  srGuard?: boolean;
   /** GR Mod Film test builds: the grain's setting printed on the photo by the date imprint ("G3 S"). */
   grainTag?: boolean | 'diag' | 'find' | 'keys' | 'settings' | 'diff';
   /** T-DIAL1 (test): count the keys and the rear dial router's calls (dial-probe.ts), shown by the date imprint (grainTag 'keys'). */
@@ -736,7 +738,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     const layout = features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? features.lookLayout : undefined;
     if (features.lookLayout) validateGr3xLookLayout(features.lookLayout, 0);
     const layoutEntries = layout ? installGr3xLookLayout({ code, append, patch, u32: word, read }, layout, 0) : {};
-    const guardOptions = { films: 0, maxRatio: gr3xMaxId(menu), ...(layout ? { hidden: layout.hidden, order: layout.order } : {}), ...(round10 && softFocus ? { softFocusR10: true } : {}), ...((afResetEntries as Record<string, number>).memoryURecall ? { recallAfter: (afResetEntries as Record<string, number>).memoryURecall } : roll ? { recallAfter: roll.entries.filmRollRecall } : {}) };
+    const guardOptions = { films: 0, maxRatio: gr3xMaxId(menu), ...(layout ? { hidden: layout.hidden, order: layout.order } : {}), ...(round10 && softFocus ? { softFocusR10: true } : {}), ...(round10 && features.srGuard && !features.srSpeed ? { srClamp: true } : {}), ...((afResetEntries as Record<string, number>).memoryURecall ? { recallAfter: (afResetEntries as Record<string, number>).memoryURecall } : roll ? { recallAfter: roll.entries.filmRollRecall } : {}) };
     return { ...out, ...layoutEntries, ...(round10 ? installGr3xGuardR10({ code, patch, u32: word, sites }, guardOptions) : installGr3xGuard({ code, patch, u32: word }, guardOptions)) };
   })() : {};
   // The film roll's Save Interim Images rides on the guard's recall hook: no guard, no build.

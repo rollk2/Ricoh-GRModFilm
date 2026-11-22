@@ -67,7 +67,11 @@ export interface Gr3xGuardOptions {
   softFocusR10?: boolean;
   /** Film mode (film-roll.ts): called after the guard on a recalled record, (record, mode recalled). */
   recallAfter?: number;
+  /** GR Mod Film 1.3.5, builds without Shake Reduction by shutter speed (sr-speed.ts): its byte (+0x4f6: 0 Off, 1 On, 2.. a speed
+   * an earlier build let the camera choose) back to On when above 1, the native list knowing Off and On only. */
+  srClamp?: boolean;
 }
+const SR_BYTE = 0x4f6;
 const SOFT_FOCUS_BYTE = 0x9a1;
 const ADJ_SLOT_BYTES = [0x918, 0x91a, 0x91c, 0x91e, 0x920];
 /** The standard photo and movie sets' looks (the others are the custom sets'). */
@@ -95,6 +99,7 @@ export function installGr3xGuardCode(p: Gr3xGuardProgram, o: Gr3xGuardOptions) {
     }
   });
   lines.push(`ldrb r2,[r0,#${RATIO}]`, `cmp r2,#${o.maxRatio}`, 'movhi r2,#0', `strbhi r2,[r0,#${RATIO}]`);
+  if (o.srClamp) lines.push(`ldrb r2,[r0,#${SR_BYTE}]`, 'cmp r2,#1', 'movhi r2,#1', `strbhi r2,[r0,#${SR_BYTE}]`);
   if (o.softFocusR10) {
     lines.push(`ldrb r2,[r0,#${SOFT_FOCUS_BYTE}]`, 'sub r2,r2,#1', 'cmp r2,#2', 'bxhi lr');
     for (const f of ADJ_SLOT_BYTES) lines.push(`ldrb r2,[r0,#${f}]`, 'cmp r2,#9', 'bxeq lr');

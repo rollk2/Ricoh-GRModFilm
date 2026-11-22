@@ -15,7 +15,7 @@ import {
   addRatio, addWallFiles, askForOfficial, getState, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
   maxRatios, moveRatio, ratioListNow, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
-  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, noMovieChoosable, filmModeOn, filmCodeProblem,
+  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setSrSpeed, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, noMovieChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
   setDirectFlash, setAdjSlots, adjSlotsOf, setHdr, setExposurePreview, setBrightAuto,
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
@@ -809,6 +809,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
   const filmMode = useStore((s) => s.filmMode);
   const noMovie = useStore((s) => s.noMovie);
   const rearDialOff = useStore((s) => s.rearDialOff);
+  const srSpeed = useStore((s) => s.srSpeed);
   const filmOk = useStore((s) => filmModeChoosable(s));
   const noMovieOk = useStore((s) => noMovieChoosable(s));
   const adjMax = useStore((s) => s.info?.features.maxAdjSlots ?? 5);
@@ -855,6 +856,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
       {filmOk && <FeatureRow icon={Ico.film} title={t('navFilmMode')} sub={t('filmModeSub')} on={filmMode} onChange={setFilmMode} tour="ic-f-film" />}
       {noMovieOk && <FeatureRow icon={Ico.noMovie} title={t('navNoMovie')} sub={t('noMovieSub')} on={noMovie} onChange={setNoMovie} />}
       {filmOk && <FeatureRow icon={Ico.dial} title={t('navRearDialOff')} sub={t('rearDialOffSub')} on={rearDialOff} onChange={setRearDialOff} />}
+      {filmOk && <FeatureRow icon={Ico.aperture} title={t('navSrSpeed')} sub={t('srSpeedSub')} on={srSpeed} onChange={setSrSpeed} />}
       {filmOk && filmMode && <HiddenSettings />}
       {filmOk && filmMode && <SettingsFileCard />}
     </div>

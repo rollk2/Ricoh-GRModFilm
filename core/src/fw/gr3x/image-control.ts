@@ -479,7 +479,7 @@ export async function buildGr3xImageControls(raw: Uint8Array, options: Gr3xLookO
     const tables = installGr3xR10Tables(r10Program, slots.filter(s => s.record).map(s => ({ id: s.id, record: s.record, iconId: s.iconId, print: s.print })));
     const params = installGr3xR10Parameters(r10Program, { films: capacity, prints: slots.slice(0, capacity).map(s => s.print >>> 0), hiddenMask, setterSites: GR3X_PARAMETER_SETTER_LOOKS, ...(grain ? { grain } : {}) });
     const guard = installGr3xGuardR10({ code, patch, u32, sites }, { films: capacity, maxRatio: gr3xMaxId(menu.menu), ...(layout ? { hidden: layout.hidden, order: layout.order } : {}),
-      ...(features.adjSoftFocus ? { softFocusR10: true } : {}),
+      ...(features.adjSoftFocus ? { softFocusR10: true } : {}), ...(features.srGuard && !features.srSpeed ? { srClamp: true } : {}),
       // T23: the film mode's recall (Save Interim Images off, multi-exposure) after the guard's.
       // V1-RC4: with « Apply to U modes », Mode Memory first (memoryURecall ends with filmRollRecall).
       ...((menu.entries as Record<string, number>).memoryURecall ? { recallAfter: (menu.entries as Record<string, number>).memoryURecall }

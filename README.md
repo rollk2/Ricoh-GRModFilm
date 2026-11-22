@@ -6,8 +6,8 @@ does is kept (version 1.1 follows GR Mod 0.8.15). Not a Ricoh product, not an of
 
 | Camera | Official firmware | GR Mod features | Film mode |
 | --- | --- | --- | --- |
-| GR III / GR III HDF | 2.10 | yes | **yes** (camera-tested) |
-| GR IIIx / GR IIIx HDF | 1.60 | yes | **yes** (same program as the GR III 2.10, not camera-tested) |
+| GR III / GR III HDF | 2.10 | yes | **beta** (camera-tested) |
+| GR IIIx / GR IIIx HDF | 1.60 | yes | **beta** (same program as the GR III 2.10, not camera-tested) |
 | GR III / GR IIIx | 2.20, 2.21 / 1.70, 1.71 | yes | not yet (planned) |
 | GR IV / GR IV HDF | 1.21, 1.20, 1.11 | yes | not yet (planned) |
 | GR IV Monochrome | 1.11, 1.10 (the GR IV 1.21 and 1.20 files) | yes | not yet (planned) |
@@ -16,7 +16,15 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.3.4 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.5 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.3.5
+
+- **The film mode is in beta** (GR III / IIIx): it works and is camera-tested, but keep a copy of your official firmware
+  and report what goes wrong. It is not offered on the GR IV Monochrome.
+- **SR by shutter speed is now a beta option** (GR III / IIIx, Features page, off by default): the lens can still hum
+  on some speeds. Without it, Shake Reduction keeps the camera's own Off / On list, and a speed chosen with an earlier
+  build is put back to On when the camera starts.
 
 ## What is new in 1.3.4
 
@@ -140,7 +148,7 @@ Version 1.3.4 (the latest is always on the [Releases](https://github.com/rollk2/
   the Aspect ratio page with the arrows; the camera's menu and the Fn cycle follow that order.
 - **Playback** (0.9.4) opens on the last picture taken, whatever the folder (before, it could show
   the roll's last frame after a photo in P).
-- **SR by shutter speed** (0.9.4, every GR III / IIIx build): Shake Reduction's list becomes Off,
+- **SR by shutter speed** (0.9.4; beta from 1.3.5, *SR by shutter speed* on the Features page): Shake Reduction's list becomes Off,
   1/4000, 1/3200 … 30". With a speed chosen, SR is on at that speed and slower, off when the shutter
   speed is faster. 1/4000 means always on (the factory On, so nothing changes until you choose
   another speed). The speed is kept per BOX like Shake Reduction (and once for P, Av, Tv, M). A

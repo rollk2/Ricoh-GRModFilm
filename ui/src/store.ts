@@ -84,6 +84,8 @@ export interface State {
   filmMode: boolean; noMovie: boolean;
   /** GR III / IIIx: the rear dial's rotation ignored everywhere. */
   rearDialOff: boolean;
+  /** GR III / IIIx (beta): Shake Reduction's list of speeds (off: the factory Off / On only). */
+  srSpeed: boolean;
   /** GR III / IIIx (film mode): camera settings hidden, each with the value it keeps. */
   hiddenSettings: Record<string, number>;
   /** GR IV: Direct Flash, a fifth Flash Mode (GR III / IIIx have the GF-2 mode of their own). */
@@ -128,7 +130,7 @@ const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '',
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
   ready: false, page: 'ic', fwBusy: false, model: 'GR3', lang: cameraLang(), langAuto: uiLangPref() === '',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', brightAuto: false, soft: false, dateStamp: false, monoUnlock: false, directFlash: false, filmMode: false, noMovie: false, rearDialOff: false, hiddenSettings: {}, hdr: false, exposurePreview: false, adjSlots: 5, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [],
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', brightAuto: false, soft: false, dateStamp: false, monoUnlock: false, directFlash: false, filmMode: false, noMovie: false, rearDialOff: false, srSpeed: false, hiddenSettings: {}, hdr: false, exposurePreview: false, adjSlots: 5, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [],
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -256,7 +258,7 @@ function familyData(s: State): FamilyDoc {
     ratios: s.ratios.map((r) => ({ id: r.id, ratio: r.ratio, name: r.name })),
     ratioOrder: s.ratioOrder,
     brightAuto: s.brightAuto, soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, hdr: s.hdr, exposurePreview: s.exposurePreview, adjSlots: s.adjSlots, filmCount: s.filmCount,
-    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, hiddenSettings: s.hiddenSettings,
+    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, srSpeed: s.srSpeed, hiddenSettings: s.hiddenSettings,
   };
 }
 
@@ -287,7 +289,7 @@ function parseFamily(doc: FamilyDoc | null): Partial<State> {
     brightAuto: doc?.brightAuto === 'balanced' ? 'balanced' : doc?.brightAuto === true || doc?.brightAuto === 'bright' ? 'bright' : false,
     soft: doc?.soft === true || (!!doc?.softFocus && typeof doc.softFocus === 'object' && Object.keys(doc.softFocus).length > 0),
     dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true, hdr: doc?.hdr === true, exposurePreview: doc?.exposurePreview === true, adjSlots: typeof doc?.adjSlots === 'number' && Number.isInteger(doc.adjSlots) && doc.adjSlots >= 5 && doc.adjSlots <= 8 ? doc.adjSlots : 5,
-    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true,
+    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true, srSpeed: doc?.srSpeed === true,
     hiddenSettings: Object.fromEntries(Object.entries(doc?.hiddenSettings && typeof doc.hiddenSettings === 'object' ? doc.hiddenSettings : {})
       .filter(([k, v]) => k in GR3X_HIDEABLE && (GR3X_HIDEABLE as Record<string, { values: readonly number[] }>)[k].values.includes(v as number))) as Record<string, number>,
     filmCount: Number.isInteger(doc?.filmCount) && doc!.filmCount >= 0 && doc!.filmCount <= GR3X_FILM_IDS.length ? doc!.filmCount : doc && doc.filmCount === undefined && doc.slots ? 9 : 0,
@@ -1125,6 +1127,8 @@ export function setNoMovie(noMovie: boolean): void {
   set({ noMovie }); scheduleSave();
 }
 export function rearDialOffOn(s: State = state): boolean { return !!s.rearDialOff && filmModeChoosable(s); }
+/** Beta: Shake Reduction by shutter speed (the lens can still hum on some speeds). */
+export function srSpeedOn(s: State = state): boolean { return !!s.srSpeed && filmModeChoosable(s); }
 /** The settings hidden with the film mode (none without it). */
 /** 0.9.7: the camera chooses what it hides (Setup > Hide Settings); the program's former list is kept in projects but no longer built. */
 export function hiddenSettingsOn(_s: State = state): Record<string, number> { return {}; }
@@ -1137,6 +1141,10 @@ export function setHiddenSetting(key: string, value: number | undefined): void {
 export function setRearDialOff(rearDialOff: boolean): void {
   if (rearDialOff && !filmModeChoosable()) return;
   set({ rearDialOff }); scheduleSave();
+}
+export function setSrSpeed(srSpeed: boolean): void {
+  if (srSpeed && !filmModeChoosable()) return;
+  set({ srSpeed }); scheduleSave();
 }
 /** A film's code as typed: upper case, A-Z and 0-9 only, at most 4 characters ('' for none). */
 export function setFilmCode(id: SlotId, code: string): void {
@@ -1172,7 +1180,7 @@ export function setAdjSlots(adjSlots: number): void {
 /** The ADJ lever slots the build gets (5: none added). */
 export function adjSlotsOf(s: State = state): number { const max = s.info?.features.maxAdjSlots ?? 5; return s.adjSlots > 5 && s.adjSlots <= max ? s.adjSlots : 5; }
 /** Any addition that is not a slot or a ratio. */
-export function extrasOn(s: State = state): boolean { return !!brightAutoOf(s) || exposurePreviewOn(s) || softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || adjSlotsOf(s) > 5 || hdrOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s); }
+export function extrasOn(s: State = state): boolean { return !!brightAutoOf(s) || exposurePreviewOn(s) || softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || adjSlotsOf(s) > 5 || hdrOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s) || srSpeedOn(s); }
 const MINUS = '\u2212';
 const strengthLabel = (st: SoftFocusStrength | 'custom'): string => t(st === 'weak' ? 'softWeak' : st === 'medium' ? 'softMedium' : st === 'strong' ? 'softStrong' : 'softCustom');
 /** "−2 weak / −3 medium" (−1 first), for confirmations and the copies page. */
@@ -1521,7 +1529,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const dateStamp = !stock && !!state.dateStamp && !!state.info.features.dateStamp;
   const monoUnlock = !stock && monoUnlockOn();
   const directFlash = !stock && directFlashOn();
-  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn();
+  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn(), srSpeed = !stock && srSpeedOn();
   const hiddenSettings = stock ? {} : hiddenSettingsOn(), hiddenCount = Object.keys(hiddenSettings).length;
   if (filmMode && shownSlots().some((x) => filmCodeProblem(x.id))) { toast(t('filmCodeIncomplete'), 'error'); return; }
   const hdr = !stock && hdrOn();
@@ -1538,7 +1546,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const pictures = noPictures ? [] : menuPictures();
   const films = filmCountChoosable() ? state.filmCount : 0;
   const lookLayout = stock ? undefined : lookLayoutSpec();
-  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && !hdr && !exposurePreview && !brightAuto && adjSlots === 5 && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !state.info?.features.customButtons) { toast(t('nothingToDo'), 'info'); return; }
+  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && !hdr && !exposurePreview && !brightAuto && adjSlots === 5 && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !srSpeed && !state.info?.features.customButtons) { toast(t('nothingToDo'), 'info'); return; }
   const fresh = newFirmwareWarning(sourceInfo);
   // The cannot-go-back warning is a paragraph (the dialog's lines are cut to one line each).
   // GR III / IIIx cannot take a firmware over Wi-Fi (only the GR IV's camera has that interface).
@@ -1567,6 +1575,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
     if (filmMode) lines.push(`${t('navFilmMode')}  ·  ${Object.values(filmCodes()).join(' / ') || '-'}`);
     if (noMovie) lines.push(t('navNoMovie'));
     if (rearDialOff) lines.push(t('navRearDialOff'));
+    if (srSpeed) lines.push(t('navSrSpeed'));
     if (hiddenCount) lines.push(t('hideLine', { n: hiddenCount }));
     const sfLine = settingsFileFor();
     if (sfLine) lines.push(t('settingsFileLine', { v: sfLine.version || '?' }));
@@ -1591,8 +1600,8 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
           ...(rearDialOff ? { rearDialOff } : {}), ...(hiddenCount ? { hiddenSettings } : {}),
           ...(state.info.family === 'gr3x' && !stock && ratioOrderIds() ? { ratioOrder: ratioOrderIds() } : {}),
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked),
-          // and Shake Reduction's list of speeds (1/4000, the factory On: no change until another speed is chosen).
-          ...(filmModeChoosable() ? { afPoint: true, memoryU: true, srSpeed: true } : {}) });
+          // and, in beta when chosen, Shake Reduction's list of speeds (1/4000, the factory On: no change until another speed is chosen).
+          ...(filmModeChoosable() ? { afPoint: true, memoryU: true, ...(srSpeed ? { srSpeed: true } : {}) } : {}) });
 
       if (!Object.values(built.checks).every((v) => v === true)) throw new EngineError('selfcheck-failed', 'self-check');
       file = built.file;
