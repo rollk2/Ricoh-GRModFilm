@@ -552,3 +552,12 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
     dans le mécanisme d'origine ; sinon dans ce que les recettes noir et blanc y changent ;
   - D : les 13 recettes noir et blanc **sans le module des réglages propres** (`SLOTS_DIAG.noModule`, diagnostic seulement : réglages
     de Monochrome Standard partagés, pas de changement de la mise à zéro au démarrage) ; s'il ne gèle plus, la cause est le module.
+- **Résultat C / D (2026-11-22)** : C (places ajoutées couleur, mécanisme de GR Mod) gèle ; D (recettes sans module) ne gèle pas.
+  Avec B : la cause est le **module des réglages propres**, hors de l'écriture de sa table, et le défaut existe aussi dans GR Mod
+  (places ajoutées couleur du GR IV). Écarté : le module transmet bien les arguments de l'enregistrement (0x533F3F9C n'utilise que r0)
+  et du chargement (4 arguments). Hypothèse principale : le pointeur d'état gardé dans les 44 octets sous le tas (0x55839020) est
+  invalide après la veille (octets réutilisés, ou mémoire de l'état réutilisée), et `state()` le suit à chaque changement de look
+  (crochet des « style of set », même entre looks d'usine).
+- Tests E1 / E2 (13 recettes et l'ordre, options de compilation de diagnostic) :
+  - E1 (`DIAG_SAFE_STATE`) : un pointeur hors du tas ou non aligné n'est pas suivi ; s'il ne gèle plus, le pointeur était corrompu ;
+  - E2 (`DIAG_NO_STATE`) : l'état n'est jamais publié, tous les crochets tournent sans lui ; s'il gèle, ce sont les crochets eux-mêmes.

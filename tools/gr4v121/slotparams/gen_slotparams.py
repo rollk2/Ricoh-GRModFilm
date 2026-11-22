@@ -45,6 +45,8 @@ if MONO:
     TARGET = REPO / 'core/src/fw/gr4v121/aspect/slotparams-mono-native.ts'
 # --no-record-write (diagnosis builds only, never committed): the module never writes its table (sleep freeze, 2026-11-22).
 NO_WRITE = '--no-record-write' in sys.argv
+# --define NAME (diagnosis builds only, repeatable): an extra #define for the module (DIAG_SAFE_STATE, DIAG_NO_STATE).
+DEFINES = [sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == '--define']
 STYLE_SETTERS = [0x532bc6d4, 0x532bc864, 0x532bc9f4, 0x532bcb84, 0x533062bc, 0x53306450, 0x533065e4, 0x53306778]
 EXPORTS = (['sp_load', 'sp_save', 'sp_raw_init', 'sp_raw_own', 'sp_raw_sync'] + [f'sp_get_stub_{j}' for j in range(len(PARAMS))]
            + [f'sp_set_stub_{j}' for j in range(len(PARAMS))] + [f'sp_style_stub_{k}' for k in range(len(STYLE_SETTERS))])
@@ -79,7 +81,7 @@ def run(command):
 def compile_module(count, origin, bindings, relocs):
     with tempfile.TemporaryDirectory(prefix='grmod-slotparams-') as folder:
         d = Path(folder)
-        (d / 'm.c').write_text(f'#define SLOT_COUNT {count}\n' + ('#define MONO_LOOK 1\n' if MONO else '') + ('#define NO_RECORD_WRITE 1\n' if NO_WRITE else '') + SOURCE.read_text(encoding='utf-8') + stubs(), encoding='utf-8')
+        (d / 'm.c').write_text(f'#define SLOT_COUNT {count}\n' + ('#define MONO_LOOK 1\n' if MONO else '') + ('#define NO_RECORD_WRITE 1\n' if NO_WRITE else '') + ''.join(f'#define {n} 1\n' for n in DEFINES) + SOURCE.read_text(encoding='utf-8') + stubs(), encoding='utf-8')
         script = ' '.join(f'{name} = {value:#x};' for name, value in bindings.items())
         script += (f' SECTIONS {{ . = {origin:#x}; .text : {{ *(.text*) *(.rodata*) }} '
                    '/DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) } }')
