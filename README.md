@@ -16,7 +16,13 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.3.3 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.4 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.3.4
+
+- **GR IV (1.21 file): no more freeze after sleep.** With added looks or recipes, changing Image Control after waking the
+  camera could freeze it and switch it off (lens out). The custom buttons' Hold timer wrote into the memory word that holds the
+  added looks' state; it now has words of its own. Rebuild your firmware with 1.3.4. Tested on a GR IV Monochrome 1.11.
 
 ## What is new in 1.3.3
 

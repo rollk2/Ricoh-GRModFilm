@@ -32,8 +32,15 @@ const APP = 0x53240cac, CONTROLLERS = 0x53240e20, SETTINGS = 0x53241240;
 export const FN_BLOCK = 0x1000, FN_OFFSET = 0x469;
 /** The live bytes of the other keys' own functions (+ FN_BLOCK): Fn, up (none: the Macro Button line's byte), down, left (ISO Button), right (Drive Button). */
 export const OWN_OFFSETS = [0x469, 0, 0x46c, 0x46a, 0x46b] as const;
-/** Time of Fn's press (word) and the state (bytes: the press kept back, « hold run »), in the zero-filled words before the heap. */
-export const HOLD_TIME = 0x55839020, HOLD_STATE = 0x55839030;
+/**
+ * Time of Fn's press (word) and the state (bytes 0 and 1: the press kept back, « hold run »), in the zero-filled words before the
+ * heap. Build revision 3 (GR Mod Film 1.2.0 .. 1.3.3) used 0x55839020 and 0x55839030: the first is also the added slots' state
+ * pointer (`slots.ts` SLOT_STATE), the second the power-off pictures' mode (`shutdown.ts`); every Hold key press overwrote the
+ * pointer, and the next look change after waking the camera (the press that wakes it) crashed it (docs/gr4-mono-recettes-etude.md
+ * 14.7). From revision 4 they are 0x55839014 and 0x55839018, used otherwise only by the HDR gain map's test counters.
+ */
+export const HOLD_TIME = 0x55839014, HOLD_STATE = 0x55839018;
+export const HOLD_TIME_R3 = 0x55839020, HOLD_STATE_R3 = 0x55839030;
 export const HOLD_MS = 600;
 export const MAX_FUNCTION = 46;
 /** The function « Macro Mode »: the up key's own short press. */
@@ -56,7 +63,8 @@ export interface HoldLive {
 }
 
 /** `functions`: the Hold function of Fn, up, down, left, right (0: none), baked into the file, unless `live` gives their bytes. */
-export function installHoldButtons(patch: Patch, functions: readonly number[], live?: HoldLive): number {
+export function installHoldButtons(patch: Patch, functions: readonly number[], live?: HoldLive, revision = 4): number {
+  const holdState = revision >= 4 ? HOLD_STATE : HOLD_STATE_R3, holdTime = revision >= 4 ? HOLD_TIME : HOLD_TIME_R3;
   if (functions.length !== 5 || functions.some((f) => !Number.isInteger(f) || f < 0 || f > MAX_FUNCTION)) throw new FirmwareError('internal', 'hold buttons: five functions 0..46');
   expectWord(patch, KEY_ENTRY, 0xe1a0c00d);
   expectWord(patch, TK_GET_OTM, 0xe92d0010);
@@ -66,8 +74,8 @@ export function installHoldButtons(patch: Patch, functions: readonly number[], l
   const orig = patch.append((at) => assembleWords(`mov ip,sp; b #${KEY_ENTRY + 4}`, at), 4);
   const K = HOLD_KEYS;
   const own = !!(live && live.macro);
-  const S = `movw ip,#${lo(HOLD_STATE)};movt ip,#${hi(HOLD_STATE)};`;
-  const T = `movw ip,#${lo(HOLD_TIME)};movt ip,#${hi(HOLD_TIME)};`;
+  const S = `movw ip,#${lo(holdState)};movt ip,#${hi(holdState)};`;
+  const T = `movw ip,#${lo(holdTime)};movt ip,#${hi(holdTime)};`;
   const now = `sub sp,sp,#8;mov r0,sp;bl #${TK_GET_OTM};ldr r0,[sp,#4];add sp,sp,#8;`;
   // r0 = the settings object, or branch to `label` when it is not where it should be.
   const OBJECT = (label: string) => `bl #${APP};bl #${SETTINGS};cmp r0,#0x55000000;blo ${label};cmp r0,#0x56000000;bhs ${label};`;

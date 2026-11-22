@@ -530,3 +530,51 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   restant le repli si la table n'est pas la permutation attendue.
 - **Validé sur le boîtier le 2026-11-22.** Vérifié aussi : site (13 recettes, HDR Tone et Delta 3200 cachés, Tri-X remonté) ; moteur (fichier vérifié, `lookLayout` relu) ; émulateur
   (visibilité sur le Monochrome : 30, 31 et 40 cachés, le reste visible ; table d'ordre du menu conforme) ; tests GR IV et mise en page.
+
+### 14.7 Gel après la veille (2026-11-22, corrigé en 1.3.4)
+- Reproduit par l'utilisateur (firmware de l'ordre des looks, 13 recettes) : **au réveil du mode veille**, changer de look Image Control
+  (levier ADJ ou menu, en M comme en Av) fige l'écran, l'appareil s'éteint objectif sorti, puis redémarre normalement. Arrive aussi
+  **d'un look d'usine à un autre**. Sans passage par la veille : pas de gel (explique l'extinction non reproduite de M4, section 14.1).
+- Pistes : (1) l'enregistrement de la table des réglages propres (HTData 12) juste après l'enregistrement de l'appareil, au réveil ;
+  peu probable pour un changement entre looks d'usine (le module n'écrit rien alors, sauf table déjà modifiée) ; (2) la liste des looks
+  agrandie (22 → 35 places) : une reconstruction au réveil dans un tableau de 22 places déborderait, quel que soit le look choisi.
+- Tests A / B (même protocole : veille, réveil, changer de look au levier puis au menu, 3 fois) :
+  - A : sans recette (No movie et boutons) ; s'il gèle, la cause est hors des recettes ;
+  - B : 13 recettes et l'ordre, module des réglages compilé sans écriture de table (`gen_slotparams.py --no-record-write`, option de
+    diagnostic, jamais livrée) ; s'il ne gèle plus, la cause est l'écriture.
+- **Résultat A / B (2026-11-22)** : A (sans recette) ne gèle pas, B (recettes, sans écriture de la table) gèle. La cause est dans ce
+  qu'installent les places ajoutées, et pas dans l'écriture de la table. Vérifié en parallèle : la table d'ordre des looks n'est lue
+  qu'en deux endroits (0x533849A8, 0x533DEA58), tous deux redirigés vers la table allongée ; le constructeur du menu (0x533DEA50)
+  remplit une liste dynamique qui s'agrandit seule (pas de débordement possible) : la piste « liste de 22 places » est écartée.
+  Rien de semblable dans les issues et les notes de version de GR Mod.
+- Tests C / D (même protocole) :
+  - C : deux places ajoutées **couleur** (le mécanisme de GR Mod tel quel), invisibles sur le Monochrome ; s'il gèle, le défaut est
+    dans le mécanisme d'origine ; sinon dans ce que les recettes noir et blanc y changent ;
+  - D : les 13 recettes noir et blanc **sans le module des réglages propres** (`SLOTS_DIAG.noModule`, diagnostic seulement : réglages
+    de Monochrome Standard partagés, pas de changement de la mise à zéro au démarrage) ; s'il ne gèle plus, la cause est le module.
+- **Résultat C / D (2026-11-22)** : C (places ajoutées couleur, mécanisme de GR Mod) gèle ; D (recettes sans module) ne gèle pas.
+  Avec B : la cause est le **module des réglages propres**, hors de l'écriture de sa table, et le défaut existe aussi dans GR Mod
+  (places ajoutées couleur du GR IV). Écarté : le module transmet bien les arguments de l'enregistrement (0x533F3F9C n'utilise que r0)
+  et du chargement (4 arguments). Hypothèse principale : le pointeur d'état gardé dans les 44 octets sous le tas (0x55839020) est
+  invalide après la veille (octets réutilisés, ou mémoire de l'état réutilisée), et `state()` le suit à chaque changement de look
+  (crochet des « style of set », même entre looks d'usine).
+- Tests E1 / E2 (13 recettes et l'ordre, options de compilation de diagnostic) :
+  - E1 (`DIAG_SAFE_STATE`) : un pointeur hors du tas ou non aligné n'est pas suivi ; s'il ne gèle plus, le pointeur était corrompu ;
+  - E2 (`DIAG_NO_STATE`) : l'état n'est jamais publié, tous les crochets tournent sans lui ; s'il gèle, ce sont les crochets eux-mêmes.
+- **Résultat E1 / E2 (2026-11-22)** : E1 (pointeur vérifié) ne gèle pas, E2 (pointeur jamais publié, donc nul) gèle : le mot
+  0x55839020 n'est plus nul après le réveil, quelque chose y écrit.
+- **Cause trouvée** : nos boutons Hold (`holdbuttons.ts`, GR Mod Film 1.2.0) rangeaient l'heure de l'appui (HOLD_TIME) en 0x55839020,
+  le pointeur d'état du module des places ajoutées (`slots.ts` SLOT_STATE), et leur état (HOLD_STATE) en 0x55839030, le mot des
+  images d'extinction (`shutdown.ts` PICTURE_MODE). Chaque appui sur une touche Hold, dont celui qui réveille l'appareil, écrasait le
+  pointeur ; le changement de look suivant le suivait (crochet « style of set », même entre looks d'usine) et l'appareil plantait.
+  Ce n'est pas un défaut de GR Mod. Reproduit dans l'émulateur : après un appui long sur Fn, 0x55839020 vaut 0x76c (l'heure).
+- **Correction (1.3.4)** : HOLD_TIME en 0x55839014, HOLD_STATE en 0x55839018 (mots utilisés seulement par les compteurs des builds de
+  test HDR). Révision de build 4 pour les fichiers avec les boutons ; un fichier de révision 3 (1.2.0 à 1.3.3) est reconstruit avec
+  les anciennes adresses et reste reconnu. Inventaire des 44 octets (0x55839014..0x5583903F) : 14 / 18 Hold (rév. 4, compteurs HDR
+  de test), 1C état HDR, 20 module des places, 24 look (date), 28 / 2C halation, 30 images d'extinction, 34 orientation, 38 look de
+  la vue (date ; anneau de touches des builds de diagnostic), 3C halation / Direct Flash (diagnostic). La zone 0x55839040..0x55839080
+  est la réserve de `_sbrk` (0x530668D4), pas libre. La zone de code 0x53… est en lecture seule (table MMU : AP 6).
+- Vérifié : sonde `hold_gap_probe.py` (marqueurs intacts en révision 4, écrasés en révision 3), `holdbuttons_probe.py` 48,
+  `nomovie_probe.py`, fichiers 1.3.3 toujours vérifiés, tests GR IV (19). Firmware de test construit par le site.
+- **Validé sur le boîtier (2026-11-22)** : veille, réveil, changements de look au levier et au menu, looks d'usine et recettes,
+  3 fois : plus de gel ; réglages propres des recettes conservés ; boutons Hold normaux. Livré en 1.3.4.

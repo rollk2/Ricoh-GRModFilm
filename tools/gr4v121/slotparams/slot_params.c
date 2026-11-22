@@ -177,6 +177,10 @@ typedef struct {
 } State;
 
 static State *state(void) {
+#ifdef DIAG_SAFE_STATE   /* diagnosis builds only: a pointer outside the heap's range, or unaligned, is not followed */
+    uint32_t a = sp_gap[0];
+    if (a < 0x55839040u || a >= 0x58000000u || (a & 3u)) return 0;
+#endif
     State *s = (State *)sp_gap[0];
     return s && s->magic == STATE_MAGIC ? s : 0;
 }
@@ -540,14 +544,20 @@ uint32_t sp_load(uint8_t *mode, uint8_t *current, void *a2, void *a3) {
     }
     s->loaded = 1;
     s->magic = STATE_MAGIC;
+#ifndef DIAG_NO_STATE    /* diagnosis builds only: the state is never published, every hook runs as if not loaded */
     sp_gap[0] = (uint32_t)s;
+#endif
     return r;
 }
 
 /* Settings save (at power off): then the table, if it changed. */
 uint32_t sp_save(uint8_t *mode) {
     uint32_t r = prior_native_save(mode);
+#ifndef NO_RECORD_WRITE   /* test builds only (gen_slotparams.py --no-record-write): the table is never written */
     State *s = state();
     if (s && s->loaded && s->dirty) write_record(s);
+#else
+    (void)write_record;
+#endif
     return r;
 }

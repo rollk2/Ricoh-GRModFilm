@@ -534,7 +534,22 @@ function fingerprint(parts: readonly Uint8Array[]): number {
   return h || 1;
 }
 
+/**
+ * Diagnosis only (sleep freeze, docs/gr4-mono-recettes-etude.md 14.7): set by test scripts, never by the app. `noModule`: the added
+ * looks use the reference look's parameters directly (no own parameters, no native module, no change to the start-up zero fill).
+ */
+export const SLOTS_DIAG = { noModule: false };
+
 function installOwnParameters(p: Patch, count: number, prints: readonly number[], hiddenMask = 0): Record<string, number> {
+  if (SLOTS_DIAG.noModule) {
+    const all = (at: number, reg: string, original: number, tail: string): void => {
+      hook(p, at, original, `sub ip,${reg},#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};movls ${reg},#${ref.style};${tail};b #${at + 4}`, 'added slots: parameters of the reference look (diagnosis)');
+    };
+    for (let i = 0; i < 23; i++) { all(SETTERS[i], 'r3', 0xe1a0c00d, 'mov ip,sp'); all(GETTERS[i], 'r3', 0xe1a0c00d, 'mov ip,sp'); all(DEFAULTS[i], 'r1', 0xe1a0c00d, 'mov ip,sp'); }
+    all(0x533de848, 'r2', 0xe242200d, 'sub r2,r2,#13');
+    all(0x533c7c64, 'r0', 0xe1a06000, 'mov r6,r0');
+    return {};
+  }
   if (prints.length !== count) fail('internal', 'a fingerprint per added slot');
   const normalize = (at: number, reg: string, original: number, tail: string): void => {
     // The flags are set again by every native entry before use; no callee-saved register, LR or SP changes.
@@ -781,11 +796,11 @@ function installRawDevelopment(p: Patch, count: number, module: Record<string, n
     p.setWord(at, branchWord(at, code), 'added slots: RAW development parameters of Cinema Yellow');
   }
   // Opening a RAW file: the model has filled every look from the settings (0x53383034, r4 the model).
-  hook(p, 0x533841a4, 0xe5d42064, `push {r0-r3,ip,lr};mov r0,r4;bl #${module.sp_raw_init};pop {r0-r3,ip,lr};ldrb r2,[r4,#0x64];b #0x533841a8`, 'added slots: own RAW development parameters');
+  if (module.sp_raw_init) hook(p, 0x533841a4, 0xe5d42064, `push {r0-r3,ip,lr};mov r0,r4;bl #${module.sp_raw_init};pop {r0-r3,ip,lr};ldrb r2,[r4,#0x64];b #0x533841a8`, 'added slots: own RAW development parameters');
   // Then it copies the parameters the file was shot with into the row of its look (base 0).
-  hook(p, 0x53384218, 0xe3500000, `push {r0-r3,ip,lr};mov r2,r0;mov r1,#0;mov r0,r4;bl #${module.sp_raw_own};pop {r0-r3,ip,lr};${map('r0')};cmp r0,#0;b #0x5338421c`, 'added slots: RAW development parameters as shot');
+  if (module.sp_raw_init) hook(p, 0x53384218, 0xe3500000, `push {r0-r3,ip,lr};mov r2,r0;mov r1,#0;mov r0,r4;bl #${module.sp_raw_own};pop {r0-r3,ip,lr};${map('r0')};cmp r0,#0;b #0x5338421c`, 'added slots: RAW development parameters as shot');
   // Applying a look: the row goes to the looks now selected.
-  hook(p, 0x533836cc, 0xe1a0c00d, `push {r0-r4,lr};bl #${module.sp_raw_sync};pop {r0-r4,lr};mov ip,sp;b #0x533836d0`, 'added slots: own RAW development parameters');
+  if (module.sp_raw_init) hook(p, 0x533836cc, 0xe1a0c00d, `push {r0-r4,lr};bl #${module.sp_raw_sync};pop {r0-r4,lr};mov ip,sp;b #0x533836d0`, 'added slots: own RAW development parameters');
   // The RAW development screen makes its list as long as the longest of its lists (0x531A2A64):
   // Image Control at most 26 entries in 1.20 (the 22 factory looks, the three custom sets, "as shot"). With
   // the added looks the list is longer; the list widget then refuses the count (assertion) and the
