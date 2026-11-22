@@ -4782,3 +4782,19 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
 - `core/src/color/mono.ts` : axe neutre de la LUT (moyenne des canaux, 256 points), coloration (seuil 2 / 255) et mélange des canaux (seuil 8 / 255) signalés ;
   courbe `c[i] = 16383 × LUT(S[i] / 16383)`, `S` = courbe verte de Monochrome Standard du firmware. Certitude : élevée (méthode validée sur boîtier en M3a-6 et M3b).
 - Fichier construit par le site : vérifié par le moteur, sonde `mono_recipe_probe.py` 56 / 56. Détails : `docs/gr4-mono-recettes-etude.md` section 13.
+
+## Vérification des mots de RAM partagés, GR III 2.10 / IIIx 1.60 (2026-11-22)
+- Suite au gel du GR IV (les boutons Hold écrasaient le pointeur du module des places, `docs/gr4-mono-recettes-etude.md` 14.7) :
+  même vérification sur le GR III. Zone des variables : les 76 octets de la ronde 10 (0x55804374..0x558043BF, remis à zéro au
+  démarrage, `round10.ts`).
+- Méthode : firmware complet construit comme le site (mode pellicule et toutes ses options, boutons Hold, date, 9 films, 7 ratios,
+  sans vidéo, AF Point, Memory U, vitesses SR), puis le même sans boutons Hold ; pour chaque mot de la zone, nombre de sites du code
+  ajouté qui l'adressent ; puis, pour chaque accès, octets réellement lus ou écrits (taille et décalage).
+- Résultat : **aucun conflit dans les firmwares livrés**. Les mots des boutons Hold (0x558043A0, 0x558043BE..BF) ne sont adressés que
+  par eux ; chaque autre mot appartient à une seule fonction ; le seul octet atteint depuis deux bases (0x5580439D) l'est par le mode
+  pellicule lui-même (KEY_LAST + 7 + 6 et KEY_LAST + 13, l'étape du message). Le bouton WB n'utilise que 3 octets de 0x55804394
+  (0x55804397 reste au mode pellicule).
+- Partages connus, réservés aux builds de test, documentés dans le code : 0x55804388 (sonde de film, mesure AF T-AFT1 ; non utilisé
+  par l'image d'extinction livrée), 0x55804390 (anneau de touches de diagnostic, bouton WB), 0x55804398 (file du grain, diagnostic),
+  0x558043A0 (journaux des formes de test du mode pellicule, recherche T-DOF5), 0x558043A8 (sonde des molettes), 0x558043B6 / B7
+  (diagnostics SR). Ils ne doivent pas être combinés avec les fonctions livrées correspondantes (c'est le cas aujourd'hui).
