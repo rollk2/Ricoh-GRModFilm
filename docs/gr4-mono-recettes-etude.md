@@ -531,7 +531,7 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
 - **Validé sur le boîtier le 2026-11-22.** Vérifié aussi : site (13 recettes, HDR Tone et Delta 3200 cachés, Tri-X remonté) ; moteur (fichier vérifié, `lookLayout` relu) ; émulateur
   (visibilité sur le Monochrome : 30, 31 et 40 cachés, le reste visible ; table d'ordre du menu conforme) ; tests GR IV et mise en page.
 
-### 14.7 Gel après la veille (2026-11-22, en cours)
+### 14.7 Gel après la veille (2026-11-22, corrigé en 1.3.4)
 - Reproduit par l'utilisateur (firmware de l'ordre des looks, 13 recettes) : **au réveil du mode veille**, changer de look Image Control
   (levier ADJ ou menu, en M comme en Av) fige l'écran, l'appareil s'éteint objectif sorti, puis redémarre normalement. Arrive aussi
   **d'un look d'usine à un autre**. Sans passage par la veille : pas de gel (explique l'extinction non reproduite de M4, section 14.1).
@@ -576,3 +576,5 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   est la réserve de `_sbrk` (0x530668D4), pas libre. La zone de code 0x53… est en lecture seule (table MMU : AP 6).
 - Vérifié : sonde `hold_gap_probe.py` (marqueurs intacts en révision 4, écrasés en révision 3), `holdbuttons_probe.py` 48,
   `nomovie_probe.py`, fichiers 1.3.3 toujours vérifiés, tests GR IV (19). Firmware de test construit par le site.
+- **Validé sur le boîtier (2026-11-22)** : veille, réveil, changements de look au levier et au menu, looks d'usine et recettes,
+  3 fois : plus de gel ; réglages propres des recettes conservés ; boutons Hold normaux. Livré en 1.3.4.
