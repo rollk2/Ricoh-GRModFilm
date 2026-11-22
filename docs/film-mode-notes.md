@@ -4817,5 +4817,9 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
   valeurs de `+0x4f6` sur des enregistrements aléatoires ; 0 et 1 inchangées, 2..255 donnent 1, aucun autre octet modifié
   (0 écart). Le build avec l'option ne contient pas ce code. Certitude : forte pour le code ; le comportement du menu natif avec la
   valeur 1 est celui d'origine.
+- Site (Chromium, build de production, firmware 2.10) : les deux interrupteurs apparaissent sur la page Features ; firmware
+  téléchargé option coupée : la garde contient le code et passe l'émulateur (0 écart) ; option activée : pas de garde, liste de
+  vitesses présente. Suite complète : 512 tests réussis ; 5 échecs dus à des fichiers de test privés absents du conteneur
+  (`official.decoded`, `B.bin`, `C.bin`, `q400.xmp`), sans lien avec ce changement.
 - Reste à vérifier sur le boîtier (T-SRB1) : après un build 1.3.4 avec une vitesse choisie, flasher le build 1.3.5 sans l'option :
   Shake Reduction affiche On, la main SR est normale, pas de vibration.
