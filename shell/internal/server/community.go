@@ -18,7 +18,7 @@ var communityPages = []struct {
 }{
 	{"github.com", "/rollk2/Ricoh-GRModFilm/", false},
 	{"rollk2.github.io", "/Ricoh-GRModFilm/", false},
-	{"www.paypal.com", "/qrcodes/managed/1cfe175d-3f48-4649-8a18-f6d8bc6b1e50", true},
+	{"paypal.me", "/GRModFilm", true},
 	{"github.com", "/Maxwooow/Ricoh-GRMod", true},
 	// 1.3.2: the source pages of the collection's third-party packs.
 	{"github.com", "/abpy/FujifilmCameraProfiles", true},

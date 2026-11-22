@@ -370,7 +370,8 @@ function LookOrderView() {
   const names = useMemo(() => new Map(nameList.split('\u0000').map((x) => x.split('\u0001') as [string, string])), [nameList]);
   const orderList = useStore((s) => lookOrderNow(s).join(','));
   const hiddenList = useStore((s) => lookHiddenNow(s).join(','));
-  const monoList = useStore((s) => lookOrderNow(s).filter((k) => lookMonoOnly(k, s)).join(','));
+  // « Monochrome only » marks the B&W looks among the colour ones; on the Monochrome itself every listed look is one.
+  const monoList = useStore((s) => (s.model === 'MONO' ? '' : lookOrderNow(s).filter((k) => lookMonoOnly(k, s)).join(',')));
   const gr3 = useStore((s) => (s.info ? s.info.family === 'gr3x' : isGr3(s.model)));
   const order = useMemo(() => (orderList ? orderList.split(',') : []), [orderList]);
   const hidden = useMemo(() => new Set(hiddenList ? hiddenList.split(',') : []), [hiddenList]);
@@ -974,7 +975,7 @@ function ViewTabs({ value, onChange }: { value: IcView; onChange: (v: IcView) =>
  * page being turned. Both stay mounted, so each keeps its own scroll position; the one out of
  * sight is inert (no focus, no pointer, hidden from assistive technology).
  */
-function IcViews({ view }: { view: IcView }) {
+function IcViews({ view, mono = false }: { view: IcView; mono?: boolean }) {
   const track = useRef<HTMLDivElement>(null);
   const panels = useRef<Record<IcView, HTMLElement | null>>({ slots: null, order: null });
   const first = useRef(true);
@@ -989,7 +990,7 @@ function IcViews({ view }: { view: IcView }) {
   return (
     <div className="ic-views" onScroll={unscroll}>
       <div className={`ic-track ${view === 'order' ? 'at-order' : ''}`} ref={track} onTransitionEnd={(e) => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('moving'); }}>
-        <section className="ic-view" id="ic-view-slots" role="tabpanel" aria-labelledby="ic-tab-slots" ref={(el) => { panels.current.slots = el; }}><IcBody /></section>
+        <section className="ic-view" id="ic-view-slots" role="tabpanel" aria-labelledby="ic-tab-slots" ref={(el) => { panels.current.slots = el; }}>{mono ? <MonoRecipes /> : <IcBody />}</section>
         <section className="ic-view" id="ic-view-order" role="tabpanel" aria-labelledby="ic-tab-order" ref={(el) => { panels.current.order = el; }}><LookOrderView /></section>
       </div>
     </div>
@@ -1005,8 +1006,9 @@ export function ImageControlPage() {
   // the page's guide points at the slots: show them while it runs
   const touring = useStore((s) => s.tour?.id === 'ic');
   useEffect(() => { if (touring) setView('slots'); }, [touring]);
-  const views = !!info && info.capabilities.presets && model !== 'MONO';
   const monoRecipes = useStore((s) => monoRecipesOn(s));
+  // GR IV Monochrome (1.3.3): its recipes and the menu order of its looks, as on the other cameras.
+  const views = !!info && info.capabilities.presets && (model !== 'MONO' || monoRecipes);
   // The menu order is a view of its own where the firmware has it (GR IV; GR III / IIIx).
   const orderView = useStore((s) => lookOrderAvailable(s));
   return (
@@ -1035,8 +1037,8 @@ export function ImageControlPage() {
         )}
       </header>
       {!info && <FirmwareHero />}
-      {views && (orderView ? <IcViews view={view} /> : <IcBody />)}
-      {info && model === 'MONO' && (monoRecipes ? <MonoRecipes /> : <div className="mono-ic" data-tour-page="ic"><p className="muted">{t('monoNoSlots')}</p></div>)}
+      {views && (orderView ? <IcViews view={view} mono={model === 'MONO'} /> : model === 'MONO' ? <MonoRecipes /> : <IcBody />)}
+      {info && model === 'MONO' && !monoRecipes && <div className="mono-ic" data-tour-page="ic"><p className="muted">{t('monoNoSlots')}</p></div>}
     </DropZone>
   );
 }

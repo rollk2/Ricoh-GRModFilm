@@ -688,7 +688,7 @@ export const KEEP_VISIBLE = ['f11', 'f25'];
 /** GR III's movie Image Control list (camera looks only): one of them must stay shown. */
 const GR3_MOVIE_LOOK_KEYS = ['g11', 'g12', 'g13', 'g15', 'g16', 'g22', 'g17', 'g18', 'g19', 'g21'];
 /** Added slots are not built on the Monochrome camera (it has no colour looks), so they are not in the order either. */
-function lookExtras(s: State): ExtraSlot[] { return s.model === 'MONO' ? [] : s.extras; }
+function lookExtras(s: State): ExtraSlot[] { return s.model === 'MONO' && !monoRecipesOn(s) ? [] : s.extras; }
 /** The order and hidden looks of the open camera family: GR III / IIIx keeps its own. */
 const gr3Order = (s: State): boolean => (s.info ? s.info.family === 'gr3x' : isGr3(s.model));
 /** GR III: the films of the build (looks 64..), when they are built. */
@@ -709,12 +709,16 @@ export function lookKeys(s: State = state): string[] {
  * the order table just before 32, where the official firmware has it.
  */
 const UNRELEASED_LOOKS: readonly number[] = [31];
-function listedFactoryLooks(s: State = state): number[] { return factoryLooks(s).filter((n) => !UNRELEASED_LOOKS.includes(n)); }
-/** The style order to build from the listed keys: the unlisted looks go back where the firmware has them. */
+function listedFactoryLooks(s: State = state): number[] {
+  // GR IV Monochrome (1.3.3): only its black-and-white looks are shown; the colour looks stay where the firmware has them.
+  const mono = s.model === 'MONO' ? (s.info?.looks?.monoOnly ?? [25, 26, 27, 28, 29, 30, 31, 32]) : null;
+  return factoryLooks(s).filter((n) => !UNRELEASED_LOOKS.includes(n) && (!mono || mono.includes(n)));
+}
+/** The style order to build from the listed keys: the unlisted looks (1.20's 31; the colour looks on the Monochrome) go back where the firmware has them. */
 function withUnlisted(styles: number[], s: State): number[] {
   const out = [...styles];
   const official = factoryLooks(s);
-  for (const n of UNRELEASED_LOOKS) {
+  for (const n of official) {
     const i = official.indexOf(n);
     if (i < 0 || out.includes(n)) continue;
     const next = official.slice(i + 1).find((m) => out.includes(m));
