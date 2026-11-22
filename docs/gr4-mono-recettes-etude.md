@@ -542,3 +542,13 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   - A : sans recette (No movie et boutons) ; s'il gèle, la cause est hors des recettes ;
   - B : 13 recettes et l'ordre, module des réglages compilé sans écriture de table (`gen_slotparams.py --no-record-write`, option de
     diagnostic, jamais livrée) ; s'il ne gèle plus, la cause est l'écriture.
+- **Résultat A / B (2026-11-22)** : A (sans recette) ne gèle pas, B (recettes, sans écriture de la table) gèle. La cause est dans ce
+  qu'installent les places ajoutées, et pas dans l'écriture de la table. Vérifié en parallèle : la table d'ordre des looks n'est lue
+  qu'en deux endroits (0x533849A8, 0x533DEA58), tous deux redirigés vers la table allongée ; le constructeur du menu (0x533DEA50)
+  remplit une liste dynamique qui s'agrandit seule (pas de débordement possible) : la piste « liste de 22 places » est écartée.
+  Rien de semblable dans les issues et les notes de version de GR Mod.
+- Tests C / D (même protocole) :
+  - C : deux places ajoutées **couleur** (le mécanisme de GR Mod tel quel), invisibles sur le Monochrome ; s'il gèle, le défaut est
+    dans le mécanisme d'origine ; sinon dans ce que les recettes noir et blanc y changent ;
+  - D : les 13 recettes noir et blanc **sans le module des réglages propres** (`SLOTS_DIAG.noModule`, diagnostic seulement : réglages
+    de Monochrome Standard partagés, pas de changement de la mise à zéro au démarrage) ; s'il ne gèle plus, la cause est le module.
