@@ -16,7 +16,15 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.3.2 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.3 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.3.3
+
+- **GR IV Monochrome: menu order.** Reorder and hide its black-and-white looks and your recipes (Image Control, *Menu order*),
+  as on the other cameras; Monochrome Standard stays visible. Tried on a GR IV Monochrome 1.11.
+- **GR IV: the menu order starts from the camera's own order** (it was shown in numeric order, so a first change also
+  reordered the factory looks).
+- The *Support GR Mod Film* link opens the PayPal page directly.
 
 ## What is new in 1.3.2
 
@@ -171,7 +179,7 @@ The development notes (in French) are in `CAHIER_DES_CHARGES.md` and `docs/film-
 
 ## Support
 
-GR Mod Film is free. To help it stay free and keep evolving, you can [support GR Mod Film](https://www.paypal.com/qrcodes/managed/1cfe175d-3f48-4649-8a18-f6d8bc6b1e50) (PayPal).
+GR Mod Film is free. To help it stay free and keep evolving, you can [support GR Mod Film](https://paypal.me/GRModFilm) (PayPal).
 GR Mod Film is built on [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod) by Maxwooow.
 
 ## Thanks

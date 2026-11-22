@@ -528,5 +528,5 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   (1.21 : 11..16, 24, 17, 18, 19, 23, 20..22, 25, 29, 26, 27, 28, 31, 32, 30). Le premier changement d'ordre aurait donc remis les looks
   d'usine dans l'ordre numérique. `info.looks.factory` est maintenant lu dans la table du firmware (1.11, 1.20, 1.21), l'ordre numérique
   restant le repli si la table n'est pas la permutation attendue.
-- Vérifié : site (13 recettes, HDR Tone et Delta 3200 cachés, Tri-X remonté) ; moteur (fichier vérifié, `lookLayout` relu) ; émulateur
+- **Validé sur le boîtier le 2026-11-22.** Vérifié aussi : site (13 recettes, HDR Tone et Delta 3200 cachés, Tri-X remonté) ; moteur (fichier vérifié, `lookLayout` relu) ; émulateur
   (visibilité sur le Monochrome : 30, 31 et 40 cachés, le reste visible ; table d'ordre du menu conforme) ; tests GR IV et mise en page.
