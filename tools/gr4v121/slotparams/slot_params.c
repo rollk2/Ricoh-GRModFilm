@@ -547,7 +547,11 @@ uint32_t sp_load(uint8_t *mode, uint8_t *current, void *a2, void *a3) {
 /* Settings save (at power off): then the table, if it changed. */
 uint32_t sp_save(uint8_t *mode) {
     uint32_t r = prior_native_save(mode);
+#ifndef NO_RECORD_WRITE   /* test builds only (gen_slotparams.py --no-record-write): the table is never written */
     State *s = state();
     if (s && s->loaded && s->dirty) write_record(s);
+#else
+    (void)write_record;
+#endif
     return r;
 }

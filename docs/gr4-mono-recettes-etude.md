@@ -530,3 +530,15 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   restant le repli si la table n'est pas la permutation attendue.
 - **Validé sur le boîtier le 2026-11-22.** Vérifié aussi : site (13 recettes, HDR Tone et Delta 3200 cachés, Tri-X remonté) ; moteur (fichier vérifié, `lookLayout` relu) ; émulateur
   (visibilité sur le Monochrome : 30, 31 et 40 cachés, le reste visible ; table d'ordre du menu conforme) ; tests GR IV et mise en page.
+
+### 14.7 Gel après la veille (2026-11-22, en cours)
+- Reproduit par l'utilisateur (firmware de l'ordre des looks, 13 recettes) : **au réveil du mode veille**, changer de look Image Control
+  (levier ADJ ou menu, en M comme en Av) fige l'écran, l'appareil s'éteint objectif sorti, puis redémarre normalement. Arrive aussi
+  **d'un look d'usine à un autre**. Sans passage par la veille : pas de gel (explique l'extinction non reproduite de M4, section 14.1).
+- Pistes : (1) l'enregistrement de la table des réglages propres (HTData 12) juste après l'enregistrement de l'appareil, au réveil ;
+  peu probable pour un changement entre looks d'usine (le module n'écrit rien alors, sauf table déjà modifiée) ; (2) la liste des looks
+  agrandie (22 → 35 places) : une reconstruction au réveil dans un tableau de 22 places déborderait, quel que soit le look choisi.
+- Tests A / B (même protocole : veille, réveil, changer de look au levier puis au menu, 3 fois) :
+  - A : sans recette (No movie et boutons) ; s'il gèle, la cause est hors des recettes ;
+  - B : 13 recettes et l'ordre, module des réglages compilé sans écriture de table (`gen_slotparams.py --no-record-write`, option de
+    diagnostic, jamais livrée) ; s'il ne gèle plus, la cause est l'écriture.
