@@ -282,6 +282,13 @@ Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre 
 
     Pour 22 à 24 : étudier d'abord si les structures du GR IV existent sur GR III avant toute estimation.
 
+- **GR IV : trier les ratios** (demande du 2026-11-24) : 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés rangés dans l'ordre choisi
+  (menu Aspect Ratio et cycle Fn). Pas de masquage (décision du 2026-11-24 : on les garde tous). Piste : la table d'ordre que
+  le programme écrit déjà (`installMenu`, `FACTORY_ORDER`). Étapes : recherche, programme, application, test boîtier.
+- **Fonctions de GR Mod 0.9.x** (amont, 2026-11-24, `docs/amont-0.9-etude.md`) : batterie en %, grilles, Matte Brightness,
+  Shadow Correction apprise, grain, Flash TTL, utiles au Monochrome. Fusion à planifier : code réorganisé et mot de RAM
+  0x55839018 partagé avec nos boutons Hold.
+
 ### Fait ou abandonné
 - **Prochain chantier (décidé le 2026-11-09) : rouleau chargé, réglages verrouillés.** En U1 à U3, Film Roll Mode sur On et rouleau entamé (compteur différent de 0, pas rembobiné), ces lignes de Still Image Settings disparaissent du menu (elles reviennent après le rembobinage, et en P, Av, Tv, M) :
   - Image Control (`0x02000012`), Aspect Ratio (`0x02000073`), Crop (`0x02000074`), Drive Mode (`0x0200000e`) ;
