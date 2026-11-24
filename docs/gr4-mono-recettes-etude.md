@@ -578,3 +578,33 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   `nomovie_probe.py`, fichiers 1.3.3 toujours vérifiés, tests GR IV (19). Firmware de test construit par le site.
 - **Validé sur le boîtier (2026-11-22)** : veille, réveil, changements de look au levier et au menu, looks d'usine et recettes,
   3 fois : plus de gel ; réglages propres des recettes conservés ; boutons Hold normaux. Livré en 1.3.4.
+
+## 15. Trier les ratios du GR IV (1.21 / Monochrome 1.11) : recherche (2026-11-24)
+
+Demande : ranger 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés dans l'ordre choisi ; aucun ratio caché (décision du 2026-11-24).
+
+- **La table d'ordre** : 4 octets à 0x53DE6F30 dans le firmware officiel, `00 01 03 02` (identités : 0 = 3:2, 1 = 4:3,
+  2 = 16:9, 3 = 1:1 ; ordre du menu 3:2, 4:3, 1:1, 16:9). Recherche de toutes les paires MOVW/MOVT et de tous les mots
+  littéraux du fichier : elle n'est lue qu'aux 7 endroits que le programme modifie déjà (`ORDER_SITES`), aucun autre.
+- **Ce que fait chacun** (certitude forte, lecture du code) :
+  - liste à icônes (descripteur 0x53DCB678..0x53DCB690) : icône de la ligne n (0x531BFE5C, puis 0x53391338), « la ligne n
+    est-elle le ratio courant ? » (0x531BCDB0), choix de la ligne n (0x531BCACC, puis le réglage 0x532FDBE4), nombre de
+    lignes 4 (0x531BBC90) ;
+  - liste à textes (descripteur 0x53DCF52C..0x53DCF54C) : nom de la ligne n (0x531D2B54, puis 0x5338FA48), choix
+    (0x531D4E9C), ligne courante (0x531D6814), nombre 4 (0x531D107C) ;
+  - cycle du bouton Fn (0x5325D2A8) : cherche le ratio courant dans la table et prend le suivant.
+- Tout passe par **l'identité** : le réglage enregistré (octet 0x49F des réglages) est l'identité, jamais la position.
+  Aucune fonction ne recalcule une position « en dur ». Trier revient donc à écrire la table dans un autre ordre. La garde
+  des réglages et la remise à zéro d'un ratio absent (`crop_state.c`, masque des ratios actifs) ne dépendent pas de l'ordre.
+- **Émulateur** : le cycle Fn d'origine, avec les 24 ordres possibles des 4 ratios d'usine écrits dans sa table : 96 cas,
+  le suivant est toujours le bon (0 écart). Avec des ratios ajoutés, le programme remplace déjà la table et le cycle
+  (`installMenu`) ; il suffit d'y écrire l'ordre choisi (aujourd'hui fixé à `FACTORY_ORDER` puis les ajoutés).
+- **Plan de l'étape 2** :
+  - sans ratio ajouté : écrire l'ordre dans les 4 octets d'origine (rien d'autre ne change) ;
+  - avec des ratios ajoutés : la table de `installMenu` prend l'ordre choisi (factory et ajoutés mélangés) ;
+  - le développement RAW en boîtier garde son ordre actuel (liste séparée, `installRaw`), sauf avis contraire ;
+  - enregistrement dans le fichier : le 2e octet de fonctions est plein, il faut un 3e octet suivi de l'ordre, pour que
+    l'inspection reconstruise le fichier à l'identique ; une ancienne version de l'application dira « fichier plus récent » ;
+  - vérifications : `tools/gr4v121/aspect/boot_checks.py` attend aujourd'hui `[0, 1, 3, 2]` en tête, à généraliser ; test
+    du cycle Fn et des listes avec l'ordre choisi.
+- Hors champ : le fichier 1.20 (Monochrome 1.10), qui n'a pas nos ajouts.
