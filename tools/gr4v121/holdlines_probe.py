@@ -84,9 +84,9 @@ def main():
         for g in range(6):
             ro, _ = o.call(0x531ea524, (THIS, g), mono=mono); rb, _ = b.call(0x531ea524, (THIS, g), mono=mono)
             ok(ro == rb, ('title', g, mono, ro, rb))
-        for g, want in ((6, 1040), (7, 1041), (8, 1042), (10, 1045), (11, 1046)):
+        for g, want in ((6, 1056), (7, 1057), (8, 1058), (10, 1061), (11, 1062)):  # texts 1056.. (convergence step 2; 1040.. before)
             r, _ = b.call(0x531ea524, (THIS, g), mono=mono); ok(r == want, ('title', g, r))
-        r, _ = b.call(0x531ea524, (THIS, 9), mono=mono); ok(r == (1043 if mono else 1044), ('title 9', mono, r))
+        r, _ = b.call(0x531ea524, (THIS, 9), mono=mono); ok(r == (1059 if mono else 1060), ('title 9', mono, r))
     # the current function: 0..5 as official, the Hold genres the bytes (0..45, else Off)
     for g in range(6):
         ro, _ = o.call(0x531ea18c, (THIS, g)); rb, _ = b.call(0x531ea18c, (THIS, g)); ok(ro == rb, ('getter', g, ro, rb))
@@ -126,7 +126,7 @@ def main():
     ok(sum(1 for x in lb if x[0] == 'value') == 12 and not any(x[0] == 'assert' for x in lb), ('assert / values in the rows loop', [x[0] for x in lb]))
     # the description under the list: the Hold rows read as genre 0
     # the picture of the button's place (the first call of 0x5359aa2c, 340 x 160): the key's own for its Hold line, a picture of its own for Macro
-    PICTURE = {0: 622, 1: 695, 2: 696, 3: 697, 6: 622, 7: 695, 8: 696, 9: 697, 10: 740, 11: 740}
+    PICTURE = {0: 622, 1: 695, 2: 696, 3: 697, 6: 622, 7: 695, 8: 696, 9: 697, 10: 1202, 11: 1202}  # Macro picture 1202 (740 before step 2)
     for row in range(12):
         g = ROW_GENRES[row]
         if g in (4, 5): continue
@@ -143,7 +143,7 @@ def main():
         rec_no = b.u.mem_read(THIS + 0x1a4, 1)[0]
         ok(rec_no >= 127, ('record number', i, rec_no))
         r = struct.unpack_from('<19I', d, table + rec_no * 0x4c - B)
-        want_title = {6: 1040, 7: 1041, 8: 1042, 9: 1043, 10: 1045}[6 + i]
+        want_title = {6: 1056, 7: 1057, 8: 1058, 9: 1059, 10: 1061}[6 + i]
         ok(r[0] == 0x10000 and (r[1] & 0xffff) == want_title and r[3] == 0x531d11e8 and r[5] == 0x531d3688, ('record', i, [hex(x) for x in r[:6]]))
         key = KEY_OF_GENRE[6 + i]; setf, curf = r[9], r[11]
         for k in range(5): b.u.mem_write(BYTES[k], bytes([0]))
@@ -155,7 +155,7 @@ def main():
     b.u.mem_write(THIS + 0x1a4, bytes([0])); b.call(0x531d7e68, (THIS, MACRO_ID))
     rn = b.u.mem_read(THIS + 0x1a4, 1)[0]; ok(rn >= 132, ('macro record number', rn))
     r = struct.unpack_from('<19I', d, table + rn * 0x4c - B)
-    ok(r[0] == 0x10000 and (r[1] & 0xffff) == 1046 and r[3] == 0x531d11e8 and r[5] == 0x531d3688, ('macro record', [hex(x) for x in r[:6]]))
+    ok(r[0] == 0x10000 and (r[1] & 0xffff) == 1062 and r[3] == 0x531d11e8 and r[5] == 0x531d3688, ('macro record', [hex(x) for x in r[:6]]))
     setf, curf = r[9], r[11]
     b.u.mem_write(VEC, bytes([0, 1, 2, 3, 46, 45]))   # row 4 = Macro Mode (46), row 0 = Off
     for row, want_byte in ((4, 0), (0, 255), (5, 45), (2, 2)):

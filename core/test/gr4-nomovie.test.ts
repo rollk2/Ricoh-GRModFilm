@@ -22,9 +22,14 @@ describe('GR IV Monochrome: no movie', () => {
     expect(back.kind).toBe('modified');
     expect(back.noMovie).toBe(true);
   }, 300_000);
-  it.skipIf(!f120 || !existsSync(f120))('1.20: not offered, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)));
-    expect(eng.info.features.noMovie).toBeFalsy();
-    await expect(eng.buildFirmware([], [], [], { noMovie: true })).rejects.toMatchObject({ code: 'bad-edit' });
+  it.skipIf(!f120 || !existsSync(f120))('1.20 (convergence step 2): offered, built and read back', async () => {
+    const raw = new Uint8Array(readFileSync(f120!));
+    const eng = await Engine.open(raw);
+    expect(eng.info.features.noMovie).toBe(true);
+    const built = await eng.buildFirmware([], [], [], { noMovie: true });
+    expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
+    const back = await (await Engine.open(raw)).inspect(built.file);
+    expect(back.verified).toBe(true);
+    expect(back.noMovie).toBe(true);
   }, 300_000);
 });

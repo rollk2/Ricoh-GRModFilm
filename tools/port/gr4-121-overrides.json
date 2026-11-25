@@ -378,5 +378,21 @@
  "0x55839044": {
   "new": "0x55839044",
   "reason": "the sbrk arena before the heap (0x55839040..0x55839080), same place in 1.21 (as 0x55839040, battery.ts): the movie shake reduction's margin byte"
+ },
+ "0x55839042": {
+  "new": "0x55839042",
+  "reason": "GR Mod Film's Hold buttons (holdbuttons.ts), free bytes of the sbrk arena 0x55839040..0x55839080 that GR Mod's own additions use too (0x55839040 .. 0x5583907c here): the arena and the heap are unchanged in 1.21"
+ },
+ "0x55839046": {
+  "new": "0x55839046",
+  "reason": "GR Mod Film's Hold buttons (holdbuttons.ts), free bytes of the sbrk arena 0x55839040..0x55839080 that GR Mod's own additions use too (0x55839040 .. 0x5583907c here): the arena and the heap are unchanged in 1.21"
+ },
+ "0x550832ac": {
+  "new": "0x550832ac",
+  "reason": "the user settings record, CURRENT() + 4 (CURRENT() 0x550832a8 is the same in 1.21): named in a comment of holdlines.ts"
+ },
+ "0x5318890c": {
+  "new": "0x53187df8",
+  "reason": "the controller factory's default case (holdlines.ts comment): aligned, 12 references agree, one reference of the default's own table disagrees"
  }
 }

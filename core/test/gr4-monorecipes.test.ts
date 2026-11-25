@@ -53,9 +53,18 @@ describe('GR IV Monochrome: black-and-white recipes', () => {
     // Without added slots there is nothing to make black and white.
     await expect(eng.buildFirmware([], [], [], { noMovie: true, monoRecipes: true })).rejects.toMatchObject({ code: 'bad-edit' });
   }, 600_000);
-  it.skipIf(!f120 || !existsSync(f120))('1.20: not offered, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)));
-    expect(eng.info.features.monoRecipes).toBeFalsy();
-    expect(() => eng.convertPreset('cube', grey, undefined, { mono: true })).toThrow(expect.objectContaining({ code: 'bad-edit' }));
+  it.skipIf(!f120 || !existsSync(f120))('1.20 (convergence step 2): two recipes, built, self-checked, read back', async () => {
+    const raw = new Uint8Array(readFileSync(f120!));
+    const eng = await Engine.open(raw);
+    expect(eng.info.features.monoRecipes).toBe(true);
+    const slots = [grey, redFilter].map((text, i) => {
+      const r = eng.convertPreset('cube', text, undefined, { mono: true });
+      return { name: `Mono ${i + 1}`, matrixQ13: r.matrixQ13, curves: r.curves, icon };
+    });
+    const built = await eng.buildFirmware([], [], [], { noMovie: true, extraSlots: slots, monoRecipes: true });
+    expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
+    const back = await (await Engine.open(raw)).inspect(built.file);
+    expect(back.verified).toBe(true);
+    expect(back.monoRecipes).toBe(true);
   }, 300_000);
 });

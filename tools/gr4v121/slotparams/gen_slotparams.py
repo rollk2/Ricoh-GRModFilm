@@ -48,6 +48,24 @@ NO_WRITE = '--no-record-write' in sys.argv
 # --define NAME (diagnosis builds only, repeatable): an extra #define for the module (DIAG_SAFE_STATE, DIAG_NO_STATE).
 DEFINES = [sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == '--define']
 STYLE_SETTERS = [0x532bc6d4, 0x532bc864, 0x532bc9f4, 0x532bcb84, 0x533062bc, 0x53306450, 0x533065e4, 0x53306778]
+# --release 1.20 (convergence step 2, docs/fusion-0.9.md): the same module for firmware 1.20, the 1.20 program's own copy
+# (core/src/fw/gr4v120/aspect); every 1.21 address here and in slot_params.c goes back through tools/port/gr4-121-map.json.
+RELEASE = sys.argv[sys.argv.index('--release') + 1] if '--release' in sys.argv else '1.21'
+if RELEASE not in ('1.20', '1.21'):
+    raise SystemExit('--release 1.20 or 1.21')
+TEXT_FILTER = lambda text: text
+if RELEASE == '1.20':
+    _map = json.loads((REPO / 'tools/port/gr4-121-map.json').read_text())['addresses']
+    _back = {int(e['new'], 16): int(k, 16) for k, e in _map.items() if e.get('ok') and e.get('new')}
+    def _to120(a):
+        if a not in _back:
+            raise SystemExit(f'no 1.20 address for 0x{a:08x}')
+        return _back[a]
+    SETTERS = [_to120(a) for a in SETTERS]
+    GETTERS = [_to120(a) for a in GETTERS]
+    STYLE_SETTERS = [_to120(a) for a in STYLE_SETTERS]
+    TARGET = REPO / ('core/src/fw/gr4v120/aspect/slotparams-mono-native.ts' if MONO else 'core/src/fw/gr4v120/aspect/slotparams-native.ts')
+    TEXT_FILTER = lambda text: re.sub(r'\b0x5[345][0-9a-fA-F]{6}\b', lambda m: f'0x{_to120(int(m.group(0), 16)):08x}', text)
 EXPORTS = (['sp_load', 'sp_save', 'sp_raw_init', 'sp_raw_own', 'sp_raw_sync'] + [f'sp_get_stub_{j}' for j in range(len(PARAMS))]
            + [f'sp_set_stub_{j}' for j in range(len(PARAMS))] + [f'sp_style_stub_{k}' for k in range(len(STYLE_SETTERS))])
 
@@ -81,7 +99,7 @@ def run(command):
 def compile_module(count, origin, bindings, relocs):
     with tempfile.TemporaryDirectory(prefix='grmod-slotparams-') as folder:
         d = Path(folder)
-        (d / 'm.c').write_text(f'#define SLOT_COUNT {count}\n' + ('#define MONO_LOOK 1\n' if MONO else '') + ('#define NO_RECORD_WRITE 1\n' if NO_WRITE else '') + ''.join(f'#define {n} 1\n' for n in DEFINES) + SOURCE.read_text(encoding='utf-8') + stubs(), encoding='utf-8')
+        (d / 'm.c').write_text(f'#define SLOT_COUNT {count}\n' + ('#define MONO_LOOK 1\n' if MONO else '') + ('#define NO_RECORD_WRITE 1\n' if NO_WRITE else '') + ''.join(f'#define {n} 1\n' for n in DEFINES) + TEXT_FILTER(SOURCE.read_text(encoding='utf-8')) + stubs(), encoding='utf-8')
         script = ' '.join(f'{name} = {value:#x};' for name, value in bindings.items())
         script += (f' SECTIONS {{ . = {origin:#x}; .text : {{ *(.text*) *(.rodata*) }} '
                    '/DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) } }')

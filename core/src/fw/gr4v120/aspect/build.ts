@@ -42,6 +42,13 @@ import { installFilmGrain } from './grain';
 import { installFlashTtl } from './flttl';
 import { installVideoAf } from './videoaf';
 import { installAwbLearn } from './awb2';
+import { installNoMovie, installNoMovieFn } from './nomovie';
+import { installKeyDiag } from './keydiag';
+import { installFnLists } from './fnlists';
+import { installHoldButtons } from './holdbuttons';
+import { HOLD_BYTES, MACRO_BYTE, installHoldLines, installMacroIcon } from './holdlines';
+import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
+import { installMonoCurve } from './monocurve';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
 import type { HalationLook } from './halation';
@@ -85,12 +92,24 @@ export const TEXT_SHIFT = 44;
 const TEXT_CAPACITY = 896 + TEXT_SHIFT;
 export const LANGUAGES = 21;
 const ROW_STRIDE = TEXT_CAPACITY * 4;
-const NATIVE_ICON_CATALOG = adr(0x55014280);
+export const NATIVE_ICON_CATALOG = adr(0x55014280);
 export const NATIVE_TEXT_ROOTS = adr(0x55002118);
 
 export const ORDER_SITES = [adr(0x531bc4c0), adr(0x531bc7a4), adr(0x531bf854), adr(0x531d254c), adr(0x531d4894), adr(0x531d620c), adr(0x5325ca8c)] as const;
 export const COUNT_SITES = [adr(0x531bb684), adr(0x531d0a74)] as const;
 const FACTORY_ORDER = [0, 1, 3, 2] as const;
+/** GR Mod Film 1.3.5: the official order table (4 bytes, `00 01 03 02`), read only at ORDER_SITES (research of 2026-11-24). */
+export const FACTORY_ORDER_TABLE = adr(0x53de5890);
+/** The default menu order of a build with these added ratios. */
+export function defaultRatioOrder(ratios: readonly { id: number }[]): number[] {
+  return [...FACTORY_ORDER, ...ratios.map((r) => r.id)];
+}
+/** A menu order must hold every factory identity and every added one, each once. */
+function checkRatioOrder(order: readonly number[], ratios: readonly { id: number }[]): void {
+  const want = [...defaultRatioOrder(ratios)].sort((a, b) => a - b);
+  const got = [...order].sort((a, b) => a - b);
+  if (got.length !== want.length || got.some((v, i) => v !== want[i])) fail('bad-edit', 'the ratio order must name every ratio once');
+}
 /** First identity given to an added ratio (4-6 belong to earlier versions of the reference tool). */
 export const FIRST_CUSTOM_ID = 7;
 export const MAX_CUSTOM_RATIOS = 8;
@@ -176,6 +195,18 @@ export interface ExtensionFeatures {
   exposurePreview?: boolean;
   /** 0.8.11: soft focus (with `adjSoftFocus`) also a line of the still menu (`exposure.ts`). */
   softFocusMenu?: boolean;
+  /** GR Mod Film 1.2: the movie taken out: its tab hidden, the mode never entered (see `nomovie.ts`). */
+  noMovie?: boolean;
+  /** GR Mod Film 1.2: every function on every button, the Hold lines, the Macro Button line and ADJ Red Filter (`holdlines.ts`, `holdbuttons.ts`, `fnlists.ts`, `adjredfilter.ts`). */
+  customButtons?: boolean;
+  /** GR Mod Film 1.3: the added slots are black-and-white recipes on Monochrome Standard (GR IV Monochrome; `slots.ts` with `mono`). */
+  monoRecipes?: boolean;
+  /**
+   * GR Mod Film 1.3.5: the Aspect Ratio menu's order (its two lists and the Fn cycle), as identities: the factory 0 (3:2),
+   * 1 (4:3), 2 (16:9), 3 (1:1) and the added ratios (7, 8, ...), each once. Absent: 3:2, 4:3, 1:1, 16:9, then the added ones.
+   * The in-camera RAW development keeps its own order.
+   */
+  ratioOrder?: readonly number[];
   /** The battery icon shows the charge in steps of 10 % instead of the bars (see `battery.ts`). */
   batteryPercent?: boolean;
   /** Which lines the camera's 3x3 and 4x4 grid styles draw, each on or off (see `grid.ts`); never the camera's own grids. */
@@ -222,6 +253,10 @@ export interface TestOptions {
    * (FRAME_LOOK) and that status on every wide picture.
    */
   halationDiag?: boolean;
+  /** GR Mod Film 1.2: the last key codes (see `keydiag.ts`), printed by the date imprint; needs the date imprint, no guard. */
+  keyDiag?: boolean;
+  /** GR IV Monochrome recipes, test M3a (`monocurve.ts`): one black-and-white factory look (25..30) gets this tone curve (256 values 0..16383). */
+  monoCurve?: { style: number; curve: readonly number[]; path?: 'own' | 'standard' | 'linear' };
   /** HDR gain map: an APP15 segment with the module's counters in every JPEG. */
   hdrDiag?: boolean;
   /** Battery percentage: "?" and "!" instead of the camera's icon when the report is missing or disagrees with the bars. */
@@ -511,8 +546,7 @@ export function utf16z(text: string): Uint8Array {
   return out;
 }
 
-function installMenu(patch: Patch, ratios: readonly RatioEntry[], iconIds: ReadonlyMap<number, number>): { activeBitmap: number } {
-  const order = [...FACTORY_ORDER, ...ratios.map((r) => r.id)];
+function installMenu(patch: Patch, ratios: readonly RatioEntry[], iconIds: ReadonlyMap<number, number>, order: readonly number[] = defaultRatioOrder(ratios)): { activeBitmap: number } {
   const allIds = [0, 1, 2, 3, ...ratios.map((r) => r.id)];
   const count = order.length;
   const orderAt = patch.append(Uint8Array.from(order), 16);
@@ -1126,7 +1160,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   const shutdown = features.shutdown && features.shutdown.pictures.length > 0 ? features.shutdown : undefined;
   const cinema = (['CY', 'CG'] as const).filter((id) => features.cinemaHalation?.[id] === true);
   const adjSlots = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
-  const extra = !!features.brightAuto || !!features.exposurePreview || !!features.adjSoftFocus || !!features.dateStamp || !!features.monoUnlock || slots.length > 0 || !!shutdown || !!features.guard || cinema.length > 0 || !!features.directFlash || adjSlots > 0 || !!features.hdrGainMap || !!features.batteryPercent || !!features.customGrid || !!features.ratioShade || !!features.shadowLearn || !!features.filmGrain || !!features.flashTtl || !!features.videoAf || !!features.awbLearn || !!features.movieExposure || !!features.sensorShift || !!features.movie4k || !!features.movieSr || !!features.constantLight;
+  const extra = !!features.brightAuto || !!features.exposurePreview || !!features.adjSoftFocus || !!features.dateStamp || !!features.monoUnlock || slots.length > 0 || !!shutdown || !!features.guard || cinema.length > 0 || !!features.directFlash || adjSlots > 0 || !!features.hdrGainMap || !!features.batteryPercent || !!features.customGrid || !!features.ratioShade || !!features.shadowLearn || !!features.filmGrain || !!features.flashTtl || !!features.videoAf || !!features.awbLearn || !!features.movieExposure || !!features.sensorShift || !!features.movie4k || !!features.movieSr || !!features.constantLight || !!features.noMovie || !!features.customButtons || !!features.ratioOrder;
   if (features.customGrid && (!validCustomGrid(features.customGrid) || isCameraGrid(features.customGrid))) fail('internal', 'a custom grid must differ from the camera’s');
   if (features.ratioShade && ratios.length === 0) fail('internal', 'the live-view shade needs an added ratio');
   if (features.ratioShadeTone !== undefined && features.ratioShadeTone !== 'dark') fail('bad-edit', 'the live-view shade is chosen in the camera menu on this firmware');
@@ -1149,17 +1183,28 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   if (features.movieExposure !== undefined && typeof features.movieExposure !== 'boolean') fail('bad-edit', 'movieExposure must be boolean');
   if (features.constantLight !== undefined && typeof features.constantLight !== 'boolean') fail('bad-edit', 'constantLight must be boolean');
   for (const name of ['sensorShift', 'movie4k', 'movieSr'] as const) if (features[name] !== undefined && typeof features[name] !== 'boolean') fail('bad-edit', `${name} must be boolean`);
+  if (features.ratioOrder) checkRatioOrder(features.ratioOrder, ratios);
+  // Fn function 46 is GR Mod Film's Macro Mode (`holdlines.ts`, kept for the Hold settings cameras already hold) and GR Mod 0.9's
+  // Sensor Shift (`shift.ts`): one or the other (convergence step 2, docs/fusion-0.9.md).
+  if (features.customButtons && features.sensorShift) fail('bad-edit', 'Sensor Shift and the custom buttons both use Fn function 46');
   const patch = new Patch(rtos);
   const ramCopy = new DataView(patch.read(BASE + 0x450, 12).buffer);
   if (ramCopy.getUint32(0, true) !== RAM.source || ramCopy.getUint32(4, true) !== RAM.destination || ramCopy.getUint32(8, true) !== RAM.length) {
     fail('unexpected-layout', 'start-up data copy is not where it was expected');
   }
   initializeScaffold(patch);
+  // GR Mod Film: before everything that copies the menu descriptors (the wide menus): the movie tab's is changed in place.
+  if (features.noMovie) installNoMovie(patch);
+  let holdFilter = 0;
+  if (features.customButtons) {
+    holdFilter = installHoldButtons(patch, [0, 0, 0, 0, 0], { hold: HOLD_BYTES, macro: MACRO_BYTE });
+  }
   let icons = iconbin;
+  if (features.customButtons) icons = installMacroIcon(patch, icons);
   if (ratios.length > 0) {
-    const installed = installIcons(patch, iconbin, ratios);
+    const installed = installIcons(patch, icons, ratios);
     icons = installed.iconbin;
-    const menu = installMenu(patch, ratios, installed.ids);
+    const menu = installMenu(patch, ratios, installed.ids, features.ratioOrder ?? defaultRatioOrder(ratios));
     const { p, get, scale } = buildGeometry(patch, ratios);
     installDevelop(p, scale, ratios);
     // Test 084: how dark is chosen in the camera menu (`viewmenu.ts`); the tone of 1.11 does not apply.
@@ -1171,6 +1216,11 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
     installState(patch, ratios, menu.activeBitmap);
     installImageIdentity(patch, ratios);
     if (revision >= 2) installPlaybackDecode(patch);
+  } else if (features.ratioOrder) {
+    // GR Mod Film 1.3.5. No added ratio: the four factory ones reordered in the official table itself (every reader goes by identity).
+    if (patch.word(FACTORY_ORDER_TABLE) !== 0x02030100) fail('unexpected-layout', 'the ratio order table is not the official one');
+    const o = features.ratioOrder;
+    patch.setWord(FACTORY_ORDER_TABLE, (o[0] | (o[1] << 8) | (o[2] << 16) | (o[3] << 24)) >>> 0, 'Aspect Ratio menu order');
   }
   // 0.8.11: exposure preview as a setting, soft focus's line in the still menu (test 080; the still
   // menu then has more than 38 lines: `menuwide.ts`).
@@ -1180,6 +1230,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   if (ep && test.exposurePreviewOff) fail('internal', 'exposure preview: the setting or always off, not both');
   // The last ADJ lever function: the camera's 0x14, then exposure preview's, Constant Light's and Sensor Shift's.
   const lastAdj = 0x14 + (ep ? 1 : 0) + (features.constantLight ? 1 : 0) + (features.sensorShift ? 1 : 0);
+  if (features.customButtons) icons = installAdjRedFilterIcon(patch, icons);
   if (features.adjSoftFocus) icons = installAdjSoftFocus(patch, icons, lastAdj);
   // Test 084: the custom grids as values of the Grid Style list (its record in place, before any
   // addition copies the list table), their texts and icons, and the shade's.
@@ -1206,13 +1257,15 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   const shift = features.sensorShift ? installShiftCore(patch) : null;
   if (shift) icons = installShiftAssets(patch, icons);
   if (features.movieSr) icons = installMovieSrAssets(patch, icons);
+  if (test.monoCurve) installMonoCurve(patch, test.monoCurve.style, test.monoCurve.curve, test.monoCurve.path ?? 'own');
   if (features.dateStamp) {
     const fixed = test.dateStampFixed;
     // From 0.8.2 (builds with the guard) the imprint goes by the picture's look.
     const look = features.guard ? { stash: LOOK_STASH, monoLooks: monoTable(patch, slots.map((x) => monoLook(x.matrixQ13, x.curves, x.postQ9)), FIRST_ADDED_LOOK), names: lookNames(patch, slots.map((x) => x.name)) } : undefined;
     // Halation diagnostics: words[0] the picture's look word (FRAME_LOOK), words[1] the module's status (HALATION_STATUS_WORD).
     if (test.halationDiag && FRAME_LOOK + 4 !== HALATION_STATUS_WORD) fail('internal', 'halation diagnostics: the two words are not next to each other');
-    installDateStamp(patch, fixed ? patch.append([fixed, 0, 0, 0], 4) : DATESTAMP_BYTE, test.halationDiag ? { words: FRAME_LOOK } : test.directFlashDiag && features.directFlash ? 'df' : !!test.dateStampDiag, look);
+    installDateStamp(patch, fixed ? patch.append([fixed, 0, 0, 0], 4) : DATESTAMP_BYTE, test.halationDiag || test.keyDiag ? { words: FRAME_LOOK } : test.directFlashDiag && features.directFlash ? 'df' : !!test.dateStampDiag, look);
+    if (test.keyDiag) { if (look) fail('internal', 'key diagnostics: build without the guard'); installKeyDiag(patch, holdFilter); }
     if (!fixed) icons = installDateStampMenu(patch, icons, stillLines);
     if (look && slots.length === 0) installLookStash(patch);
   }
@@ -1230,7 +1283,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
     halation.push({ style, light: colour.ownCurves ? halationLight(colour.curves, colour.postQ9) : halationLight() });
   }
   // Last: the added slots compose with the monochrome looks' visibility check.
-  if (slots.length > 0) icons = installExtraSlots(patch, icons, slots, { stashLook: (!!features.dateStamp && !!features.guard) || halation.length > 0, layout: features.lookLayout });
+  if (slots.length > 0) icons = installExtraSlots(patch, icons, slots, { stashLook: (!!features.dateStamp && !!features.guard) || halation.length > 0, layout: features.lookLayout, mono: !!features.monoRecipes });
   else if (features.lookLayout) {
     validateLookLayout(features.lookLayout, 0);
     installLookOrder(patch, features.lookLayout.order);
@@ -1256,10 +1309,19 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   // Sensor Shift on the ADJ lever (one more function, the last) and as an Fn function (after Constant Light's, which copies the lists first).
   const adjTable = shift ? installShiftAdj(patch, shift, shiftAdjFunction(!!ep, !!lamp)) : lampTable;
   if (shift) installShiftFn(patch, shift);
+  // GR Mod Film: the Hold and Macro Button lines' lists, after the additions that copy the list table and hook the controller
+  // factory, and after Constant Light's Fn function, whose name and icon lookups it chains to.
+  if (features.noMovie) installNoMovieFn(patch);
+  if (features.customButtons) {
+    installFnLists(patch, true);
+    installHoldLines(patch);
+  }
   // The movie menu: Movie SR's three values; Frame Rate / Resolution (a submenu and a list more, after the others).
   if (features.movieSr) installMovieSr(patch, shift);
   if (features.movie4k) installMovie4k(patch);
   // ADJ lever slots: after the other additions that copy the submenu or list table (it adds records the same way).
+  // GR Mod Film: ADJ Red Filter, after soft focus, exposure preview, Constant Light and Sensor Shift, whose hooks and tables it chains to.
+  if (features.customButtons) installAdjRedFilter(patch, adjTable || undefined);
   if (adjSlots > 0) installAdjSlots(patch, adjSlots, adjTable ? { functionTable: adjTable, lastFunction: lastAdj } : {});
   if (ep) installExposurePreviewLive(patch, ep);
   else if (test.exposurePreviewOff) installExposurePreviewOff(patch);
@@ -1287,11 +1349,12 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   if (features.awbLearn) installAwbLearn(patch);
   // Very last: the zero fill over the sbrk arena; the additions above expect it at 0x55839040 or its official end.
   // (Movie AF and the learned white balance keep their state pointers in the arena: they need the zero fill there too.)
-  if (features.batteryPercent || features.videoAf || features.awbLearn || features.constantLight || features.sensorShift || features.movieSr || features.movie4k) extendBatteryZeroFill(patch);
+  // (GR Mod Film: the Hold buttons keep their state there too, `holdbuttons.ts`.)
+  if (features.customButtons || features.batteryPercent || features.videoAf || features.awbLearn || features.constantLight || features.sensorShift || features.movieSr || features.movie4k) extendBatteryZeroFill(patch);
   // Exposure modes for movies: after everything, so that a build with it differs from the one without only by its
   // own words (and the record of the additions).
   if (features.movieExposure) installMovieExposure(patch);
   if (patch.length % 4 !== 0) fail('internal', 'image length is not a multiple of 4');
   if (BASE + patch.length >= APPEND_LIMIT) fail('too-many-ratios', 'the appended area would reach the RAM area');
-  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { ...(features.brightAuto ? { brightAuto: features.brightAuto === 'balanced' ? 'balanced' as const : 'bright' as const } : {}), adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}), ...(features.hdrGainMap ? { hdrGainMap: true } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.exposurePreview ? { exposurePreview: true } : {}), ...(features.softFocusMenu ? { softFocusMenu: true } : {}), ...(features.batteryPercent ? { batteryPercent: true } : {}), ...(features.customGrid ? { customGrid: features.customGrid } : {}), ...(features.ratioShade ? { ratioShade: true } : {}), ...(features.shadowLearn ? { shadowLearn: true } : {}), ...(features.filmGrain ? { filmGrain: true } : {}), ...(features.flashTtl ? { flashTtl: true } : {}), ...(features.videoAf ? { videoAf: true } : {}), ...(features.awbLearn ? { awbLearn: true } : {}), ...(features.movieExposure ? { movieExposure: true } : {}), ...(features.sensorShift ? { sensorShift: true } : {}), ...(features.movie4k ? { movie4k: true } : {}), ...(features.movieSr ? { movieSr: true } : {}), ...(features.constantLight ? { constantLight: true } : {}) } };
+  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { ...(features.brightAuto ? { brightAuto: features.brightAuto === 'balanced' ? 'balanced' as const : 'bright' as const } : {}), adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}), ...(features.hdrGainMap ? { hdrGainMap: true } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.exposurePreview ? { exposurePreview: true } : {}), ...(features.softFocusMenu ? { softFocusMenu: true } : {}), ...(features.batteryPercent ? { batteryPercent: true } : {}), ...(features.customGrid ? { customGrid: features.customGrid } : {}), ...(features.ratioShade ? { ratioShade: true } : {}), ...(features.shadowLearn ? { shadowLearn: true } : {}), ...(features.filmGrain ? { filmGrain: true } : {}), ...(features.flashTtl ? { flashTtl: true } : {}), ...(features.videoAf ? { videoAf: true } : {}), ...(features.awbLearn ? { awbLearn: true } : {}), ...(features.movieExposure ? { movieExposure: true } : {}), ...(features.sensorShift ? { sensorShift: true } : {}), ...(features.movie4k ? { movie4k: true } : {}), ...(features.movieSr ? { movieSr: true } : {}), ...(features.constantLight ? { constantLight: true } : {}) , ...(features.noMovie ? { noMovie: true } : {}), ...(features.customButtons ? { customButtons: true } : {}), ...(features.monoRecipes && slots.length > 0 ? { monoRecipes: true } : {}), ...(features.ratioOrder ? { ratioOrder: [...features.ratioOrder] } : {}) } };
 }

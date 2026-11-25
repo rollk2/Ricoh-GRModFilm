@@ -17,7 +17,7 @@ import * as names120 from '../src/fw/gr4v120/names';
 // @ts-ignore the 1.21 overlay: the same module on 1.21's addresses (core/overlays.mjs)
 import * as names121 from '../src/fw/gr4v121/names';
 import { testRatios } from './fw-helpers/test-firmware';
-import { upstream121 } from './fw-helpers/fusion';
+import { SENSOR_SHIFT, upstream121 } from './fw-helpers/fusion';
 
 const files = [['1.20', process.env.GRMOD_GR4_120_FIRMWARE], ['1.21', process.env.GRMOD_GR4_121_FIRMWARE]].filter(([r, f]) => upstream121(r!) && !!f && existsSync(f)) as [string, string][];
 const file111 = new URL('../testdata/private/official.bin', import.meta.url);
@@ -73,7 +73,7 @@ describe.each(files)('The movie menu additions: GR IV %s', (release, path) => {
     expect(s.movieSr).toBeUndefined();
   });
 
-  it('build together, with Sensor Shift and with everything else', async () => {
+  it.skipIf(!SENSOR_SHIFT)('build together, with Sensor Shift and with everything else', async () => {
     const eng = await Engine.open(official);
     const both = await eng.buildFirmware([], [], [], { movie4k: true, movieSr: true, sensorShift: true });
     expect((await eng.inspect(both.file)).verified).toBe(true);

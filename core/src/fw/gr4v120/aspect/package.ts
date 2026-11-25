@@ -120,6 +120,17 @@ const FEATURE4_CONSTANT_LIGHT = 1;
 const FEATURE4_SENSOR_SHIFT = 2;
 const FEATURE4_MOVIE_4K = 4;
 const FEATURE4_MOVIE_SR = 8;
+/**
+ * Fourth feature byte, GR Mod Film's bits (convergence step 2, docs/fusion-0.9.md): bit 4 no movie (`nomovie.ts`), bit 5 the
+ * buttons' functions (Fn lists, Hold lines, Macro Button, ADJ Red Filter), bit 6 the added slots are black-and-white recipes
+ * (`slots.ts` `mono`), bit 7 the Aspect Ratio menu order, then `u8 n` and its n identities after the fourth byte. GR Mod Film
+ * 1.2 .. 1.3.5 wrote the first three in the second byte (bits 5..7, which GR Mod 0.9 gave to its own additions since) and
+ * the order in a third byte of its own: their files are recognised by their frozen program (`fw/gr4v121film`).
+ */
+const FEATURE4_NO_MOVIE = 16;
+const FEATURE4_CUSTOM_BUTTONS = 32;
+const FEATURE4_MONO_RECIPES = 64;
+const FEATURE4_RATIO_ORDER = 128;
 
 /**
  * `u8 count, then per ratio: u8 length + ratio text, u8 length + name`, (revision 3: `u8 features`),
@@ -152,7 +163,11 @@ function encodeRecord(specs: readonly RatioSpec[], revision: BuildRevision, feat
   if (tone !== 'dark' && !features.ratioShade) fail('internal', 'a shade tone needs the live-view shade');
   if (features.ratioShade && specs.length === 0) fail('internal', 'the live-view shade needs an added ratio');
   const f3 = (features.ratioShade ? FEATURE3_RATIO_SHADE : 0) | (tone === 'light' ? FEATURE3_SHADE_LIGHT : 0) | (features.batteryPercent ? FEATURE3_BATTERY : 0) | (features.customGrid ? FEATURE3_CUSTOM_GRID : 0) | (features.flashTtl ? FEATURE3_FLASH_TTL : 0) | (features.videoAf ? FEATURE3_VIDEO_AF : 0) | (features.awbLearn ? FEATURE3_AWB_LEARN : 0) | (features.movieExposure ? FEATURE3_MOVIE_EXPOSURE : 0);
-  const f4 = (features.constantLight ? FEATURE4_CONSTANT_LIGHT : 0) | (features.sensorShift ? FEATURE4_SENSOR_SHIFT : 0) | (features.movie4k ? FEATURE4_MOVIE_4K : 0) | (features.movieSr ? FEATURE4_MOVIE_SR : 0);
+  const f4 = (features.constantLight ? FEATURE4_CONSTANT_LIGHT : 0) | (features.sensorShift ? FEATURE4_SENSOR_SHIFT : 0) | (features.movie4k ? FEATURE4_MOVIE_4K : 0) | (features.movieSr ? FEATURE4_MOVIE_SR : 0)
+    | (features.noMovie ? FEATURE4_NO_MOVIE : 0) | (features.customButtons ? FEATURE4_CUSTOM_BUTTONS : 0) | (features.monoRecipes ? FEATURE4_MONO_RECIPES : 0)
+    | (features.ratioOrder ? FEATURE4_RATIO_ORDER : 0);
+  const order = features.ratioOrder;
+  if (order && (revision < 3 || order.length < 4 || order.length > 255 || order.some((v) => !(Number.isInteger(v) && v >= 0 && v < 256)))) fail('internal', 'ratio order cannot be recorded');
   if (features.brightAuto || features.hdrGainMap || (features.adjSlots && features.adjSlots > 5) || features.exposurePreview || features.softFocusMenu || features.shadowLearn || features.filmGrain || f3 || f4) {
     if (revision < 3) fail('internal', 'the HDR gain map, ADJ slots, bright Auto, exposure preview, the soft focus line, the learned shadow correction, the film grain and the third and fourth feature bytes need revision 3');
     const adj = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
@@ -163,6 +178,7 @@ function encodeRecord(specs: readonly RatioSpec[], revision: BuildRevision, feat
     if (f3 || f4) bytes.push(f3);
     if (features.customGrid) bytes.push(gridByte(features.customGrid.g3), gridByte(features.customGrid.g4));
     if (f4) bytes.push(f4);
+    if (order) bytes.push(order.length, ...order);
   }
   while (bytes.length % 4) bytes.push(0);
   return Uint8Array.from(bytes);
@@ -294,7 +310,17 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
         const f4 = p < rec.length ? rec[p] : 0;
         if (f4 !== 0) {
           p++;
-          if ((f4 & ~(FEATURE4_CONSTANT_LIGHT | FEATURE4_SENSOR_SHIFT | FEATURE4_MOVIE_4K | FEATURE4_MOVIE_SR)) !== 0) return null;
+          if ((f4 & ~(FEATURE4_CONSTANT_LIGHT | FEATURE4_SENSOR_SHIFT | FEATURE4_MOVIE_4K | FEATURE4_MOVIE_SR | FEATURE4_NO_MOVIE | FEATURE4_CUSTOM_BUTTONS | FEATURE4_MONO_RECIPES | FEATURE4_RATIO_ORDER)) !== 0) return null;
+          if (f4 & FEATURE4_NO_MOVIE) features.noMovie = true;
+          if (f4 & FEATURE4_CUSTOM_BUTTONS) features.customButtons = true;
+          if (f4 & FEATURE4_MONO_RECIPES) features.monoRecipes = true;
+          if (f4 & FEATURE4_RATIO_ORDER) {
+            if (p >= rec.length) return null;
+            const n = rec[p++];
+            if (!(n >= 4) || p + n > rec.length) return null;
+            features.ratioOrder = [...rec.subarray(p, p + n)];
+            p += n;
+          }
           if (f4 & FEATURE4_CONSTANT_LIGHT) features.constantLight = true;
           if (f4 & FEATURE4_SENSOR_SHIFT) features.sensorShift = true;
           if (f4 & FEATURE4_MOVIE_4K) features.movie4k = true;
@@ -302,7 +328,7 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
         } else if (f3 === 0) return null;
       }
     }
-    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.exposurePreview && !features.brightAuto && !features.batteryPercent && !features.customGrid && !features.shadowLearn && !features.filmGrain && !features.flashTtl && !features.videoAf && !features.awbLearn && !features.movieExposure && !features.sensorShift && !features.movie4k && !features.movieSr && !features.constantLight) return null;
+    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.exposurePreview && !features.brightAuto && !features.batteryPercent && !features.customGrid && !features.shadowLearn && !features.filmGrain && !features.flashTtl && !features.videoAf && !features.awbLearn && !features.movieExposure && !features.sensorShift && !features.movie4k && !features.movieSr && !features.constantLight && !features.noMovie && !features.customButtons && !features.ratioOrder) return null;
   }
   for (; p < rec.length; p++) if (rec[p] !== 0) return null;
   return { specs: out, features, extraSlots, shutdownPictures };

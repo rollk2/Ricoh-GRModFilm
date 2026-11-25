@@ -8,6 +8,7 @@ lookups (18 changed, every other function as in the official file), ADJ Mode Set
 Monochrome only, registers kept) and that no other record of the table changed.
 """
 import argparse, struct
+OTHERS = False
 from unicorn import *
 from unicorn.arm_const import *
 
@@ -72,7 +73,7 @@ def verify(official, built):
     to = table_of(do)   # the reference (the official file, or a build with the same features but without the custom buttons)
     for f in range(21):
         same = all(x == y or (x >= 0x54000000 and y >= 0x54000000) for x, y in zip(rec(do, f, to), rec(db, f, tb)))   # code the other additions appended sits at other addresses
-        assert same == (f != 18), ('record', f)
+        assert same == (f != 18) or (OTHERS and f != 18), ('record', f)
     r = rec(db, 18, tb)
     draw, cur, st, cnt = r[6], r[8], r[10], r[12]
     assert r[4] == rec(do, 19, to)[4] and r[15] == 0, 'record base'
@@ -89,10 +90,10 @@ def verify(official, built):
     # name and icon: function 18 changed, every other function as in the official file
     for f in range(0, 22):
         no, _ = call(uo, 0x5338fd34, (0x1000, f)); nb, _ = call(ub, 0x5338fd34, (0x1000, f))
-        assert (nb == 155) if f == 18 else (nb == no), ('name', f, no, nb); ok('name')
+        assert (nb == 155) if f == 18 else (nb == no or OTHERS), ('name', f, no, nb); ok('name')
         for variant in (0, 1):
             io, _ = call(uo, 0x533916f0, (0x1000, f, variant)); ib, _ = call(ub, 0x533916f0, (0x1000, f, variant))
-            assert (ib == (738 if variant == 0 else 0)) if f == 18 else (ib == io), ('icon', f, variant, io, ib); ok('icon')
+            assert (ib == (1200 if variant == 0 else 0)) if f == 18 else (ib == io or OTHERS), ('icon', f, variant, io, ib); ok('icon')
     # the list's length (stub at 0x531dce68): r4 = list, r6 = r4 + length; registers kept
     w = struct.unpack_from('<I', db, 0x531dce68 - B)[0]; stub = 0x531dce68 + 8 + (((w & 0xffffff) << 8 >> 8) * 4)
     base = next(x & 0xff for x in struct.unpack_from('<12I', db, stub - B) if (x & 0xffffff00) == 0xe2846000)   # add r6, r4, #length
@@ -118,10 +119,13 @@ def verify(official, built):
     lo_ = struct.unpack_from('<I', do, 0x531dce3c - B)[0]; hi_ = struct.unpack_from('<I', do, 0x531dce4c - B)[0]
     at_o = ((hi_ & 0xfff) | ((hi_ >> 4) & 0xf000)) << 16 | ((lo_ & 0xfff) | ((lo_ >> 4) & 0xf000))
     wo = struct.unpack_from('<I', do, 0x531dce68 - B)[0]; n_o = wo & 0xff
-    assert lst[base] == 18 and lst[:base] == list(do[at_o - B:at_o - B + n_o]) and base == n_o, lst; ok('list')
+    assert lst[base] == 18 and (OTHERS or (lst[:base] == list(do[at_o - B:at_o - B + n_o]) and base == n_o)) and 18 not in lst[:base], lst; ok('list')
     return n
 
 
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser(); ap.add_argument('--official', required=True); ap.add_argument('--built', required=True); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('--official', required=True); ap.add_argument('--built', required=True)
+    # --others: the build has other ADJ additions (Direct Flash, exposure preview, Constant Light...): only function 18 is checked.
+    ap.add_argument('--others', action='store_true'); a = ap.parse_args()
+    OTHERS = a.others
     print('ok', verify(a.official, a.built))

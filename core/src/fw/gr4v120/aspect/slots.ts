@@ -37,6 +37,8 @@ import { linkModule } from './native-link';
 import { FRAME_LOOK, STASH_ASM, installLookStash } from './lookstash';
 import { installExposureOrientation } from './datestamp';
 import { SLOT_PARAMETERS, SLOT_PARAMS_MODULE } from './slotparams-native';
+import { MONO_SLOT_PARAMETERS, MONO_SLOT_PARAMS_MODULE } from './slotparams-mono-native';
+import type { NativeModule } from './native';
 import { HALATION_COLOUR_NAMES, HALATION_LOOKS, HALATION_NAMES, halationColourIcon, halationColourScale, halationIcon, installHalationModule, readHalation } from './halation';
 import { installHalationClamps, installHalationUi } from './halation-ui';
 import type { HalationLook } from './halation';
@@ -297,23 +299,34 @@ function swap(p: Patch, at: number, before: string, after: string, reason: strin
  * Install `slots` (1..MAX_EXTRA_SLOTS) into an RTOS image that already has the scaffold of
  * `build.ts` (extended catalogs), appending their icons to `iconbin`. Returns the new ICONBIN data.
  */
-export function installExtraSlots(p: Patch, iconbin: Uint8Array, slots: readonly ExtraSlotSpec[], options: { stashLook?: boolean; layout?: LookLayout } = {}): Uint8Array {
+export function installExtraSlots(p: Patch, iconbin: Uint8Array, slots: readonly ExtraSlotSpec[], options: { stashLook?: boolean; layout?: LookLayout; mono?: boolean } = {}): Uint8Array {
+  ref = options.mono ? monoRef() : colourRef();
   const count = slots.length;
   if (!(count >= 1 && count <= MAX_EXTRA_SLOTS)) fail('too-many-slots', `1 to ${MAX_EXTRA_SLOTS} slots can be added`);
   if (p.textBoundSites.length === 0) fail('internal', 'the catalog scaffold is not installed');
   const tableWord = (table: number, variant: number, tone: number): number => wordOf(p.readMapped(table + 4 * (variant * TONES + tone), 4));
-  for (const [table] of TABLES) {
-    const cy = tableWord(table, 0, CY);
-    for (let v = 1; v < VARIANTS; v++) if (tableWord(table, v, CY) !== cy) fail('unexpected-layout', 'Cinema Yellow differs between camera variants');
+  const gammaColumn = ref.mono ? HIGH_CONTRAST_COLUMN : ref.column;
+  for (const [table] of TABLES) for (const column of [ref.column, gammaColumn]) {
+    const cy = tableWord(table, 0, column);
+    for (let v = 1; v < VARIANTS; v++) if (tableWord(table, v, column) !== cy) fail('unexpected-layout', 'the reference look differs between camera variants');
   }
-  const rec = tableWord(TONE_TABLE, 0, CY);
-  const ma = tableWord(MA_TABLE, 0, CY);
-  const ycc = tableWord(YCC_TABLE, 0, CY);
-  const gamma = tableWord(GAMMA_TABLE, 0, CY);
+  const rec = tableWord(TONE_TABLE, 0, ref.column);
+  const ma = tableWord(MA_TABLE, 0, ref.column);
+  const ycc = tableWord(YCC_TABLE, 0, ref.column);
+  const gamma = tableWord(GAMMA_TABLE, 0, gammaColumn);
   const recTemplate = p.readMapped(rec, TONE_RECORD);
   const maTemplate = p.readMapped(ma, MA_RECORD);
   const descTemplate = p.readMapped(gamma, GAMMA_DESC);
-  if (!(descTemplate[4] === 1)) fail('unexpected-layout', 'Cinema Yellow gamma descriptor is not what was expected');
+  if (!(descTemplate[4] === 1)) fail('unexpected-layout', 'the template gamma descriptor is not what was expected');
+  // Black-and-white recipes: the curve after a neutral base curve (Solarized's plain table format), so that it receives what Standard's
+  // curves receive (test M3a-6; High Contrast's base curve brightens and saturates the highlights).
+  let neutralBase = 0;
+  if (ref.mono) {
+    const solarized = wordOf(p.readMapped(wordOf(p.readMapped(GAMMA_TABLE + 4 * SOLARIZED_COLUMN, 4)), 4));
+    const head = new DataView(p.readMapped(solarized, 8).buffer);
+    if ([0, 2, 4, 6].map((o) => head.getUint16(o, true)).join(',') !== '257,257,1,0') fail('unexpected-layout', 'Solarized\'s base curve is not a plain table');
+    neutralBase = p.append(concat([u16le([257, 257, 1, 0]), u16le(Array.from({ length: 257 }, (_, i) => Math.min(16383, i * 64)))]), 4);
+  }
   // Standard: its multi-axis block (neutral) and the post-curve array every factory style shares.
   const stdRec = tableWord(TONE_TABLE, 0, STANDARD);
   const shared = wordOf(p.readMapped(stdRec + POST_WORD, 4));
@@ -328,6 +341,8 @@ export function installExtraSlots(p: Patch, iconbin: Uint8Array, slots: readonly
   slots.forEach((s, k) => {
     const problem = validateExtraSlotName(s.name);
     if (problem) fail('bad-name', `added slot ${k + 1}: name is ${problem}`);
+    if (ref.mono && (Array.from(s.matrixQ13).join(',') !== '8192,0,0,0,8192,0,0,0,8192' || s.postQ9 !== undefined || s.hueQ10 !== undefined || s.halation))
+      fail('bad-color', `added slot ${k + 1}: a black-and-white recipe has no colour (identity matrix, no post matrix, hue or halation)`);
     const mBytes = matrixBytes(k, s.matrixQ13);
     if (!s.curves || s.curves.length !== 3) fail('bad-color', `added slot ${k + 1}: curves must be [R, G, B]`);
     const cBytes = s.curves.map((c) => curveBytes(k, c));
@@ -341,8 +356,9 @@ export function installExtraSlots(p: Patch, iconbin: Uint8Array, slots: readonly
     const desc = descTemplate.slice();
     desc[5] = 0; // the curves apply as they are, not through Cinema's tone parameter
     curves.forEach((a, i) => new DataView(desc.buffer).setUint32(8 + i * 4, a, true));
+    if (ref.mono) new DataView(desc.buffer).setUint32(0, neutralBase, true);
     const gammaNew = p.append(desc, 4);
-    let post = shared;
+    let post = ref.mono ? wordOf(recTemplate, POST_WORD) : shared;
     if (s.postQ9 !== undefined) {
       const at = p.next(4);
       post = p.append(postArray(p, k, shared, s.postQ9, at), 4);
@@ -404,7 +420,7 @@ export function installExtraSlots(p: Patch, iconbin: Uint8Array, slots: readonly
   // halation or the date imprint by look, the frame's style and Toning (halation) level are also
   // left for the JPEG step (see lookstash.ts).
   const stash = options.stashLook ? STASH_ASM : '';
-  hook(p, adr(0x53939148), 0xe5d3279c, `${stash}ldrb r2,[r3,#0x79c];sub ip,r2,#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};movls r2,#${CY};b #${adrHex(0x5393914c)}`, 'added slots: Cinema input fields');
+  hook(p, adr(0x53939148), 0xe5d3279c, `${stash}ldrb r2,[r3,#0x79c];sub ip,r2,#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};movls r2,#${ref.style};b #${adrHex(0x5393914c)}`, 'added slots: Cinema input fields');
 
   const layout = options.layout;
   // Menu order and counts. With a user layout the order may be any permutation of the factory
@@ -430,7 +446,7 @@ export function installExtraSlots(p: Patch, iconbin: Uint8Array, slots: readonly
   const hiddenExtras = (layout?.hidden ?? []).filter((id) => id >= EXTRA_FIRST_STYLE && id < EXTRA_FIRST_STYLE + count);
   const hideChecks = hiddenExtras.map((id) => `cmp r1,#${id};beq hidden;`).join('');
   hook(p, adr(0x533de144), unlocked ? 0xe3510018 : 0xe3520000,
-    `sub ip,r1,#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};bhi native;${hideChecks}cmp r2,#0;moveq r0,#1;movne r0,#0;bx lr;hidden:mov r0,#0;bx lr;native:${unlocked ? 'cmp r1,#24;bhi' : 'cmp r2,#0;bne'} #${adrHex(0x533de1b4)};b #${adrHex(0x533de14c)}`, 'added slots: visibility');
+    `sub ip,r1,#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};bhi native;${hideChecks}cmp r2,#0;${ref.mono ? 'movne r0,#1;moveq r0,#0' : 'moveq r0,#1;movne r0,#0'};bx lr;hidden:mov r0,#0;bx lr;native:${unlocked ? 'cmp r1,#24;bhi' : 'cmp r2,#0;bne'} #${adrHex(0x533de1b4)};b #${adrHex(0x533de14c)}`, 'added slots: visibility');
   if (layout) installFactoryHidden(p, layout.hidden);
   // Names and icons.
   hook(p, adr(0x5338edf8), 0xe351000a, `sub ip,r1,#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};bhi native;${textAsm('r0', 'ip')};bx lr;native:cmp r1,#10;b #${adrHex(0x5338edfc)}`, 'added slots: name');
@@ -471,6 +487,29 @@ const STYLE_SETTERS = [adr(0x532bbe84), adr(0x532bc014), adr(0x532bc1a4), adr(0x
  * `SLOT_PARAMETERS`; the same table is in slot_params.c.
  */
 const NEUTRAL = [4, 4, 4, 4, 4, 4, 4, 0, 4, 4, 0, 1, 1];
+
+/**
+ * The factory look the added styles stand on: Cinema Yellow (18) for the colour recipes, or (GR Mod Film, GR IV Monochrome) Monochrome
+ * Standard (25) for the black-and-white ones (docs/gr4-mono-recettes-etude.md, sections 9 to 12): its table column, RAW development
+ * number, parameters, their fields (change functors), the slot-parameter module built for it, and the maker note lists that have it.
+ */
+interface LookRef {
+  mono: boolean; style: number; column: number; raw: number; params: readonly number[]; neutral: readonly number[];
+  module: NativeModule; functorFields: readonly (readonly number[])[]; listsWithRef: number; functors: number;
+}
+/** Monochrome Standard's fields of its 11 parameters (2..7, 17..21) per photo / movie set, found by emulation (tools/gr4v121/look_fields_probe.py). */
+const MONO_FIELDS = [
+  [0x9b7, 0x9ef, 0xa27, 0xa5f, 0xa97, 0xaac, 0xac1, 0xad6], [0x9bc, 0x9f4, 0xa2c, 0xa64, 0xa9a, 0xaaf, 0xac4, 0xad9],
+  [0x9c1, 0x9f9, 0xa31, 0xa69, 0xa9d, 0xab2, 0xac7, 0xadc], [0x9c6, 0x9fe, 0xa36, 0xa6e, 0xaa0, 0xab5, 0xaca, 0xadf],
+  [0x9cb, 0xa03, 0xa3b, 0xa73, 0xaa3, 0xab8, 0xacd, 0xae2], [0x9d0, 0xa08, 0xa40, 0xa78, 0xaa6, 0xabb, 0xad0, 0xae5],
+  [0x9d6, 0xa0e, 0xa46, 0xa7e, 0xaa9, 0xabe, 0xad3, 0xae8], [0x9db, 0xa13, 0xa4b, 0xa83], [0x9df, 0xa17, 0xa4f, 0xa87],
+  [0x9e0, 0xa18, 0xa50, 0xa88], [0x9e1, 0xa19, 0xa51, 0xa89],
+];
+let ref: LookRef;
+const colourRef = (): LookRef => ({ mono: false, style: CY, column: CY, raw: 9, params: SLOT_PARAMETERS, neutral: NEUTRAL, module: SLOT_PARAMS_MODULE, functorFields: FUNCTOR_FIELDS, listsWithRef: 8, functors: 88 });
+const monoRef = (): LookRef => ({ mono: true, style: 25, column: 28, raw: 15, params: MONO_SLOT_PARAMETERS, neutral: [4, 4, 4, 4, 4, 0, 4, 4, 0, 1, 1], module: MONO_SLOT_PARAMS_MODULE, functorFields: MONO_FIELDS, listsWithRef: 10, functors: 72 });
+/** High Contrast's column (its curve descriptor: a curve of its own, flag 1) and Solarized's (its plain base-curve table). */
+const HIGH_CONTRAST_COLUMN = 30, SOLARIZED_COLUMN = 35;
 /** Settings save / load (power off / start), made hookable by the scaffold of `build.ts`. */
 const SETTINGS_SAVE = adr(0x533f3674);
 const SETTINGS_LOAD = adr(0x533f3254);
@@ -496,13 +535,28 @@ function fingerprint(parts: readonly Uint8Array[]): number {
   return h || 1;
 }
 
+/**
+ * Diagnosis only (sleep freeze, docs/gr4-mono-recettes-etude.md 14.7): set by test scripts, never by the app. `noModule`: the added
+ * looks use the reference look's parameters directly (no own parameters, no native module, no change to the start-up zero fill).
+ */
+export const SLOTS_DIAG = { noModule: false };
+
 function installOwnParameters(p: Patch, count: number, prints: readonly number[], hiddenMask = 0): Record<string, number> {
+  if (SLOTS_DIAG.noModule) {
+    const all = (at: number, reg: string, original: number, tail: string): void => {
+      hook(p, at, original, `sub ip,${reg},#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};movls ${reg},#${ref.style};${tail};b #${at + 4}`, 'added slots: parameters of the reference look (diagnosis)');
+    };
+    for (let i = 0; i < 23; i++) { all(SETTERS[i], 'r3', 0xe1a0c00d, 'mov ip,sp'); all(GETTERS[i], 'r3', 0xe1a0c00d, 'mov ip,sp'); all(DEFAULTS[i], 'r1', 0xe1a0c00d, 'mov ip,sp'); }
+    all(adr(0x533ddfe0), 'r2', 0xe242200d, 'sub r2,r2,#13');
+    all(adr(0x533c73fc), 'r0', 0xe1a06000, 'mov r6,r0');
+    return {};
+  }
   if (prints.length !== count) fail('internal', 'a fingerprint per added slot');
   const normalize = (at: number, reg: string, original: number, tail: string): void => {
     // The flags are set again by every native entry before use; no callee-saved register, LR or SP changes.
-    hook(p, at, original, `sub ip,${reg},#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};movls ${reg},#${CY};${tail};b #${at + 4}`, 'added slots: parameters of Cinema Yellow');
+    hook(p, at, original, `sub ip,${reg},#${EXTRA_FIRST_STYLE};cmp ip,#${count - 1};movls ${reg},#${ref.style};${tail};b #${at + 4}`, 'added slots: parameters of Cinema Yellow');
   };
-  const own = new Set(SLOT_PARAMETERS);
+  const own = new Set(ref.params);
   for (let i = 0; i < 23; i++) {
     if (own.has(i)) continue;
     normalize(SETTERS[i], 'r3', 0xe1a0c00d, 'mov ip,sp');
@@ -510,8 +564,8 @@ function installOwnParameters(p: Patch, count: number, prints: readonly number[]
     normalize(DEFAULTS[i], 'r1', 0xe1a0c00d, 'mov ip,sp');
   }
   // The parameter screen marks each slider's default with the default getter's value (r1 = look).
-  SLOT_PARAMETERS.forEach((i, j) => {
-    early(p, DEFAULTS[i], `mov r0,#${NEUTRAL[j]}`, count, 'added slots: neutral parameter default');
+  ref.params.forEach((i, j) => {
+    early(p, DEFAULTS[i], `mov r0,#${ref.neutral[j]}`, count, 'added slots: neutral parameter default');
   });
   normalize(adr(0x533ddfe0), 'r2', 0xe242200d, 'sub r2,r2,#13');
   // The controller's direct custom-set getter: its freshly returned style, locally.
@@ -521,16 +575,16 @@ function installOwnParameters(p: Patch, count: number, prints: readonly number[]
   const priorSave = branchTarget(SETTINGS_SAVE, p.word(SETTINGS_SAVE));
   const priorLoad = branchTarget(SETTINGS_LOAD, p.word(SETTINGS_LOAD));
   if (priorSave < BASE + OFFICIAL_RTOS_LENGTH || priorLoad < BASE + OFFICIAL_RTOS_LENGTH) fail('internal', 'the settings save/load scaffold is not installed');
-  for (const at of [...SLOT_PARAMETERS.map((i) => GETTERS[i]), ...SLOT_PARAMETERS.map((i) => SETTERS[i]), ...STYLE_SETTERS]) expectWord(p, at, 0xe1a0c00d);
+  for (const at of [...ref.params.map((i) => GETTERS[i]), ...ref.params.map((i) => SETTERS[i]), ...STYLE_SETTERS]) expectWord(p, at, 0xe1a0c00d);
   // The fingerprints, then the hidden slots (bit k: slot k; see slot_params.c).
   const printTable = p.append(u32le([...prints, hiddenMask]), 4);
   const origin = p.next(16);
-  const mod = linkModule(SLOT_PARAMS_MODULE, 'slot parameters', count, origin, {
+  const mod = linkModule(ref.module, 'slot parameters', count, origin, {
     prior_native_save: priorSave, prior_native_load: priorLoad, storage_singleton: adr(0x53aa958c), store_write: adr(0x53aa6764),
     store_read: adr(0x53aa6680), store_size: adr(0x53aa6524), heap_alloc: adr(0x539084bc), sp_gap: SLOT_STATE, settings_object: adr(0x550832a8), slot_prints: printTable,
   });
   if (p.append(mod.code, 16) !== origin) fail('internal', 'module address changed');
-  SLOT_PARAMETERS.forEach((i, j) => {
+  ref.params.forEach((i, j) => {
     p.setWord(GETTERS[i], branchWord(GETTERS[i], mod.symbols[`sp_get_stub_${j}`]), 'added slots: own parameters (getter)');
     p.setWord(SETTERS[i], branchWord(SETTERS[i], mod.symbols[`sp_set_stub_${j}`]), 'added slots: own parameters (setter)');
   });
@@ -573,12 +627,13 @@ const FUNCTOR_NEXT: Readonly<Record<string, readonly number[]>> = { half: [0xe35
 function installChangeFunctors(p: Patch, count: number): void {
   const F = EXTRA_FIRST_STYLE;
   const map = {
-    half: `sub r3,r3,#${F << 8};cmp r3,#${count << 8};andlo r3,r3,#0xff;orrlo r3,r3,#${CY << 8};addhs r3,r3,#${F << 8}`,
-    byte: `sub r3,r3,#${F};cmp r3,#${count};movlo r3,#${CY};addhs r3,r3,#${F}`,
-    word: 'push {r2};' + [8, 16, 24].map((sh) => `mov r2,r3,lsr #${sh};and r2,r2,#0xff;sub r2,r2,#${F};cmp r2,#${count};biclo r3,r3,#${0xff * 2 ** sh};orrlo r3,r3,#${CY * 2 ** sh};`).join('') + 'pop {r2}',
+    half: `sub r3,r3,#${F << 8};cmp r3,#${count << 8};andlo r3,r3,#0xff;orrlo r3,r3,#${ref.style << 8};addhs r3,r3,#${F << 8}`,
+    byte: `sub r3,r3,#${F};cmp r3,#${count};movlo r3,#${ref.style};addhs r3,r3,#${F}`,
+    word: 'push {r2};' + [8, 16, 24].map((sh) => `mov r2,r3,lsr #${sh};and r2,r2,#0xff;sub r2,r2,#${F};cmp r2,#${count};biclo r3,r3,#${0xff * 2 ** sh};orrlo r3,r3,#${ref.style * 2 ** sh};`).join('') + 'pop {r2}',
   };
   const sites: number[] = [];
-  for (const row of FUNCTOR_FIELDS) for (const field of row) {
+  const next: Readonly<Record<string, readonly number[]>> = { ...FUNCTOR_NEXT, half: [(0xe3530c00 | ref.style) >>> 0], byte: [(0xe3530000 | ref.style) >>> 0] };
+  for (const row of ref.functorFields) for (const field of row) {
     const starts: number[] = [];
     for (let a = FUNCTOR_AREA[0]; a < FUNCTOR_AREA[1]; a += 4) if (p.word(a) === ((0xe5d03000 | field) >>> 0)) starts.push(a);
     if (starts.length !== 1) fail('unexpected-layout', `change functor of field 0x${field.toString(16)}: ${starts.length} candidates`);
@@ -589,10 +644,10 @@ function installChangeFunctors(p: Patch, count: number): void {
       if (w >>> 24 === 0xea) break;
     }
     if (found.length !== 1) fail('unexpected-layout', `change functor of field 0x${field.toString(16)}: ${found.length} style loads`);
-    if (!FUNCTOR_NEXT[FUNCTOR_LOADS[p.word(found[0])]].includes(p.word(found[0] + 4))) fail('unexpected-layout', `change functor of field 0x${field.toString(16)}: unexpected comparison`);
+    if (!next[FUNCTOR_LOADS[p.word(found[0])]].includes(p.word(found[0] + 4))) fail('unexpected-layout', `change functor of field 0x${field.toString(16)}: unexpected comparison`);
     sites.push(found[0]);
   }
-  if (sites.length !== 88) fail('unexpected-layout', `${sites.length} change functors, expected 88`);
+  if (sites.length !== ref.functors) fail('unexpected-layout', `${sites.length} change functors, expected ${ref.functors}`);
   for (const at of sites) {
     const w = p.word(at);
     const code = p.append((a) => [w, ...assembleWords(`${map[FUNCTOR_LOADS[w]]};b #${at + 4}`, a + 4)], 4);
@@ -615,12 +670,12 @@ function installChangeFunctors(p: Patch, count: number): void {
  */
 function installLookChecks(p: Patch, count: number): void {
   const n = count - 1;
-  hook(p, adr(0x531c80b0), 0xe1a0c00d, `sub ip,r1,#${EXTRA_FIRST_STYLE};cmp ip,#${n};movls r1,#${CY};mov ip,sp;b #${adrHex(0x531c80b4)}`, 'added slots: parameter list of Cinema Yellow');
-  hook(p, adr(0x531a6b10), 0xe241100b, `sub ip,r1,#${EXTRA_FIRST_STYLE};cmp ip,#${n};movls r1,#${CY};sub r1,r1,#11;b #${adrHex(0x531a6b14)}`, 'added slots: RAW development parameter list of Cinema Yellow');
+  hook(p, adr(0x531c80b0), 0xe1a0c00d, `sub ip,r1,#${EXTRA_FIRST_STYLE};cmp ip,#${n};movls r1,#${ref.style};mov ip,sp;b #${adrHex(0x531c80b4)}`, 'added slots: parameter list of Cinema Yellow');
+  hook(p, adr(0x531a6b10), 0xe241100b, `sub ip,r1,#${EXTRA_FIRST_STYLE};cmp ip,#${n};movls r1,#${ref.style};sub r1,r1,#11;b #${adrHex(0x531a6b14)}`, 'added slots: RAW development parameter list of Cinema Yellow');
   for (const [at, field, done, rest] of [[adr(0x532a12bc), 0x153, adr(0x532a12b4), adr(0x532a12c0)], [adr(0x532a14f8), 0x515, adr(0x532a14f0), adr(0x532a14fc)]] as const) {
     hook(p, at, (0xe5d03000 | field) >>> 0, `ldrb r3,[r0,#${field}];sub ip,r3,#${EXTRA_FIRST_STYLE};cmp ip,#${n};movls r0,r3;bls #${done};b #${rest}`, 'added slots: menu Image Control row');
   }
-  hook(p, adr(0x53739a5c), 0xe5d1379c, `ldrb r3,[r1,#0x79c];sub r2,r3,#${EXTRA_FIRST_STYLE};cmp r2,#${n};movls r3,#${CY};b #${adrHex(0x53739a60)}`, 'added slots: digital-filter step (grain) as Cinema Yellow');
+  hook(p, adr(0x53739a5c), 0xe5d1379c, `ldrb r3,[r1,#0x79c];sub r2,r3,#${EXTRA_FIRST_STYLE};cmp r2,#${n};movls r3,#${ref.style};b #${adrHex(0x53739a60)}`, 'added slots: digital-filter step (grain) as Cinema Yellow');
 }
 
 /**
@@ -677,8 +732,8 @@ function installPreviewMapping(p: Patch, count: number): void {
       if (!cmpFollows(at)) fail('unexpected-layout', `live-view parameters: load at 0x${at.toString(16)} is not followed by a compare`);
     }
     const map = load.kind === 'half'
-      ? `sub r3,r3,#${EXTRA_FIRST_STYLE << 8};cmp r3,#${count << 8};andlo r3,r3,#0xff;orrlo r3,r3,#${CY << 8};addhs r3,r3,#${EXTRA_FIRST_STYLE << 8}`
-      : `sub r3,r3,#${EXTRA_FIRST_STYLE};cmp r3,#${count};movlo r3,#${CY};addhs r3,r3,#${EXTRA_FIRST_STYLE}`;
+      ? `sub r3,r3,#${EXTRA_FIRST_STYLE << 8};cmp r3,#${count << 8};andlo r3,r3,#0xff;orrlo r3,r3,#${ref.style << 8};addhs r3,r3,#${EXTRA_FIRST_STYLE << 8}`
+      : `sub r3,r3,#${EXTRA_FIRST_STYLE};cmp r3,#${count};movlo r3,#${ref.style};addhs r3,r3,#${EXTRA_FIRST_STYLE}`;
     for (const at of sites) {
       const code = p.append((a) => [load.word, ...assembleWords(`${map};b #${at + 4}`, a + 4)], 4);
       p.setWord(at, branchWord(at, code), 'added slots: live-view parameters of Cinema Yellow');
@@ -688,7 +743,7 @@ function installPreviewMapping(p: Patch, count: number): void {
   if (words.length !== GENERATOR_WORD.sites) fail('unexpected-layout', `live-view parameters: ${words.length} word loads, expected ${GENERATOR_WORD.sites}`);
   const byte = (shift: number): string =>
     `mov r2,r3,lsr #${shift};and r2,r2,#0xff;sub r2,r2,#${EXTRA_FIRST_STYLE};cmp r2,#${count};` +
-    `biclo r3,r3,#${0xff * 2 ** shift};orrlo r3,r3,#${CY * 2 ** shift};`;
+    `biclo r3,r3,#${0xff * 2 ** shift};orrlo r3,r3,#${ref.style * 2 ** shift};`;
   for (const at of words) {
     const code = p.append((a) => [GENERATOR_WORD.word, ...assembleWords(`push {r2};${byte(8)}${byte(16)}${byte(24)}pop {r2};b #${at + 4}`, a + 4)], 4);
     p.setWord(at, branchWord(at, code), 'added slots: live-view parameters of Cinema Yellow');
@@ -698,7 +753,6 @@ function installPreviewMapping(p: Patch, count: number): void {
 // -------------------------------------------------------------- RAW development
 
 /** RAW development's number of Cinema Yellow (its numbering: 0 = as shot, 1..22 the factory looks in 1.20; 1.11: 1..20). */
-const RAW_CY = 9;
 const RAW_FIRST_EXTRA = 23;
 /** The functions of RawDevelopmentModel.cpp that read or write a look's parameters. */
 const RAW_MODEL = [adr(0x5337a3d0), adr(0x53381e6c)] as const;
@@ -722,7 +776,7 @@ const RAW_LOOP_BOUND = 0xe3530017;
  * 0x53382e20) the row is handed to it; the parameters a RAW file was shot with go to its look.
  */
 function installRawDevelopment(p: Patch, count: number, module: Record<string, number>): void {
-  const map = (r: string): string => `sub ${r},${r},#${RAW_FIRST_EXTRA};cmp ${r},#${count};movlo ${r},#${RAW_CY};addhs ${r},${r},#${RAW_FIRST_EXTRA}`;
+  const map = (r: string): string => `sub ${r},${r},#${RAW_FIRST_EXTRA};cmp ${r},#${count};movlo ${r},#${ref.raw};addhs ${r},${r},#${RAW_FIRST_EXTRA}`;
   const sites: number[] = [];
   for (let at = RAW_MODEL[0]; at < RAW_MODEL[1]; at += 4) {
     if (p.word(at) !== RAW_LOOK_LOAD) continue;
@@ -743,11 +797,11 @@ function installRawDevelopment(p: Patch, count: number, module: Record<string, n
     p.setWord(at, branchWord(at, code), 'added slots: RAW development parameters of Cinema Yellow');
   }
   // Opening a RAW file: the model has filled every look from the settings (0x53382788, r4 the model).
-  hook(p, adr(0x533838f8), 0xe5d42064, `push {r0-r3,ip,lr};mov r0,r4;bl #${module.sp_raw_init};pop {r0-r3,ip,lr};ldrb r2,[r4,#0x64];b #${adrHex(0x533838fc)}`, 'added slots: own RAW development parameters');
+  if (module.sp_raw_init) hook(p, adr(0x533838f8), 0xe5d42064, `push {r0-r3,ip,lr};mov r0,r4;bl #${module.sp_raw_init};pop {r0-r3,ip,lr};ldrb r2,[r4,#0x64];b #${adrHex(0x533838fc)}`, 'added slots: own RAW development parameters');
   // Then it copies the parameters the file was shot with into the row of its look (base 0).
-  hook(p, adr(0x5338396c), 0xe3500000, `push {r0-r3,ip,lr};mov r2,r0;mov r1,#0;mov r0,r4;bl #${module.sp_raw_own};pop {r0-r3,ip,lr};${map('r0')};cmp r0,#0;b #${adrHex(0x53383970)}`, 'added slots: RAW development parameters as shot');
+  if (module.sp_raw_init) hook(p, adr(0x5338396c), 0xe3500000, `push {r0-r3,ip,lr};mov r2,r0;mov r1,#0;mov r0,r4;bl #${module.sp_raw_own};pop {r0-r3,ip,lr};${map('r0')};cmp r0,#0;b #${adrHex(0x53383970)}`, 'added slots: RAW development parameters as shot');
   // Applying a look: the row goes to the looks now selected.
-  hook(p, adr(0x53382e20), 0xe1a0c00d, `push {r0-r4,lr};bl #${module.sp_raw_sync};pop {r0-r4,lr};mov ip,sp;b #${adrHex(0x53382e24)}`, 'added slots: own RAW development parameters');
+  if (module.sp_raw_init) hook(p, adr(0x53382e20), 0xe1a0c00d, `push {r0-r4,lr};bl #${module.sp_raw_sync};pop {r0-r4,lr};mov ip,sp;b #${adrHex(0x53382e24)}`, 'added slots: own RAW development parameters');
   // The RAW development screen makes its list as long as the longest of its lists (0x531A2680):
   // Image Control at most 26 entries in 1.20 (the 22 factory looks, the three custom sets, "as shot"). With
   // the added looks the list is longer; the list widget then refuses the count (assertion) and the
@@ -770,7 +824,6 @@ const PARAM_LISTS = [adr(0x53807a1c), adr(0x53807d7c)] as const;
 const LIST_ASSIGN = adr(0x53800ccc);
 /** 1.20: 21 lists (1.11: 18), 8 of them with Cinema Yellow (1.11: 7). */
 const PARAM_LISTS_CALLS = 21;
-const PARAM_LISTS_WITH_CY = 8;
 
 /**
  * Pictures shot with an added look:
@@ -809,7 +862,7 @@ function installPictureInfo(p: Patch, count: number): void {
     if ((p.word(add) & 0xf00) !== 0) fail('unexpected-layout', `maker note parameter list at 0x${call.toString(16)}: length`);
     const styles = p.readMapped(list, length);
     if (styles.some((s) => s >= EXTRA_FIRST_STYLE)) fail('unexpected-layout', 'maker note parameter list already has added styles');
-    if (!styles.includes(CY)) continue;
+    if (!styles.includes(ref.style)) continue;
     const grown = concat([styles, Uint8Array.from({ length: count }, (_, i) => EXTRA_FIRST_STYLE + i)]);
     const at = p.append(grown, 4);
     p.setWord(lo, movWord(1, at & 65535), 'added slots: maker note parameters of Cinema Yellow');
@@ -817,14 +870,14 @@ function installPictureInfo(p: Patch, count: number): void {
     p.setWord(add, assembleWords(`add r2,r1,#${grown.length}`, add)[0], 'added slots: maker note parameters of Cinema Yellow');
     extended++;
   }
-  if (extended !== PARAM_LISTS_WITH_CY) fail('unexpected-layout', `maker note parameter lists: ${extended} with Cinema Yellow, expected ${PARAM_LISTS_WITH_CY}`);
+  if (extended !== ref.listsWithRef) fail('unexpected-layout', `maker note parameter lists: ${extended} with the reference look, expected ${ref.listsWithRef}`);
   // Readers: RAW development's record, then playback's numbering and its style.
   hook(p, adr(0x537fbae4), 0xe300310b, `sub r3,r0,#${EXTRA_TONE_CODE & 0xff00};sub r3,r3,#${EXTRA_TONE_CODE & 0xff};cmp r3,#${n};bhi native;add r3,r3,#${EXTRA_FIRST_STYLE};b #${adrHex(0x537fbb38)};native:movw r3,#0x10b;b #${adrHex(0x537fbae8)}`, 'added slots: look of a RAW file');
   hook(p, adr(0x537feeec), 0xe300310a, `sub r3,r0,#${EXTRA_TONE_CODE & 0xff00};sub r3,r3,#${EXTRA_TONE_CODE & 0xff};cmp r3,#${n};bhi native;add r2,r3,#${PLAY_FIRST_EXTRA};b #${adrHex(0x537fef3c)};native:movw r3,#0x10a;b #${adrHex(0x537feef0)}`, 'added slots: playback look');
   // 0x533B3040: r0 = number - 1, r4 = where the style goes (may be null).
   hook(p, adr(0x533b3060), 0xe3500015, `sub r3,r0,#${PLAY_FIRST_EXTRA - 1};cmp r3,#${n};bhi native;cmp r4,#0;beq #${adrHex(0x533b3090)};add r3,r3,#${EXTRA_FIRST_STYLE};strb r3,[r4];b #${adrHex(0x533b3080)};native:cmp r0,#0x15;b #${adrHex(0x533b3064)}`, 'added slots: playback look');
   // Playback information's parameters: r3 = style - 8, the added looks as Cinema Yellow (10).
-  hook(p, adr(0x533b6ff0), 0xe3530018, `cmp r3,#${EXTRA_FIRST_STYLE - 8};blo native;cmp r3,#${EXTRA_FIRST_STYLE - 8 + count};movlo r3,#${CY - 8};native:cmp r3,#0x18;b #${adrHex(0x533b6ff4)}`, 'added slots: playback parameters of Cinema Yellow');
+  hook(p, adr(0x533b6ff0), 0xe3530018, `cmp r3,#${EXTRA_FIRST_STYLE - 8};blo native;cmp r3,#${EXTRA_FIRST_STYLE - 8 + count};movlo r3,#${ref.style - 8};native:cmp r3,#0x18;b #${adrHex(0x533b6ff4)}`, 'added slots: playback parameters of Cinema Yellow');
 }
 
 // -------------------------------------------------------------- halation
@@ -943,6 +996,22 @@ function isLookStashed(p: Patch): boolean {
  * The added slots of a grown RTOS image (and its ICONBIN data) as they were built, so that a
  * file can be re-created and compared. Null when the image does not hold `count` added slots.
  */
+/** Monochrome Standard's curve (green, 256 values 0..16383) of this RTOS, through the curve table (column 28): the recipes' reference. */
+export function monoStandardCurve(rtos: Uint8Array): number[] {
+  const p = new Patch(rtos);
+  const desc = wordOf(p.readMapped(GAMMA_TABLE + 4 * 28, 4));
+  const g = new DataView(p.readMapped(wordOf(p.readMapped(desc + 12, 4)), 512).buffer);
+  return Array.from({ length: 256 }, (_, i) => g.getUint16(2 * i, true));
+}
+
+/** True when the curve descriptor's base curve is the neutral table of a black-and-white recipe (257, 257, 1, 0, then i x 64). */
+function hasNeutralBase(p: Patch, desc: number): boolean {
+  const b = new DataView(p.readMapped(wordOf(p.readMapped(desc, 4)), 8 + 257 * 2).buffer);
+  if ([0, 2, 4, 6].map((o) => b.getUint16(o, true)).join(',') !== '257,257,1,0') return false;
+  for (let i = 0; i <= 256; i++) if (b.getUint16(8 + 2 * i, true) !== Math.min(16383, i * 64)) return false;
+  return true;
+}
+
 export function readExtraSlots(rtos: Uint8Array, iconbin: Uint8Array, count: number): ExtraSlotSpec[] | null {
   try {
     if (!(count >= 1 && count <= MAX_EXTRA_SLOTS)) return null;
@@ -972,7 +1041,7 @@ export function readExtraSlots(rtos: Uint8Array, iconbin: Uint8Array, count: num
       }) as [number[], number[], number[]];
       const post = wordOf(p.readMapped(rec + POST_WORD, 4));
       let postQ9: number[] | undefined;
-      if (post !== stdShared) {
+      if (post !== stdShared && !hasNeutralBase(p, desc)) {
         const e = new DataView(p.readMapped(wordOf(p.readMapped(post + 4 * POST_NEUTRAL, 4)), 18).buffer);
         postQ9 = Array.from({ length: 9 }, (_, i) => e.getInt16(2 * i, true) / 16);
       }

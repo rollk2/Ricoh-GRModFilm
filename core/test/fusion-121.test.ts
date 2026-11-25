@@ -1,29 +1,39 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /**
- * GR Mod Film, convergence step 1 (docs/fusion-0.9.md): on GR IV 1.21 (Monochrome 1.11) our own program is kept and
- * offers our features only; GR Mod 0.9's additions are refused there until step 2. Needs GRMOD_GR4_121_FIRMWARE.
+ * GR Mod Film, convergence step 2 (docs/fusion-0.9.md): files of GR Mod Film 1.2 .. 1.3.5 for GR IV 1.21 (Monochrome 1.11)
+ * were built by GR Mod Film's own copy of the program, kept frozen in `fw/gr4v121film`. Their record and their Hold words
+ * differ from the 1.20 program's; the engine recognises them with that copy. Built here with the copy, as 1.3.5 built them,
+ * then read back by the engine. Needs GRMOD_GR4_121_FIRMWARE.
  */
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { Engine } from '../src/app/engine';
-import type { BuildOptions } from '../src';
-import { UPSTREAM_121 } from './fw-helpers/fusion';
+import * as Legacy from '../src/fw/gr4v121film';
 
 const f121 = process.env.GRMOD_GR4_121_FIRMWARE;
+const GRID = { g3: [true, false, true, true, false, true, true, true], g4: [true, false, true, true, false, true, false, false] };
 
-describe.skipIf(UPSTREAM_121 || !f121 || !existsSync(f121))('GR IV 1.21 during convergence step 1', () => {
-  it('offers our features, not yet the GR Mod 0.9 additions, and refuses them', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f121!)));
-    const f = eng.info.features as Record<string, unknown>;
-    for (const k of ['noMovie', 'customButtons', 'monoRecipes', 'ratioOrder', 'batteryPercent', 'customGrid']) expect(f[k], k).toBe(true);
-    const later: [string, BuildOptions][] = [['filmGrain', { filmGrain: true } as BuildOptions], ['flashTtl', { flashTtl: true } as BuildOptions],
-      ['shadowLearn', { shadowLearn: true } as BuildOptions], ['ratioShade', { ratioShade: true } as BuildOptions], ['videoAf', { videoAf: true } as BuildOptions],
-      ['awbLearn', { awbLearn: true } as BuildOptions], ['constantLight', { constantLight: true } as BuildOptions], ['sensorShift', { sensorShift: true } as BuildOptions],
-      ['movie4k', { movie4k: true } as BuildOptions], ['movieSr', { movieSr: true } as BuildOptions]];
-    for (const [k, options] of later) {
-      expect(f[k], k).toBeFalsy();
-      // The shade comes only with an added ratio (as GR Mod 0.9): one is given, so that every option is really asked for.
-      await expect(eng.buildFirmware([], [{ ratio: '65:24', name: 'XPan' }], [], options).then(() => 'built', () => 'refused'), k).resolves.toBe('refused');
-    }
-  }, 300_000);
+describe.skipIf(!f121 || !existsSync(f121))('GR IV 1.21: files of GR Mod Film 1.2 .. 1.3.5', () => {
+  for (const [name, features] of [
+    ['buttons and no movie (revision 4)', { guard: true, customButtons: true, noMovie: true }],
+    ['with the ratio order, the battery and the 1.3.5 grid', { guard: true, customButtons: true, noMovie: true, ratioOrder: [3, 0, 2, 1], batteryPercent: true, customGrid: GRID, dateStamp: true }],
+  ] as const) {
+    it(`${name}: recognised and verified`, async () => {
+      const raw = new Uint8Array(readFileSync(f121!));
+      const old = await Legacy.buildFirmware(raw, [], [], [], features as never);
+      const back = await (await Engine.open(raw)).inspect(old.file);
+      expect(back.kind).toBe('modified');
+      expect(back.verified).toBe(true);
+      expect(back.customButtons).toBe(true);
+      expect(back.noMovie).toBe(true);
+      if ('ratioOrder' in features) {
+        expect(back.ratioOrder).toEqual([3, 0, 2, 1]);
+        expect(back.batteryPercent).toBe(true);
+        expect(back.customGrid).toEqual(GRID);
+      }
+      // The 1.20 program does not build that file again (other Hold words, another record): the copy does.
+      const now = await (await Engine.open(raw)).buildFirmware([], [], [], { noMovie: true });
+      expect(Buffer.compare(Buffer.from(now.file), Buffer.from(old.file))).not.toBe(0);
+    }, 600_000);
+  }
 });

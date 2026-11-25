@@ -36,9 +36,23 @@ describe('GR IV Monochrome: custom buttons', () => {
     expect(back.noMovie).toBe(true);
     expect(back.exposurePreview).toBe(true);
   }, 300_000);
-  it.skipIf(!f120 || !existsSync(f120))('1.20: not offered, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)));
-    expect(eng.info.features.customButtons).toBeFalsy();
-    await expect(eng.buildFirmware([], [], [], { customButtons: true })).rejects.toMatchObject({ code: 'bad-edit' });
-  }, 300_000);
+  // Convergence step 2 (docs/fusion-0.9.md): GR Mod Film's additions are part of the 1.20 program, which builds 1.20 and 1.21.
+  for (const [release, file] of [['1.20', f120], ['1.21', f121]] as const) {
+    it.skipIf(!file || !existsSync(file))(`${release}: with GR Mod 0.9's additions (Constant Light, grain, shadow correction, flash TTL, white balance, movie AF); Sensor Shift refused`, async () => {
+      const raw = new Uint8Array(readFileSync(file!));
+      const eng = await Engine.open(raw);
+      expect(eng.info.features.customButtons).toBe(true);
+      expect(eng.info.features.sensorShift).toBeFalsy();
+      const built = await eng.buildFirmware([], [{ ratio: '65:24', name: 'XPan' }], [], { noMovie: true, constantLight: true, filmGrain: true, shadowLearn: true, flashTtl: true, awbLearn: true, videoAf: true, exposurePreview: true, adjSlots: 8, dateStamp: true, batteryPercent: true });
+      expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
+      const back = await (await Engine.open(raw)).inspect(built.file);
+      expect(back.verified).toBe(true);
+      expect(back.customButtons).toBe(true);
+      expect(back.noMovie).toBe(true);
+      expect(back.constantLight).toBe(true);
+      expect(back.flashTtl).toBe(true);
+      // Fn function 46: our Macro Mode, GR Mod 0.9's Sensor Shift.
+      await expect(eng.buildFirmware([], [], [], { sensorShift: true })).rejects.toMatchObject({ code: 'bad-edit' });
+    }, 600_000);
+  }
 });

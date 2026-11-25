@@ -19,6 +19,8 @@ import {
 import * as Gr4Program111 from '../fw';
 import * as Gr4Program120 from '../fw/gr4v120';
 import * as Gr4Program121 from '../fw/gr4v121';
+/** GR Mod Film 1.2 .. 1.3.5's own copy of the 1.21 program, frozen: only to recognise the files it built (`inspect`). */
+import * as Gr4Program121Film from '../fw/gr4v121film';
 import type { BuildResult, BuiltRatio, ClarityChange, ClarityEdit, ExtensionFeatures, ExtraSlotSpec, LookLayout, ShutdownPictureSpec, SoftFocusLevel, SoftFocusStrength, FactoryEntry, LangCode, Layout, NameValidation, Range, RatioSpec, SlotEdit, SlotId as NativeSlotId } from '../fw';
 import { convertCube, convertXmp, hueCopy0, hueFromQ10, HUE_BLOCK_BYTES, MONO_MIXING_LIMIT, MONO_TONING_LIMIT, monoLutFromCube, monoRecipeCurve, quantizeSlot } from '../color';
 import type { SlotParams } from '../color';
@@ -590,7 +592,7 @@ export class Engine {
   /** The GR III / IIIx program of the open file (null for GR IV). */
   private readonly gr3: Gr3Program | null;
   /** The GR IV program of the open file (1.11's for GR III / IIIx). */
-  private readonly g4: Gr4Program;
+  private g4: Gr4Program;
 
   private fixedGr3x(softFocus: readonly SoftFocusRequest[] = [], looks?: Gr3xLookOptions, menu: readonly Gr3xMenuRatio[] = GR3X_T4_MENU, adjSoftFocus = false, dateImprint = false, pictures: readonly Gr3xPictureSpec[] = [], dateMenu: 'list' | 'submenu' = 'submenu', pictureMenu: 'list' | 'submenu' = 'submenu',
     round: { round7?: boolean; round8?: boolean; round9?: boolean; round10?: boolean; lookLayout?: Gr3xLookLayout; filmMode?: { codes: Record<number, string> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afDim?: boolean; afTime?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; playLast?: boolean; hiddenSettings?: Gr3xHiddenSettings; hideMenu?: boolean; settingsFile?: { version: string }; rearDialOff?: boolean; srSpeed?: boolean; srIcon?: boolean; srHyst?: boolean; fnDial?: boolean; formatRewind?: boolean; rewindButton?: boolean; grain?: boolean; srGuard?: boolean } = {}): Promise<FirmwareBuild> {
@@ -713,10 +715,12 @@ export class Engine {
       factoryRatios: ['3:2', '4:3', '16:9', '1:1'],
       capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, menuPictures: true, lookLayout: true },
       features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}),
-        // GR Mod Film: firmware 1.21 is built by this program's own copy (`fw/gr4v121`), with its own additions; GR Mod's
-        // other additions on 1.21 come with the convergence onto GR Mod's 1.20 program (docs/fusion-0.9.md).
-        ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true, batteryPercent: true, customGrid: true } : {
-          batteryPercent: true, customGrid: true, ratioShade: true, ...(g4 !== Gr4Program111 ? { filmGrain: true } : {}), shadowLearn: true, ...(g4 !== Gr4Program111 ? { flashTtl: true, shadeMenu: true, gridMenu: true } : {}), ...(g4 !== Gr4Program111 ? { videoAf: true } : {}), ...(g4 !== Gr4Program111 ? { awbLearn: true } : {}), ...(g4 !== Gr4Program111 ? { movieExposure: true } : {}), ...(g4 !== Gr4Program111 ? { constantLight: true, sensorShift: true, movie4k: true, movieSr: true } : {}) }) },
+        // GR Mod Film's additions (`noMovie`, `customButtons`, `monoRecipes`, `ratioOrder`) on the 1.20 program, firmware 1.20 and 1.21
+        // (convergence step 2, docs/fusion-0.9.md); not on 1.11.
+        ...(g4 !== Gr4Program111 ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true } : {}),
+        ...({
+          batteryPercent: true, customGrid: true, ratioShade: true, ...(g4 !== Gr4Program111 ? { filmGrain: true } : {}), shadowLearn: true, ...(g4 !== Gr4Program111 ? { flashTtl: true, shadeMenu: true, gridMenu: true } : {}), ...(g4 !== Gr4Program111 ? { videoAf: true } : {}), ...(g4 !== Gr4Program111 ? { awbLearn: true } : {}), ...(g4 !== Gr4Program111 ? { movieExposure: true } : {}), // GR Mod Film: no Sensor Shift, its Fn function 46 is our Macro Mode (the custom buttons are in every build; build.ts).
+          ...(g4 !== Gr4Program111 ? { constantLight: true, movie4k: true, movieSr: true } : {}) }) },
       version: g4.FIRMWARE_VERSION,
       looks: { factory: factoryLookOrder(decoded.subarray(g4.RTOS_OFFSET), g4.aspect.ORDER_TABLE, g4.aspect.FACTORY_LOOK_IDS), extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
       sha256: await sha256Hex(input),
@@ -840,7 +844,22 @@ export class Engine {
       const fw = new Firmware(raw);
       if (!equalRange(fw.header, 0, this.raw, 0, fw.header.length)) throw new Error('not 1.11');
       if (!this.editable) this.editable = this.g4.editableRanges(this.decoded);
-      if (fw.decoded.length !== this.g4.DECODED_SIZE) return this.inspectGrown(sha256, raw, fw.decoded, describe);
+      if (fw.decoded.length !== this.g4.DECODED_SIZE) {
+        const grown = this.inspectGrown(sha256, raw, fw.decoded, describe);
+        // GR Mod Film 1.2 .. 1.3.5 built firmware 1.21 with their own copy of the program (`fw/gr4v121film`): a file this
+        // program does not build again byte for byte is tried with that copy, which builds it as it was then.
+        if (grown.verified || this.g4 !== (Gr4Program121 as unknown as Gr4Program)) return grown;
+        const current = this.g4;
+        this.g4 = Gr4Program121Film as unknown as Gr4Program;
+        try {
+          const old = this.inspectGrown(sha256, raw, fw.decoded, describe);
+          return old.verified ? old : grown;
+        } catch {
+          return grown;
+        } finally {
+          this.g4 = current;
+        }
+      }
       // The monochrome looks on their own are written in place: all of their words, or none.
       if (!this.monoWords) this.monoWords = this.g4.monoUnlockWords(this.decoded);
       const monoUnlock = this.monoWords.every((w) => equalRange(fw.decoded, w.offset, w.bytes, 0, 4));
