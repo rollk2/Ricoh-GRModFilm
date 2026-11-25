@@ -66,5 +66,5 @@ L'amont ne trie pas non plus les ratios d'usine du GR IV (`FACTORY_ORDER` fixe).
   chacun ; chaque ligne droite à k x (longueur / divisions) - 1, 2 pixels, chaque diagonale de coin à coin, couleur de la
   grille, les autres cachées ; registres conservés. Conforme.
 - Firmware de test T-BG1 (site, Monochrome 1.11) : Tri-X 400, sans vidéo, ratios triés (3:2, 65:24, 1:1, 16:9, 4:3),
-  batterie, grilles (3x3 : les 8 lignes ; 4x4 : tiers... quarts sans lignes centrales ni diagonales). Relu, vérifié ;
+  batterie, grilles (3x3 : les 8 lignes ; 4x4 : les quarts seulement, sans lignes centrales ni diagonales). Relu, vérifié ;
   sondes batterie, grilles, Hold (mots intacts) et menus des ratios conformes sur ce fichier.
