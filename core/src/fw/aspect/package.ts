@@ -21,7 +21,12 @@
  * menu order, u8 h, the h hidden styles; bit 7 (0.8.4): Direct Flash (`directflash.ts`)). Then
  * (0.8.6) one more byte of additions, where earlier builds have their zero padding: bit 0, the HDR
  * gain map (`hdrgain.ts`); bit 1, ADJ lever slots (`adjslots.ts`), their number (6..8) follows in
- * one more byte. Bit 2: a following bright-Auto curve byte (1 bright, 2 balanced).
+ * one more byte. Bit 2: a following bright-Auto curve byte (1 bright, 2 balanced). Bit 5: the learned
+ * Auto for Shadow Correction (`shadowml.ts`; bits 3, 4 and 6 are 1.20's). Bit 7: a third
+ * byte of additions follows, after those bytes: bit 0, live view of the added ratios with the
+ * whole frame and the part outside darkened (`shade.ts`); bit 1, its lighter colour ('light');
+ * bit 2, the battery percentage (`battery.ts`); bit 3, custom grid lines (`grid.ts`), followed by
+ * two bytes, the 3x3 and the 4x4 style's lines (line i in bit i); bit 4 is 1.20's.
  * A build without them reads as before; earlier programs do not take a record with
  * this byte set.
  *
@@ -35,9 +40,11 @@ import type { Range } from '../types';
 import { MAX_CUSTOM_RATIOS, OFFICIAL_ICONBIN_LENGTH, OFFICIAL_RTOS_LENGTH } from './build';
 import type { AspectResult, BuildRevision, ExtensionFeatures, RatioSpec } from './build';
 import { MAX_EXTRA_SLOTS } from './slots';
+import { gridByte, gridLinesOf, isCameraGrid } from './grid';
 import { ADJ_SLOTS_MAX } from './adjslots';
 import { RES_ANCHOR, SHUTDOWN_MAX_PICTURES, shutdownFiles } from './shutdown';
 import { readRes, resRecords } from './res';
+import { adr } from '../target';
 
 const MAGIC_STEM = 'GRMODAR';
 const MAGIC_LENGTH = MAGIC_STEM.length + 1;
@@ -76,6 +83,18 @@ const FEATURE2_HDR_GAIN_MAP = 1;
 const FEATURE2_ADJ_SLOTS = 2;
 /** A following byte selects 1 = bright or 2 = balanced. */
 const FEATURE2_BRIGHT_AUTO = 4;
+/** Second feature byte: bit 5, the learned Auto for Shadow Correction (`shadowml.ts`). */
+const FEATURE2_SHADOW_LEARN = 32;
+/** Second feature byte: bit 7, a third feature byte follows (after the bytes of bits 1 and 2). */
+const FEATURE2_MORE = 128;
+/** Third feature byte: bit 0, live view of the added ratios with the part outside darkened (`shade.ts`). */
+const FEATURE3_RATIO_SHADE = 1;
+/** Third feature byte: bit 1, the shade is 'light' (grey at 25 %) instead of 'dark' (black at 50 %); only with bit 0. */
+const FEATURE3_SHADE_LIGHT = 2;
+/** Third feature byte: bit 2, the battery percentage (`battery.ts`). */
+const FEATURE3_BATTERY = 4;
+/** Third feature byte: bit 3, custom grid lines (`grid.ts`); two bytes follow, the 3x3 and the 4x4 style's lines. */
+const FEATURE3_CUSTOM_GRID = 8;
 
 /**
  * `u8 count, then per ratio: u8 length + ratio text, u8 length + name`, (revision 3: `u8 features`),
@@ -103,13 +122,20 @@ function encodeRecord(specs: readonly RatioSpec[], revision: BuildRevision, feat
     bytes.push(layout.order.length, ...layout.order, layout.hidden.length, ...layout.hidden);
   }
   if (features.directFlash && revision < 3) fail('internal', 'Direct Flash needs revision 3');
-  if (features.brightAuto || features.hdrGainMap || (features.adjSlots && features.adjSlots > 5)) {
-    if (revision < 3) fail('internal', 'the HDR gain map and ADJ slots need revision 3');
+  const tone = features.ratioShadeTone ?? 'dark';
+  if (tone !== 'dark' && tone !== 'light') fail('internal', 'unknown shade tone');
+  if (tone !== 'dark' && !features.ratioShade) fail('internal', 'a shade tone needs the live-view shade');
+  if (features.ratioShade && specs.length === 0) fail('internal', 'the live-view shade needs an added ratio');
+  const f3 = (features.ratioShade ? FEATURE3_RATIO_SHADE : 0) | (tone === 'light' ? FEATURE3_SHADE_LIGHT : 0) | (features.batteryPercent ? FEATURE3_BATTERY : 0) | (features.customGrid ? FEATURE3_CUSTOM_GRID : 0);
+  if (features.brightAuto || features.hdrGainMap || (features.adjSlots && features.adjSlots > 5) || features.shadowLearn || f3) {
+    if (revision < 3) fail('internal', 'the HDR gain map, ADJ slots, the learned shadow correction and the third feature byte need revision 3');
     const adj = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
     if (adj && !(Number.isInteger(adj) && adj <= ADJ_SLOTS_MAX)) fail('internal', 'ADJ slots cannot be recorded');
-    bytes.push((features.hdrGainMap ? FEATURE2_HDR_GAIN_MAP : 0) | (adj ? FEATURE2_ADJ_SLOTS : 0) | (features.brightAuto ? FEATURE2_BRIGHT_AUTO : 0));
+    bytes.push((features.hdrGainMap ? FEATURE2_HDR_GAIN_MAP : 0) | (adj ? FEATURE2_ADJ_SLOTS : 0) | (features.brightAuto ? FEATURE2_BRIGHT_AUTO : 0) | (features.shadowLearn ? FEATURE2_SHADOW_LEARN : 0) | (f3 ? FEATURE2_MORE : 0));
     if (adj) bytes.push(adj);
     if (features.brightAuto) bytes.push(features.brightAuto === 'balanced' ? 2 : 1);
+    if (f3) bytes.push(f3);
+    if (features.customGrid) bytes.push(gridByte(features.customGrid.g3), gridByte(features.customGrid.g4));
   }
   while (bytes.length % 4) bytes.push(0);
   return Uint8Array.from(bytes);
@@ -200,7 +226,7 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
     if (f & FEATURE_DIRECT_FLASH) features.directFlash = true;
     if (p < rec.length) {
       const f2 = rec[p++];
-      if ((f2 & ~(FEATURE2_HDR_GAIN_MAP | FEATURE2_ADJ_SLOTS | FEATURE2_BRIGHT_AUTO)) !== 0) return null;
+      if ((f2 & ~(FEATURE2_HDR_GAIN_MAP | FEATURE2_ADJ_SLOTS | FEATURE2_BRIGHT_AUTO | FEATURE2_SHADOW_LEARN | FEATURE2_MORE)) !== 0) return null;
       if (f2 & FEATURE2_HDR_GAIN_MAP) features.hdrGainMap = true;
       if (f2 & FEATURE2_ADJ_SLOTS) {
         if (p >= rec.length) return null;
@@ -214,8 +240,26 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
         if (mode !== 1 && mode !== 2) return null;
         features.brightAuto = mode === 2 ? 'balanced' : 'bright';
       }
+      if (f2 & FEATURE2_SHADOW_LEARN) features.shadowLearn = true;
+      if (f2 & FEATURE2_MORE) {
+        if (p >= rec.length) return null;
+        const f3 = rec[p++];
+        if (f3 === 0 || (f3 & ~(FEATURE3_RATIO_SHADE | FEATURE3_SHADE_LIGHT | FEATURE3_BATTERY | FEATURE3_CUSTOM_GRID)) !== 0) return null;
+        if (f3 & FEATURE3_RATIO_SHADE) {
+          if (count === 0) return null;
+          features.ratioShade = true;
+          if (f3 & FEATURE3_SHADE_LIGHT) features.ratioShadeTone = 'light';
+        } else if (f3 & FEATURE3_SHADE_LIGHT) return null;
+        if (f3 & FEATURE3_BATTERY) features.batteryPercent = true;
+        if (f3 & FEATURE3_CUSTOM_GRID) {
+          if (p + 2 > rec.length) return null;
+          const grid = { g3: gridLinesOf(rec[p++]), g4: gridLinesOf(rec[p++]) };
+          if (isCameraGrid(grid)) return null;
+          features.customGrid = grid;
+        }
+      }
     }
-    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.brightAuto) return null;
+    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.brightAuto && !features.batteryPercent && !features.customGrid && !features.shadowLearn) return null;
   }
   for (; p < rec.length; p++) if (rec[p] !== 0) return null;
   return { specs: out, features, extraSlots, shutdownPictures };
@@ -360,7 +404,7 @@ export function growPayload(payload: Uint8Array, aspect: AspectResult, specs: re
 /** Planned ranges (NEW payload offsets) of everything `growPayload` adds or changes, for the self-check. */
 export function grownRanges(g: GrownPayload, aspect: AspectResult): Range[] {
   const out: Range[] = [];
-  for (const w of aspect.words) out.push({ what: `ratio hook 0x${w.address.toString(16)}`, offset: g.rtosOffset + (w.address - 0x53000000), length: 4 });
+  for (const w of aspect.words) out.push({ what: `ratio hook 0x${w.address.toString(16)}`, offset: g.rtosOffset + (w.address - adr(0x53000000)), length: 4 });
   out.push({ what: 'RTOS section size', offset: g.rtosOffset - 4, length: 4 });
   out.push({ what: 'RTOS appended area', offset: g.rtosOffset + OFFICIAL_RTOS_LENGTH, length: g.rtosGrowth });
   if (g.iconGrowth > 0) {

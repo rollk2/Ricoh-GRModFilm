@@ -6,7 +6,7 @@ import { Ico, IconCanvas, Segmented } from './components';
 import type { ParkedEntry } from './host';
 import { t } from './i18n';
 import type { Key } from './i18n';
-import { copyKey, copyList, fmtSize, setCopySource, softText, toggleCopies, useStore } from './store';
+import { copyKey, copyList, fmtSize, gridText, setCopySource, softText, toggleCopies, toneLabel, useStore } from './store';
 import type { BuildRecord, CopyInfo, CopySource } from './store';
 
 const folderOf = (p: string): string => p.slice(0, p.indexOf('/'));
@@ -31,7 +31,6 @@ function FirmwareLine({ info, builds, lang, name }: { info: CopyInfo | undefined
   if (!info || info.busy) return <><span className="copy-file">{Ico.chip}</span><div className="copy-text"><div className="copy-title">{name}</div><div className="copy-sub">{info?.busy && <><span className="spinner small" />{t('copyReading')}</>}</div></div></>;
   const s = info.summary;
   if (!s || s.kind === 'unknown') return <><span className="copy-file">{Ico.chip}</span><div className="copy-text"><div className="copy-title">{name}</div><div className="copy-sub"><span className="chip warn tiny">{t('copyUnknown')}</span></div></div></>;
-  if (s.kind === 'bridge') return <><span className="copy-file">{Ico.bridge}</span><div className="copy-text"><div className="copy-title">{name}</div><div className="copy-sub"><span className="chip warn tiny">{t('copyBridge')}</span></div></div></>;
   const build = builds.find((b) => b.sha256 === s.sha256);
   return (
     <>
@@ -56,6 +55,19 @@ function FirmwareLine({ info, builds, lang, name }: { info: CopyInfo | undefined
           {s.adjSlots && <span className="chip tiny" title={t('adjSlotsLine', { n: s.adjSlots })}><b>ADJ {s.adjSlots}</b></span>}
           {s.hdrGainMap && <span className="chip tiny" title={t('hdrLine')}><b>HDR</b></span>}
           {s.exposurePreview && <span className="chip tiny" title={t('previewLine')}><b>{t('navPreview')}</b></span>}
+          {s.batteryPercent && <span className="chip tiny" title={t('batteryLine')}><b>{t('batteryChip')}</b></span>}
+          {s.customGrid && <span className="chip tiny" title={t('gridLine', { a: gridText(s.customGrid, 'g3'), b: gridText(s.customGrid, 'g4') })}><b>{t('gridChip')}</b></span>}
+          {s.ratioShade && <span className="chip tiny" title={t('ratioShadeLine', { p: toneLabel(s.ratioShadeTone ?? 'dark') })}><b>{t('ratioLiveChip')}</b><span className="ellipsis">{toneLabel(s.ratioShadeTone ?? 'dark')}</span></span>}
+          {s.shadowLearn && <span className="chip tiny" title={t('shadowLine')}><b>{t('navShadow')}</b></span>}
+          {s.filmGrain && <span className="chip tiny" title={t('grainLine')}><b>{t('navGrain')}</b></span>}
+          {s.flashTtl && <span className="chip tiny" title={t('flashTtlLine')}><b>{t('navFlashTtl')}</b></span>}
+          {s.videoAf && <span className="chip tiny" title={t('videoAfLine')}><b>{t('navVideoAf')}</b></span>}
+          {s.awbLearn && <span className="chip tiny" title={t('awbLine')}><b>{t('navAwb')}</b></span>}
+          {s.movieExposure && <span className="chip tiny" title={t('movieExpLine')}><b>{t('navMovieExp')}</b></span>}
+          {s.constantLight && <span className="chip tiny" title={t('lampLine')}><b>{t('navLamp')}</b></span>}
+          {s.sensorShift && <span className="chip tiny" title={t('shiftLine')}><b>{t('navShift')}</b></span>}
+          {s.movie4k && <span className="chip tiny" title={t('movie4kLine')}><b>{t('navMovie4k')}</b></span>}
+          {s.movieSr && <span className="chip tiny" title={t('movieSrLine')}><b>{t('navMovieSr')}</b></span>}
         </div>
       </div>
     </>

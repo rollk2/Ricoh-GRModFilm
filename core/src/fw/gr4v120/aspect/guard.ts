@@ -34,18 +34,20 @@
 import { assembleWords, branchTarget, branchWord } from './arm';
 import { FirmwareError } from '../../types';
 import { Patch, expectWord } from './build';
+import { MOVIE_BYTE_OFFSET } from './movie4k';
+import { adr, byRelease } from '../target';
 
 function fail(code: string, message: string): never {
   throw new FirmwareError(code, message);
 }
 
 /** CURRENT(): the live user settings. */
-const CURRENT = 0x53240c38;
-const SETTINGS_SAVE = 0x533f3674;
-const SETTINGS_LOAD = 0x533f3254;
+const CURRENT = adr(0x53240c38);
+const SETTINGS_SAVE = adr(0x533f3674);
+const SETTINGS_LOAD = adr(0x533f3254);
 /** User-mode recall: `bl 0x532406A4` with the settings in r4 (see build.ts, installState). */
-const RECALL = 0x532adedc;
-const RECALL_NATIVE = 0x532406a4;
+const RECALL = adr(0x532adedc);
+const RECALL_NATIVE = adr(0x532406a4);
 
 const LOOKS = [0x153, 0x154, 0x155, 0x156, 0x515, 0x516, 0x517, 0x518];
 const RATIO = 0x49f;
@@ -73,6 +75,10 @@ export interface GuardOptions {
    * is the ADJ lever function 0x15 (so slots may hold it).
    */
   exposurePreview?: boolean;
+  /** Bits of the movie options' byte (`movie4k.ts`: 0x775 of the settings object) that mean something in this build; the others are cleared. */
+  movieBits?: number;
+  /** The last ADJ lever function when Constant Light (`lamp.ts`) or Sensor Shift (`shift.ts`) adds one: 0x15 .. 0x17. */
+  lastAdjFunction?: number;
 }
 
 /** Slots 6..8 (`adjslots.ts`): bytes 0x48D..0x48F of the user settings object, bits 0..4 the function, bits 5..7 of the first the slot last used (1..3: slot 6..8). */
@@ -104,7 +110,8 @@ function fixSource(o: GuardOptions): string {
   });
   if (!o.ratios) lines.push(`ldrb r2,[r0,#${RATIO}]`, 'cmp r2,#3', 'movhi r2,#0', `strbhi r2,[r0,#${RATIO}]`);
   // The last ADJ function: 0x14, 0x15 with exposure preview on the ADJ lever.
-  const last = o.exposurePreview ? 21 : 20;
+  const last = o.lastAdjFunction ?? (o.exposurePreview ? 21 : 20);
+  if (!(last >= 20 && last <= 23)) fail('internal', 'guard: the last ADJ function');
   if (!o.adjSoftFocus) {
     ADJ_SLOTS.forEach((off, i) => {
       lines.push(`ldrb r2,[r0,#${off}]`, 'cmp r2,#10', `beq adjbad${i}`, `cmp r2,#${last}`, `bls adj${i}`, `adjbad${i}:`, 'mov r2,#0', `strb r2,[r0,#${off}]`, `adj${i}:`);
@@ -133,6 +140,10 @@ function fixSource(o: GuardOptions): string {
   }
   if (o.hdr) lines.push(`ldrb r2,[r0,#${HDR_SWITCH}]`, 'cmp r2,#1', 'movhi r2,#0', `strbhi r2,[r0,#${HDR_SWITCH}]`);
   if (o.exposurePreview) lines.push(`ldrb r2,[r0,#${EXPOSURE_PREVIEW}]`, 'cmp r2,#2', 'movhi r2,#0', `strbhi r2,[r0,#${EXPOSURE_PREVIEW}]`);
+  if (o.movieBits !== undefined) {
+    if (!(Number.isInteger(o.movieBits) && o.movieBits > 0 && o.movieBits < 4)) fail('internal', 'guard: the movie options');
+    lines.push(`ldrb r2,[r0,#${MOVIE_BYTE_OFFSET}]`, `and r2,r2,#${o.movieBits}`, `strb r2,[r0,#${MOVIE_BYTE_OFFSET}]`);
+  }
   lines.push('bx lr');
   return lines.join(';');
 }
@@ -149,7 +160,7 @@ export function installSettingsGuard(p: Patch, o: GuardOptions): { fix: number; 
   const recallWord = p.word(RECALL);
   if (recallWord >>> 24 !== 0xeb) fail('unexpected-layout', 'user-mode recall is not a call');
   const priorRecall = branchTarget(RECALL, recallWord);
-  if (priorRecall === RECALL_NATIVE) expectWord(p, RECALL, 0xebfe49f0); // bl 0x532406A4
+  if (priorRecall === RECALL_NATIVE) expectWord(p, RECALL, byRelease({ '1.20': 0xebfe49f0, '1.21': 0xebfe495e })); // bl 0x532406A4
 
   const fix = p.append((a) => assembleWords(fixSource(o), a), 16);
   // fix_mode(mode): the ten snapshots at mode + 4.

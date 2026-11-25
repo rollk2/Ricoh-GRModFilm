@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 const sha = async (b: Uint8Array): Promise<string> => createHash('sha256').update(b).digest('hex');
 import { Engine, fw } from '../src';
@@ -19,7 +20,7 @@ import { WRITER_VTABLE as WRITER_VTABLE_120 } from '../src/fw/gr4v120/aspect/hdr
 import { HDRGAIN_SOURCE_SHA256 as HDRGAIN_SOURCE_SHA256_120 } from '../src/fw/gr4v120/aspect/hdrgain-code';
 import type { ExtraSlotSpec } from '../src';
 
-const P = new URL('../testdata/private/', import.meta.url).pathname;
+const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 const have = existsSync(P + 'official.bin');
 /** GR IV 1.20 (= GR IV Monochrome 1.10), for the port (fw/gr4v120). */
 const file120 = process.env.GRMOD_GR4_120_FIRMWARE;
@@ -195,7 +196,7 @@ describe.skipIf(!have120)('HDR gain map: GR IV 1.20 (port)', () => {
   };
   const word = (rtos: Uint8Array, a: number): number => new DataView(rtos.buffer, rtos.byteOffset).getUint32(a - 0x53000000, true);
   it('builds with the common additions and halation, verifies, reads back; plain builds keep the writer', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(file120!)), { newFirmware: true });
+    const eng = await Engine.open(new Uint8Array(readFileSync(file120!)));
     expect(eng.info.version).toBe('1.20');
     expect(WRITER_VTABLE_120).toBe(0x53fdde18);
     const opts = { adjSoftFocus: true, dateStamp: true, monoUnlock: true, extraSlots: [haloSlot(eng)] };

@@ -23,7 +23,7 @@ describe('GR IV 1.21: battery percentage', () => {
 
   it.skipIf(!f121 || !existsSync(f121))('the hook, the icons, the zero fill up to the heap; built, read back, with the ratio order', async () => {
     const raw = new Uint8Array(readFileSync(f121!));
-    const eng = await Engine.open(raw, { newFirmware: true });
+    const eng = await Engine.open(raw);
     expect(eng.info.features.batteryPercent).toBe(true);
     const g4 = (eng as any).g4, dec: Uint8Array = (eng as any).decoded;
     const rtos = () => dec.slice(g4.RTOS_OFFSET, g4.RTOS_OFFSET + g4.aspect.OFFICIAL_RTOS_LENGTH);
@@ -45,7 +45,7 @@ describe('GR IV 1.21: battery percentage', () => {
 
     const built = await eng.buildFirmware([], [], [], { noMovie: true, batteryPercent: true, ratioOrder: [3, 0, 1, 2] });
     expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
-    const back = await (await Engine.open(raw, { newFirmware: true })).inspect(built.file);
+    const back = await (await Engine.open(raw)).inspect(built.file);
     expect(back.verified).toBe(true);
     expect(back.batteryPercent).toBe(true);
     expect(back.ratioOrder).toEqual([3, 0, 1, 2]);
@@ -55,9 +55,13 @@ describe('GR IV 1.21: battery percentage', () => {
     expect((await eng.inspect(none.file)).batteryPercent).toBeUndefined();
   }, 900_000);
 
-  it.skipIf(!f120 || !existsSync(f120))('1.20: not offered in this program, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)), { newFirmware: true });
-    expect(eng.info.features.batteryPercent).toBeFalsy();
-    await expect(eng.buildFirmware([], [], [], { batteryPercent: true })).rejects.toMatchObject({ code: 'bad-edit' });
-  }, 300_000);
+  it.skipIf(!f120 || !existsSync(f120))('1.20: offered by the GR Mod 0.9 program, built and read back', async () => {
+    const raw = new Uint8Array(readFileSync(f120!));
+    const eng = await Engine.open(raw);
+    expect(eng.info.features.batteryPercent).toBe(true);
+    const built = await eng.buildFirmware([], [], [], { batteryPercent: true });
+    const back = await (await Engine.open(raw)).inspect(built.file);
+    expect(back.verified).toBe(true);
+    expect(back.batteryPercent).toEqual({ batteryPercent: true }.batteryPercent);
+  }, 600_000);
 });

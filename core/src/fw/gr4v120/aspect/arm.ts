@@ -30,7 +30,7 @@ const SHIFTS: Record<string, number> = { lsl: 0, lsr: 1, asr: 2, ror: 3 };
 
 /** Mnemonics that take a condition suffix (and, for data processing, an optional `s` before it). */
 const BASES = [
-  'umull', 'movw', 'movt', 'ldrb', 'ldrh', 'strb', 'strh', 'uxtb', 'vldr', 'push', 'pop', 'mrs', 'msr', 'mul', 'ldr', 'str',
+  'umull', 'movw', 'movt', 'ldrb', 'ldrh', 'strb', 'strh', 'uxtb', 'vldr', 'vmov', 'push', 'pop', 'mrs', 'msr', 'mul', 'ldr', 'str',
   ...Object.keys(DP),
 ];
 
@@ -299,6 +299,16 @@ function encode(m: Mnemonic, ops: string[], at: number, labels: Map<string, numb
       const mem = memory([ops[1]]);
       if (mem.immediate === null || !mem.pre || mem.immediate % 4 !== 0 || mem.immediate > 1020) fail('vldr: unsupported addressing');
       return (c | 0x0d100a00 | (mem.up ? 1 << 23 : 0) | ((s & 1) << 22) | (mem.rn << 16) | ((s >> 1) << 12) | (mem.immediate >> 2)) >>> 0;
+    }
+    case 'vmov': {
+      // Between a core register and a single-precision register only: vmov rt, sn / vmov sn, rt.
+      need(2);
+      const toCore = !/^s\d+$/i.test(ops[0]);
+      const sm = /^s(\d+)$/i.exec(toCore ? ops[1] : ops[0]);
+      if (!sm || Number(sm[1]) > 31) fail(`vmov: unsupported operands ${ops.join(', ')}`);
+      const s = Number(sm[1]), rt = reg(toCore ? ops[0] : ops[1]);
+      if (rt > 14) fail('vmov: pc not allowed');
+      return (c | 0x0e000a10 | (toCore ? 1 << 20 : 0) | ((s >> 1) << 16) | (rt << 12) | ((s & 1) << 7)) >>> 0;
     }
     default: {
       const d = DP[m.base];

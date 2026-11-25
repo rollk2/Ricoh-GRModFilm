@@ -26,6 +26,7 @@ import { lookLayoutWords } from './aspect/looks';
 import type { LookLayout } from './aspect/looks';
 import { CLARITY_BYTES, CLARITY_OFFSET, clarityBytes, hasOfficialClarity } from './clarity';
 import type { ClarityEdit } from './clarity';
+import { adr } from './target';
 
 export type { Range } from './types';
 
@@ -205,7 +206,7 @@ function transparentPixels(icon: Uint8Array): number[] {
 export async function buildFirmware(officialRaw: Uint8Array, edits: SlotEdit[], ratios: readonly RatioSpec[] = [], clarity: readonly ClarityEdit[] = [], features: ExtensionFeatures = {}, test: TestOptions = {}): Promise<BuildResult> {
   // Additions that append code or icons need the grown layout. The monochrome looks change 13
   // words in place: on their own (or with only same-length edits) the file keeps the official layout.
-  const grows = !!features.brightAuto || ratios.length > 0 || !!features.adjSoftFocus || !!features.dateStamp || (features.extraSlots?.length ?? 0) > 0 || (features.shutdown?.pictures.length ?? 0) > 0 || !!features.guard || !!features.cinemaHalation || !!features.directFlash || (features.adjSlots ?? 5) > 5 || !!features.hdrGainMap;
+  const grows = !!features.brightAuto || ratios.length > 0 || !!features.adjSoftFocus || !!features.dateStamp || (features.extraSlots?.length ?? 0) > 0 || (features.shutdown?.pictures.length ?? 0) > 0 || !!features.guard || !!features.cinemaHalation || !!features.directFlash || (features.adjSlots ?? 5) > 5 || !!features.hdrGainMap || !!features.batteryPercent || !!features.customGrid || !!features.shadowLearn;
   const inPlaceMono = !grows && !!features.monoUnlock;
   const inPlaceLooks = !grows && !!features.lookLayout;
   const { fw, DEC, img, ranges } = await editPayload(officialRaw, edits, clarity, inPlaceMono, inPlaceLooks ? features.lookLayout : undefined);
@@ -246,7 +247,7 @@ export function monoUnlockWords(official: Uint8Array): { offset: number; bytes: 
   return [...last.entries()].sort((a, b) => a[0] - b[0]).map(([address, after]) => {
     const bytes = new Uint8Array(4);
     new DataView(bytes.buffer).setUint32(0, after, true);
-    return { offset: RTOS_OFFSET + (address - 0x53000000), bytes };
+    return { offset: RTOS_OFFSET + (address - adr(0x53000000)), bytes };
   });
 }
 
@@ -382,7 +383,7 @@ async function editPayload(officialRaw: Uint8Array, edits: SlotEdit[], clarity: 
   if (monoUnlock) {
     for (const w of monoUnlockWords(DEC)) {
       for (const r of ranges) if (r.offset < w.offset + 4 && w.offset < r.offset + r.length) bad('assert-failed', `monochrome looks overlap ${r.what}`);
-      write(`monochrome looks 0x${(w.offset - RTOS_OFFSET + 0x53000000).toString(16)}`, w.offset, w.bytes, 4);
+      write(`monochrome looks 0x${(w.offset - RTOS_OFFSET + adr(0x53000000)).toString(16)}`, w.offset, w.bytes, 4);
     }
     rtosTouched = true;
   }

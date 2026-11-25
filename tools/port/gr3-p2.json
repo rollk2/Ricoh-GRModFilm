@@ -1,12 +1,8 @@
 {
-  "about": "GR III 2.20 / GR IIIx 1.70 (one program, as 2.10 / 1.60) from the 2.10 / 1.60 port",
+  "about": "GR III 2.20 / GR IIIx 1.70: the development tools and the equivalence test, generated from 2.10 / 1.60's. The program itself is fw/gr3x with fw/gr3x170's target (core/src/fw/release.ts). GR Mod Film: its own GR III 2.10 / IIIx 1.60 tools (the film mode's probes, `exclude` after `fixtures`) are not ported: the film mode is built on 2.10 / 1.60 only.",
   "map": "tools/port/gr3-p2-map.json",
   "patch": "tools/port/gr3-p2.patch",
   "copies": [
-    [
-      "core/src/fw/gr3x",
-      "core/src/fw/gr3x170"
-    ],
     [
       "tools/gr3x",
       "tools/gr3x170"
@@ -14,7 +10,28 @@
   ],
   "exclude": [
     "__pycache__",
-    "fixtures"
+    "fixtures",
+    "af_time_probe.py",
+    "build-film-probe.mjs",
+    "dial_probe.py",
+    "film_probe_check.py",
+    "film_roll_check.py",
+    "format_probe.py",
+    "grain_native_probe.py",
+    "grain_stage_probe.py",
+    "grain_tag_probe.py",
+    "hidden_probe.py",
+    "hide_menu_probe.py",
+    "hold_probe.py",
+    "lock_probe.py",
+    "play_last_probe.py",
+    "play_probe.py",
+    "rewind_button_probe.py",
+    "settings_file_probe.py",
+    "settings_layout_probe.py",
+    "snap_dof_probe.py",
+    "sr_speed_probe.py",
+    "wb_button_probe.py"
   ],
   "rename": [
     [

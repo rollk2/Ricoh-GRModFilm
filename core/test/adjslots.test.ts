@@ -9,8 +9,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Engine, fw } from '../src';
 import { ADJSLOTS_CODE, ADJSLOTS_SOURCE_SHA256 } from '../src/fw/aspect/adjslots-code';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
-const P = new URL('../testdata/private/', import.meta.url).pathname;
+const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 const have = existsSync(P + 'official.bin');
 const { aspect } = fw;
 
@@ -97,7 +98,7 @@ describe.skipIf(!have)('ADJ lever slots: builds', () => {
 const file120 = process.env.GRMOD_GR4_120_FIRMWARE;
 describe.skipIf(!file120 || !existsSync(file120))('ADJ lever slots: GR IV 1.20', () => {
   it('builds 6..8 slots with the other additions, passes the self-check, reads back', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(file120!)), { newFirmware: true });
+    const eng = await Engine.open(new Uint8Array(readFileSync(file120!)));
     expect(eng.info.version).toBe('1.20');
     expect(eng.info.features.maxAdjSlots).toBe(8);
     for (const n of [6, 8]) {

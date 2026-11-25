@@ -25,6 +25,10 @@ body {
   background: var(--side); color: var(--text); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; overflow: hidden; overscroll-behavior: none; user-select: none;
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", Helvetica, Arial, sans-serif;
 }
+/* The CJK interface languages each with their own glyph forms (the html element's lang, set by i18n.ts). */
+html:lang(zh-TW) body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans CJK TC", Helvetica, Arial, sans-serif; }
+html:lang(ja) body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo UI", Meiryo, "Noto Sans CJK JP", Helvetica, Arial, sans-serif; }
+html:lang(ko) body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", Helvetica, Arial, sans-serif; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 svg { width: 18px; height: 18px; flex: none; }
@@ -86,6 +90,7 @@ svg { width: 18px; height: 18px; flex: none; }
 .props { border-top: 1px solid var(--line); padding-top: 4px; }
 .prop { display: flex; align-items: flex-start; min-height: 32px; padding: 2px 0; }
 .prop-label { width: 48px; flex: none; color: var(--muted); padding-top: 4px; font-size: 13px; }
+html:lang(ja) .prop-label { width: 72px; }
 .prop-value { flex: 1; min-width: 0; display: flex; align-items: center; min-height: 28px; }
 .preset { display: grid; gap: 6px; min-width: 0; width: 100%; }
 .file-chip { display: flex; align-items: center; height: 26px; border-radius: 5px; background: var(--chip); min-width: 0; max-width: 100%; width: fit-content; }
@@ -194,6 +199,12 @@ svg { width: 18px; height: 18px; flex: none; }
 .dialog-lines { margin: 0 0 12px; padding: 0; list-style: none; font-size: 13.5px; display: grid; gap: 4px; }
 .dialog-lines li { padding: 6px 10px; background: var(--chip); border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dialog-lines.last { margin-bottom: 18px; }
+/* The confirmation's lines as capsules that fill each row; with many of them the list scrolls and the
+   warning and the buttons stay in view. */
+.dialog.confirm { width: 560px; max-height: calc(100% - 48px); display: flex; flex-direction: column; }
+.dialog.confirm > * { flex: none; }
+.dialog.confirm > .dialog-lines { flex: 0 1 auto; min-height: 48px; overflow-y: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; }
+.dialog.confirm .dialog-lines li { max-width: 100%; padding: 5px 12px; border-radius: 999px; }
 .dialog-warn { margin: 0 0 18px; padding: 9px 12px; border-radius: 6px; background: var(--amber-bg); color: var(--amber); font-size: 13.5px; }
 .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .dialog-actions.spread { align-items: center; padding-top: 14px; }
@@ -297,6 +308,17 @@ svg { width: 18px; height: 18px; flex: none; }
 .ratio-frame:hover .compare-swap { opacity: 1; }
 .ratio-photo { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
 .ratio-shade { position: absolute; background: rgba(0, 0, 0, 0.72); pointer-events: none; }
+/* The live-view shade as the camera draws it: black at 50 %, or grey at 25 %. */
+.ratio-frame.live-shade .ratio-shade { background: rgba(0, 0, 0, 0.5); }
+.ratio-frame.live-shade.tone-light .ratio-shade { background: rgba(85, 85, 85, 0.25); }
+/* GR IV 1.20 / 1.21: the level chosen in the camera, previewed */
+.ratio-frame.live-shade.level-100 .ratio-shade { background: rgb(0, 0, 0); }
+.ratio-frame.live-shade.level-75 .ratio-shade { background: rgba(0, 0, 0, 0.75); }
+.ratio-frame.live-shade.level-25 .ratio-shade { background: rgba(0, 0, 0, 0.25); }
+.ratio-frame.live-shade.level-0 .ratio-shade { background: transparent; }
+.ratio-live { flex: none; display: grid; gap: 6px; margin-top: 10px; padding: 8px 8px 0; border-top: 1px solid var(--line); }
+.ratio-live .seg { justify-self: start; }
+.ratio-live p { margin: 0; }
 .ratio-window { position: absolute; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.92); pointer-events: none; }
 .ratio-out { flex: none; min-height: 24px; margin-top: 12px; }
 .ratio-out.sizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); width: min(100cqw, 520px); }
@@ -305,6 +327,23 @@ svg { width: 18px; height: 18px; flex: none; }
 
 /* soft focus switch (Image Control page) */
 .soft-switch { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+/* Custom grid lines: under their switch, a preview (click a line) and a button per line. */
+.grid-edit { display: grid; gap: 10px; padding: 0 14px 12px 58px; }
+.grid-edit .seg { justify-self: start; }
+.grid-edit-body { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.grid-edit-preview { width: 180px; height: auto; flex: none; border-radius: 4px; display: block; }
+.grid-edit-hit { cursor: pointer; }
+.grid-edit-lines { display: grid; gap: 6px; min-width: 0; }
+.grid-edit-group { display: grid; gap: 3px; }
+.grid-edit .btn.small[aria-pressed='true'] { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+.grid-edit .btn.small[aria-pressed='false'] { border-style: dashed; color: var(--muted); }
+.grid-edit p { margin: 0; }
+/* Custom grid page: the switch, then the editor, dimmed while the switch is off. */
+.grid-page { display: flex; flex-direction: column; gap: 14px; max-width: 900px; min-height: 0; overflow-y: auto; padding-right: 3px; }
+.grid-page > .capsule { flex: none; max-width: 640px; }
+.grid-page .grid-edit { padding: 0; }
+.grid-page .grid-edit-preview { width: min(100%, 520px); }
+.grid-page.off .grid-edit { opacity: 0.45; pointer-events: none; }
 .soft-switch .soft-ico { width: 32px; height: 32px; flex: none; }
 .soft-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .soft-text b { font-weight: 600; }
@@ -314,6 +353,39 @@ svg { width: 18px; height: 18px; flex: none; }
 .extras .soft-switch { padding: 8px 14px; }
 .extras .soft-switch + .soft-switch { border-top: 1px solid var(--line); }
 .mono-ic { display: flex; flex-direction: column; gap: 12px; max-width: 440px; }
+.mono-ic .btn { align-self: flex-start; }
+/* Additions page: one capsule per addition, in as many columns as the page has room for (each at
+   least 280px wide), each capsule as tall as what it holds, filling the columns in turn. Scrolls on its own on the desktop. */
+.capsules { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 2px 3px 8px 0; }
+/* The columns in a box of their own height: in the scrolling box itself (a fixed height) they would
+   run on sideways, past the window's right edge. */
+.capsules-flow { columns: 280px auto; column-gap: 12px; }
+.capsules-flow > .capsule { break-inside: avoid; margin-bottom: 12px; }
+.capsule { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 14px; border: 1px solid var(--line); border-radius: 20px; background: var(--bg); transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; min-width: 0; }
+.capsule.on { border-color: color-mix(in srgb, var(--blue) 45%, var(--line2)); background: color-mix(in srgb, var(--blue-bg) 45%, var(--side)); }
+.capsule-top { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.capsule-top .soft-ico { width: 32px; height: 32px; flex: none; border-radius: 10px; }
+.capsule.on .capsule-top .soft-ico { color: var(--blue); background: var(--blue-bg); }
+.capsule-title { flex: 1; min-width: 0; font-weight: 600; line-height: 1.3; }
+.capsule-sub { margin: 0; line-height: 1.45; }
+.capsule-choice { margin-top: auto; padding-top: 2px; }
+.capsule-choice .seg { display: flex; width: 100%; }
+.capsule-choice .seg button { flex: 1; padding: 0 6px; white-space: nowrap; }
+/* A capsule with settings of its own: a row that opens them. */
+.capsule-open { margin-top: auto; display: flex; align-items: center; gap: 6px; width: 100%; height: 34px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 17px; background: var(--bg); color: var(--text); font-weight: 500; font-size: 13.5px; cursor: pointer; transition: background 0.1s, border-color 0.1s; }
+.capsule-open:hover { background: var(--hover); }
+.capsule-open .capsule-chev { margin-left: auto; font-size: 18px; line-height: 1; color: var(--muted); }
+.grid-thumbs { display: flex; gap: 8px; }
+.grid-thumbs.off { opacity: 0.5; }
+.grid-thumb { flex: 1; min-width: 0; max-width: 96px; height: auto; border-radius: 6px; display: block; }
+/* The custom grid's editor, opened from its capsule: back to the list in the header. */
+.page-head.sub { gap: 8px; }
+.page-head .back-btn { margin-left: -6px; }
+.page-head .crumbs { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.page-head .crumb-up { color: var(--muted); cursor: pointer; }
+.page-head .crumb-up:hover { color: var(--text); }
+.page-head .crumb-sep { color: var(--faint); font-weight: 400; }
+.page-head .m-crumb { display: none; }
 .switch { flex: none; position: relative; width: 34px; height: 20px; padding: 0; border: 0; border-radius: 10px; background: var(--line2); cursor: pointer; transition: background 0.18s; }
 .switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: transform 0.18s cubic-bezier(0.22, 0.8, 0.24, 1); }
 .switch.on { background: var(--blue); }
@@ -397,14 +469,9 @@ button.fw-rel:disabled { cursor: default; }
 /* what only shows under the pointer is shown while the tour points at it */
 [data-tour-on] .wall-actions, [data-tour-on] .ratio-x, [data-tour-on] .compare-swap { opacity: 1; }
 
-/* 1.12 bridge firmware */
+/* menus */
 .pop-sep { height: 1px; margin: 4px 6px; background: var(--line); }
 .pop-item:disabled { opacity: 0.45; }
-.bridge-banner { display: flex; align-items: center; gap: 10px; margin: 10px 14px 0; padding: 8px 10px 8px 12px; border-radius: 8px; background: var(--amber-bg); color: var(--amber); font-size: 13px; flex: none; }
-.bridge-banner-ico { display: grid; flex: none; }
-.bridge-banner-ico svg { width: 18px; height: 18px; }
-.bridge-banner-text { flex: 1; min-width: 0; }
-.bridge-banner .btn { flex: none; }
 
 /* added Image Control slots */
 .cards { overflow-y: auto; }
@@ -596,6 +663,9 @@ html.mobile-app body { background: var(--side); font-size: 15px; }
 .app.mobile .page { min-height: 100%; padding: 12px 16px 24px; }
 .app.mobile .page-head { height: auto; min-height: 32px; margin-bottom: 12px; }
 .app.mobile .page-head h1, .app.mobile .page-head .page-icon { display: none; }
+.app.mobile .capsules, .app.mobile .grid-page { overflow: visible; flex: none; min-height: auto; padding-right: 0; }
+.app.mobile .page-head.sub .m-crumb { display: block; font-weight: 600; font-size: 16px; }
+.app.mobile .grid-page .grid-edit-body { flex-direction: column; }
 .app.mobile .head-right { margin-left: auto; flex: none; justify-content: flex-end; }
 /* the output buttons and the page tabs float over the page (app.tsx MobileActions, MobileTabs; glass.tsx) */
 .app.mobile { --dock-b: calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) + 10px); --dock-h: 64px; --act-h: 48px; }

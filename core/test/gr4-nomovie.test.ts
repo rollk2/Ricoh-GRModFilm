@@ -14,7 +14,7 @@ const f120 = process.env.GRMOD_GR4_120_FIRMWARE;
 describe('GR IV Monochrome: no movie', () => {
   it.skipIf(!f121 || !existsSync(f121))('1.21: built, self-checked, read back', async () => {
     const raw = new Uint8Array(readFileSync(f121!));
-    const eng = await Engine.open(raw, { newFirmware: true });
+    const eng = await Engine.open(raw);
     expect(eng.info.features.noMovie).toBe(true);
     const built = await eng.buildFirmware([], [], [], { noMovie: true });
     expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
@@ -23,7 +23,7 @@ describe('GR IV Monochrome: no movie', () => {
     expect(back.noMovie).toBe(true);
   }, 300_000);
   it.skipIf(!f120 || !existsSync(f120))('1.20: not offered, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)), { newFirmware: true });
+    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)));
     expect(eng.info.features.noMovie).toBeFalsy();
     await expect(eng.buildFirmware([], [], [], { noMovie: true })).rejects.toMatchObject({ code: 'bad-edit' });
   }, 300_000);

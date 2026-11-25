@@ -57,18 +57,23 @@
  *    (the builder's own limit); with seven or eight lines the list scrolls with the cursor, as long
  *    lists do. Customize Settings is as the camera's.
  * In the fixed layout (movies) the extra slots are empty and their frames hidden: the five fixed
- * functions are as before.
+ * functions are as before, and where the camera has them: each time the strip is drawn, the frames
+ * and icons of the five slots are put at the official places (425 + 60 k) in the fixed layout and
+ * at the N-slot places otherwise (View::SetX 0x535ABF2C, the function the selection frame is moved
+ * with), and the selection frame's x is the official one in the fixed layout. (Before test 097 the
+ * five stood at their N-slot places with the room of slots 6..N empty to their right.)
  */
 import { FirmwareError } from '../../types';
 import { assembleWords, branchTarget, branchWord, movWord } from './arm';
 import { LANGUAGES, Patch, TEXT_CATALOG, concat, expectWord, u32le, utf16z, widenTextRows } from './build';
 import { LIST_CONTROLLER_ID, SUBMENU_CONTROLLER_ID, SUB_RECORD, SUB_SET_ICON, addListRecords, addSubmenuRecord, hookControllerFactory, submenuTable } from './datestamp-menu';
 import { ADJSLOTS_CODE, ADJSLOTS_ENTRY } from './adjslots-code';
+import { adr, byRelease } from '../target';
 
 export const ADJ_SLOTS_MIN = 5;
 export const ADJ_SLOTS_MAX = 8;
 /** Settings bytes of slots 6..8 (CURRENT() + 4 + 0x489..0x48B); in the user settings object 0x48D..0x48F. */
-export const ADJ_EXTRA_BYTE = 0x550832a8 + 4 + 0x489;
+export const ADJ_EXTRA_BYTE = adr(0x550832a8) + 4 + 0x489;
 export const ADJ_EXTRA_OBJECT_OFFSET = 0x48d;
 /** Controller ids (not used by the firmware): the record of lines 6..8 (never opened), then the lists of slots 6..8. */
 export const ADJ_MENU_ID = 0x020001c0;
@@ -121,45 +126,48 @@ export function adjFrameX(n: number, k: number): number {
 export const adjLayoutStride = (n: number): number => 12 * n;
 
 // --- Official addresses.
-const NEW_CONTROLLER = 0x53187c88; // mov r0, #0x294 (operator new)
-const CONSTRUCTOR_STATE = 0x531c1a14; // add r0, r4, #0x200 ; mov r2, #0x78 (memset)
-const CONSTRUCTOR_BIND = 0x531c1a60; // bl BindViews
-const VIEW_TABLE = 0x53dca5e0;
+const NEW_CONTROLLER = adr(0x53187c88); // mov r0, #0x294 (operator new)
+const CONSTRUCTOR_STATE = adr(0x531c1a14); // add r0, r4, #0x200 ; mov r2, #0x78 (memset)
+const CONSTRUCTOR_BIND = adr(0x531c1a60); // bl BindViews
+const VIEW_TABLE = adr(0x53dca5e0);
 const VIEW_ENTRY = 24;
 const OFFICIAL_VIEWS = 39;
-const VTABLE_CAN_OPEN = 0x53dc9dac;
-const CAN_OPEN = 0x531be5e4;
-const SLOT_FUNCTION_OUT = 0x531beae4; // b assertion
-const SLOT_FUNCTION_ASSERT = 0x531beba8;
+const VTABLE_CAN_OPEN = adr(0x53dc9dac);
+const CAN_OPEN = adr(0x531be5e4);
+const SLOT_FUNCTION_OUT = adr(0x531beae4); // b assertion
+const SLOT_FUNCTION_ASSERT = adr(0x531beba8);
 /** SlotFunction's return: sub sp, fp, #0x18; ldm sp, {r4, r5, r6, fp, sp, pc}. */
-const SLOT_FUNCTION_RETURN = 0x531beba0;
-const DRAW = 0x531c0f74;
-const TOUCHABLE = 0x531bebf4;
-const TAPS = 0x531bd078;
-const TAP_SELECT = 0x531c0e84;
-const GET_STILL_POSITION = 0x532a0574;
-const SET_STILL_POSITION = 0x5333f0e8;
-const ENTER_GET = 0x531c03bc;
-const ENTER_SET = 0x531c0404;
-const COMMIT_SET = 0x531c0498;
+const SLOT_FUNCTION_RETURN = adr(0x531beba0);
+const DRAW = adr(0x531c0f74);
+const IS_FIXED = adr(0x531be238); // (this) -> 1 in the fixed layout (movies)
+const VIEW_SET_X = adr(0x535abf2c); // (view, x)
+const SELECTION_SET_X = adr(0x531c0930); // bl View::SetX(selection frame, x0 + pitch * slot), slot in r2, this in r4
+const TOUCHABLE = adr(0x531bebf4);
+const TAPS = adr(0x531bd078);
+const TAP_SELECT = adr(0x531c0e84);
+const GET_STILL_POSITION = adr(0x532a0574);
+const SET_STILL_POSITION = adr(0x5333f0e8);
+const ENTER_GET = adr(0x531c03bc);
+const ENTER_SET = adr(0x531c0404);
+const COMMIT_SET = adr(0x531c0498);
 const MOV_IP_SP = 0xe1a0c00d;
 
 /** Official words of every place changed, checked first. */
 const OFFICIAL: readonly (readonly [number, number])[] = [
-  [0x53187c88, 0xe3a00fa5], [0x531c1a14, 0xe2840c02], [0x531c1a18, 0xe3a02078], [0x531c1a60, 0xebff0a70],
-  [0x531bd58c, 0xe2862c02], [0x531bd590, 0xe2863f8f], [0x531bd5b8, 0xe2860f9e], [0x531be2a4, 0xe3a0203c], [0x531be2bc, 0xe5c4220a],
-  [0x531c0590, 0xe3a0303c], [0x531c05a8, 0xe283cf82], [0x531c05ac, 0xe5d3220a], [0x531c0654, 0xe3a0303c], [0x531c0670, 0xe2822f82],
-  [0x531c0678, 0xe2811f81], [0x531c0690, 0xe5c6220a], [0x531c06a0, 0xe5931204],
-  [0x531c0974, 0xe3a0403c], [0x531c0980, 0xe5d4320a], [0x531c0994, 0xe3550005], [0x531c09ac, 0xe5d43200], [0x531c09b4, 0x15c40200],
-  [0x531c09b8, 0x15c4720a], [0x531c09d0, 0xe3a0403c], [0x531c09e8, 0xe2804f82], [0x531c0a50, 0xe3550005],
-  [0x531c0a88, 0xe3a0c03c], [0x531c0aa0, 0xe2832f82], [0x531c0aa8, 0xe2811f81], [0x531beae4, 0xea00002f], [0x53dc9dac, 0x531be5e4],
-  [0x531c0f74, 0xe1a0c00d], [0x531c0f78, 0xe30c3484], [0x531bebf4, 0xe1a0c00d], [0x531bebf8, 0xe92ddff0], [0x531bd078, 0xe1a0c00d],
-  [0x531bd07c, 0xe3a02000], [0x531c0c10, 0xe3a05005], [0x531c0c14, 0xe3540004], [0x531c0ccc, 0xe3a05005], [0x531c0cdc, 0x03a04004],
-  [0x531c0338, 0xe3a06005], [0x531c0340, 0xe3540004], [0x531c03bc, 0xeb03806c], [0x531c0404, 0xeb05fb37], [0x531c0498, 0xea05fb12],
-  [0x531c0920, 0xe30031a9], [0x531c0928, 0xe3a0103c],
+  [adr(0x53187c88), 0xe3a00fa5], [adr(0x531c1a14), 0xe2840c02], [adr(0x531c1a18), 0xe3a02078], [adr(0x531c1a60), byRelease({ '1.20': 0xebff0a70, '1.21': 0xebff08ee })],
+  [adr(0x531bd58c), 0xe2862c02], [adr(0x531bd590), 0xe2863f8f], [adr(0x531bd5b8), 0xe2860f9e], [adr(0x531be2a4), 0xe3a0203c], [adr(0x531be2bc), 0xe5c4220a],
+  [adr(0x531c0590), 0xe3a0303c], [adr(0x531c05a8), 0xe283cf82], [adr(0x531c05ac), 0xe5d3220a], [adr(0x531c0654), 0xe3a0303c], [adr(0x531c0670), 0xe2822f82],
+  [adr(0x531c0678), 0xe2811f81], [adr(0x531c0690), 0xe5c6220a], [adr(0x531c06a0), 0xe5931204],
+  [adr(0x531c0974), 0xe3a0403c], [adr(0x531c0980), 0xe5d4320a], [adr(0x531c0994), 0xe3550005], [adr(0x531c09ac), 0xe5d43200], [adr(0x531c09b4), 0x15c40200],
+  [adr(0x531c09b8), 0x15c4720a], [adr(0x531c09d0), 0xe3a0403c], [adr(0x531c09e8), 0xe2804f82], [adr(0x531c0a50), 0xe3550005],
+  [adr(0x531c0a88), 0xe3a0c03c], [adr(0x531c0aa0), 0xe2832f82], [adr(0x531c0aa8), 0xe2811f81], [adr(0x531beae4), 0xea00002f], [adr(0x53dc9dac), adr(0x531be5e4)],
+  [adr(0x531c0f74), 0xe1a0c00d], [adr(0x531c0f78), byRelease({ '1.20': 0xe30c3484, '1.21': 0xe30d3c74 })], [adr(0x531bebf4), 0xe1a0c00d], [adr(0x531bebf8), 0xe92ddff0], [adr(0x531bd078), 0xe1a0c00d],
+  [adr(0x531bd07c), 0xe3a02000], [adr(0x531c0c10), 0xe3a05005], [adr(0x531c0c14), 0xe3540004], [adr(0x531c0ccc), 0xe3a05005], [adr(0x531c0cdc), 0x03a04004],
+  [adr(0x531c0338), 0xe3a06005], [adr(0x531c0340), 0xe3540004], [adr(0x531c03bc), byRelease({ '1.20': 0xeb03806c, '1.21': 0xeb0380fe })], [adr(0x531c0404), byRelease({ '1.20': 0xeb05fb37, '1.21': 0xeb05fbc9 })], [adr(0x531c0498), byRelease({ '1.20': 0xea05fb12, '1.21': 0xea05fba4 })],
+  [adr(0x531c0920), 0xe30031a9], [adr(0x531c0928), 0xe3a0103c],
   // the functions the module and the stubs call or go back into
-  [0x531beba8, 0xe30a3a24], [0x531beba0, 0xe24bd018], [0x531beba4, 0xe89da870], [0x531c0e84, MOV_IP_SP], [0x532a0574, 0xe5d0091e], [0x5333f0e8, MOV_IP_SP], [0x53184428, MOV_IP_SP],
-  [0x531be238, MOV_IP_SP], [0x531beab8, MOV_IP_SP], [0x535ab874, MOV_IP_SP], [0x539084bc, MOV_IP_SP],
+  [adr(0x531beba8), byRelease({ '1.20': 0xe30a3a24, '1.21': 0xe30c30bc })], [adr(0x531beba0), 0xe24bd018], [adr(0x531beba4), 0xe89da870], [adr(0x531c0e84), MOV_IP_SP], [adr(0x532a0574), 0xe5d0091e], [adr(0x5333f0e8), MOV_IP_SP], [adr(0x53184428), MOV_IP_SP],
+  [adr(0x531be238), MOV_IP_SP], [adr(0x531beab8), MOV_IP_SP], [adr(0x535ab874), MOV_IP_SP], [adr(0x539084bc), MOV_IP_SP],
 ];
 
 /** Per-slot state: [address, the instruction (with the official 0x200 / 0x3C / 5)] patched to the new place, stride, count. */
@@ -167,21 +175,21 @@ function stateSites(n: number): [number, string][] {
   const S = ADJ_STATE;
   const L = adjLayoutStride(n);
   return [
-    [0x531c1a14, `add r0, r4, #${S}`], [0x531c1a18, `mov r2, #${2 * L}`],
-    [0x531bd58c, `add r2, r6, #${S}`], [0x531bd590, `add r3, r6, #${S + L}`], [0x531bd5b8, `add r0, r6, #${S + 2 * L}`],
-    [0x531be2a4, `mov r2, #${L}`], [0x531be2bc, `strb r2, [r4, #${S + 10}]`],
-    [0x531c0590, `mov r3, #${L}`], [0x531c05a8, `add ip, r3, #${S + 8}`], [0x531c05ac, `ldrb r2, [r3, #${S + 10}]`],
-    [0x531c0654, `mov r3, #${L}`], [0x531c0670, `add r2, r2, #${S + 8}`], [0x531c0678, `add r1, r1, #${S + 4}`],
-    [0x531c0690, `strb r2, [r6, #${S + 10}]`], [0x531c06a0, `ldr r1, [r3, #${S + 4}]`],
-    [0x531c0974, `mov r4, #${L}`], [0x531c0980, `ldrb r3, [r4, #${S + 10}]`], [0x531c0994, `cmp r5, #${n}`],
-    [0x531c09ac, `ldrb r3, [r4, #${S}]`], [0x531c09b4, `strbne r0, [r4, #${S}]`], [0x531c09b8, `strbne r7, [r4, #${S + 10}]`],
-    [0x531c09d0, `mov r4, #${L}`], [0x531c09e8, `add r4, r0, #${S + 8}`], [0x531c0a50, `cmp r5, #${n}`],
-    [0x531c0a88, `mov ip, #${L}`], [0x531c0aa0, `add r2, r3, #${S + 8}`], [0x531c0aa8, `add r1, r1, #${S + 4}`],
+    [adr(0x531c1a14), `add r0, r4, #${S}`], [adr(0x531c1a18), `mov r2, #${2 * L}`],
+    [adr(0x531bd58c), `add r2, r6, #${S}`], [adr(0x531bd590), `add r3, r6, #${S + L}`], [adr(0x531bd5b8), `add r0, r6, #${S + 2 * L}`],
+    [adr(0x531be2a4), `mov r2, #${L}`], [adr(0x531be2bc), `strb r2, [r4, #${S + 10}]`],
+    [adr(0x531c0590), `mov r3, #${L}`], [adr(0x531c05a8), `add ip, r3, #${S + 8}`], [adr(0x531c05ac), `ldrb r2, [r3, #${S + 10}]`],
+    [adr(0x531c0654), `mov r3, #${L}`], [adr(0x531c0670), `add r2, r2, #${S + 8}`], [adr(0x531c0678), `add r1, r1, #${S + 4}`],
+    [adr(0x531c0690), `strb r2, [r6, #${S + 10}]`], [adr(0x531c06a0), `ldr r1, [r3, #${S + 4}]`],
+    [adr(0x531c0974), `mov r4, #${L}`], [adr(0x531c0980), `ldrb r3, [r4, #${S + 10}]`], [adr(0x531c0994), `cmp r5, #${n}`],
+    [adr(0x531c09ac), `ldrb r3, [r4, #${S}]`], [adr(0x531c09b4), `strbne r0, [r4, #${S}]`], [adr(0x531c09b8), `strbne r7, [r4, #${S + 10}]`],
+    [adr(0x531c09d0), `mov r4, #${L}`], [adr(0x531c09e8), `add r4, r0, #${S + 8}`], [adr(0x531c0a50), `cmp r5, #${n}`],
+    [adr(0x531c0a88), `mov ip, #${L}`], [adr(0x531c0aa0), `add r2, r3, #${S + 8}`], [adr(0x531c0aa8), `add r1, r1, #${S + 4}`],
     // next / previous slot and the first slot on entry: N tries, wrap at N - 1
-    [0x531c0c10, `mov r5, #${n}`], [0x531c0c14, `cmp r4, #${n - 1}`], [0x531c0ccc, `mov r5, #${n}`], [0x531c0cdc, `moveq r4, #${n - 1}`],
-    [0x531c0338, `mov r6, #${n}`], [0x531c0340, `cmp r4, #${n - 1}`],
+    [adr(0x531c0c10), `mov r5, #${n}`], [adr(0x531c0c14), `cmp r4, #${n - 1}`], [adr(0x531c0ccc), `mov r5, #${n}`], [adr(0x531c0cdc), `moveq r4, #${n - 1}`],
+    [adr(0x531c0338), `mov r6, #${n}`], [adr(0x531c0340), `cmp r4, #${n - 1}`],
     // the selection frame: x = x0 + pitch * slot
-    [0x531c0920, `movw r3, #${adjFrameX(n, 0)}`], [0x531c0928, `mov r1, #${adjPitch(n)}`],
+    [adr(0x531c0920), `movw r3, #${adjFrameX(n, 0)}`], [adr(0x531c0928), `mov r1, #${adjPitch(n)}`],
   ];
 }
 
@@ -278,37 +286,37 @@ function installTexts(patch: Patch, entries: readonly { id: number; make: (row: 
 // --- Settings: ADJ Mode Setting's submenu record and lists, SubMenuController's list.
 const ADJ_SUBMENU = 10;
 const ADJ_LIST_RECORD = 68; // 1.11: 67 (1.20 inserts a list record before it)
-const SELECT_TABLE = 0x53dcd470;
+const SELECT_TABLE = adr(0x53dcd470);
 const SELECT_RECORD = 0x4c;
-const ADJ1_COUNT = 0x531d0b7c;
-const ADJ1_DRAW = 0x531d2e8c;
-const ADJ1_SET = 0x531d4f28;
-const ADJ1_CURRENT = 0x531d6928;
-const APP = 0x532406a4;
-const RESOURCES = 0x53240f98;
-const ICON_OF = 0x53390e40;
+const ADJ1_COUNT = adr(0x531d0b7c);
+const ADJ1_DRAW = adr(0x531d2e8c);
+const ADJ1_SET = adr(0x531d4f28);
+const ADJ1_CURRENT = adr(0x531d6928);
+const APP = adr(0x532406a4);
+const RESOURCES = adr(0x53240f98);
+const ICON_OF = adr(0x53390e40);
 const VALUE_X = 0x21c;
 const NOP = 0xe1a00000; // mov r0, r0
 /** SubMenuController (the controller of every submenu): its list's five rows, made once. */
-const SUB_ROWS = 0x531e3e0c; // mov r2, #5
-const SUB_KIND_MOV = 0x531e3e28; // mov ip, #0x22
-const SUB_KIND = 0x531e3e34; // strb ip, [fp, #-0x20] .. (five bytes, with str lr, [fp, #-0x18] among them)
+const SUB_ROWS = adr(0x531e3e0c); // mov r2, #5
+const SUB_KIND_MOV = adr(0x531e3e28); // mov ip, #0x22
+const SUB_KIND = adr(0x531e3e34); // strb ip, [fp, #-0x20] .. (five bytes, with str lr, [fp, #-0x18] among them)
 /** Its list builder: rows from the line count to row 4 hidden; a line's text, value icon x, value draw. */
-const SUB_HIDE_A = 0x531e3ee0; // cmp r7, #4
-const SUB_HIDE_B = 0x531e3f04; // cmp r4, #4
-const SUB_LINE_TEXT = 0x531e3fd0;
-const SUB_LINE_X = 0x531e3fe8;
-const SUB_LINE_DRAW = 0x531e4004;
+const SUB_HIDE_A = adr(0x531e3ee0); // cmp r7, #4
+const SUB_HIDE_B = adr(0x531e3f04); // cmp r4, #4
+const SUB_LINE_TEXT = adr(0x531e3fd0);
+const SUB_LINE_X = adr(0x531e3fe8);
+const SUB_LINE_DRAW = adr(0x531e4004);
 /** OK on a line: the line's controller id. */
-const SUB_OK_ID = 0x531e3b34; // ldr r5, [r2, #0x14]
+const SUB_OK_ID = adr(0x531e3b34); // ldr r5, [r2, #0x14]
 const SUBMENU_OFFICIAL: readonly (readonly [number, number])[] = [
-  [0x531e3e0c, 0xe3a02005], [0x531e3e28, 0xe3a0c022], [0x531e3e34, 0xe54bc020], [0x531e3e38, 0xe24b1020], [0x531e3e3c, 0xe54bc01f],
-  [0x531e3e40, 0xe50be018], [0x531e3e44, 0xe54bc01e], [0x531e3e48, 0xe54bc01d], [0x531e3e4c, 0xe54bc01c], [0x531e3ee0, 0xe3570004],
-  [0x531e3f04, 0xe3540004], [0x531e3fd0, 0xe5d53174], [0x531e3fd4, 0xe1a00009], [0x531e3fd8, 0xe023439a], [0x531e3fdc, 0xe0883083],
-  [0x531e3fe0, 0xe1d310b8], [0x531e3fe8, 0xe5d53174], [0x531e3fec, 0xe3a02019], [0x531e3ff0, 0xe1a00009], [0x531e3ff4, 0xe0234392],
-  [0x531e3ff8, 0xe283300a], [0x531e3ffc, 0xe7981103], [0x531e4004, 0xe5d51174], [0x531e4008, 0xe3a02064], [0x531e400c, 0xe2843007],
-  [0x531e4010, 0xe0020192], [0x531e4014, 0xe0823183], [0x531e4018, 0xe0883003], [0x531e401c, 0xe5932004], [0x531e4020, 0xe5930008],
-  [0x531e3b34, 0xe5925014],
+  [adr(0x531e3e0c), 0xe3a02005], [adr(0x531e3e28), 0xe3a0c022], [adr(0x531e3e34), 0xe54bc020], [adr(0x531e3e38), 0xe24b1020], [adr(0x531e3e3c), 0xe54bc01f],
+  [adr(0x531e3e40), 0xe50be018], [adr(0x531e3e44), 0xe54bc01e], [adr(0x531e3e48), 0xe54bc01d], [adr(0x531e3e4c), 0xe54bc01c], [adr(0x531e3ee0), 0xe3570004],
+  [adr(0x531e3f04), 0xe3540004], [adr(0x531e3fd0), 0xe5d53174], [adr(0x531e3fd4), 0xe1a00009], [adr(0x531e3fd8), 0xe023439a], [adr(0x531e3fdc), 0xe0883083],
+  [adr(0x531e3fe0), 0xe1d310b8], [adr(0x531e3fe8), 0xe5d53174], [adr(0x531e3fec), 0xe3a02019], [adr(0x531e3ff0), 0xe1a00009], [adr(0x531e3ff4), 0xe0234392],
+  [adr(0x531e3ff8), 0xe283300a], [adr(0x531e3ffc), 0xe7981103], [adr(0x531e4004), 0xe5d51174], [adr(0x531e4008), 0xe3a02064], [adr(0x531e400c), 0xe2843007],
+  [adr(0x531e4010), 0xe0020192], [adr(0x531e4014), 0xe0823183], [adr(0x531e4018), 0xe0883003], [adr(0x531e401c), 0xe5932004], [adr(0x531e4020), 0xe5930008],
+  [adr(0x531e3b34), 0xe5925014],
 ];
 
 /** The last ADJ function: 0x14, or 0x15 with exposure preview on the ADJ lever (set by `installAdjSlots`). */
@@ -325,10 +333,12 @@ const loadExtra = (k: number): string => `movw r2, #${lo(ADJ_EXTRA_BYTE + k - 5)
  */
 function moduleWithTable(code: Uint8Array, table: number): void {
   const v = new DataView(code.buffer, code.byteOffset, code.byteLength);
-  const sites: readonly (readonly [number, number])[] = [[68, 0xe3540014], [172, 0xe3091e38], [176, 0xe34513dc], [416, 0xe3091e38], [420, 0xe34513dc]];
+  // movw r1, the low half of FUNCTION_TABLE + 0x3c (the high half, movt, is the same in both releases)
+  const MOVW_TABLE = byRelease({ '1.20': 0xe3091e38, '1.21': 0xe30b14d0 });
+  const sites: readonly (readonly [number, number])[] = [[68, 0xe3540014], [172, MOVW_TABLE], [176, 0xe34513dc], [416, MOVW_TABLE], [420, 0xe34513dc]];
   for (const [at, word] of sites) if (v.getUint32(at, true) !== word) fail('internal', 'ADJ slots: the module is not the one expected');
   const member = table + 0x3c;
-  v.setUint32(68, 0xe3540015, true);
+  v.setUint32(68, 0xe3540000 | MAX_FUNCTION, true); // cmp r4, #last
   for (const at of [172, 416]) {
     v.setUint32(at, movWord(1, lo(member)), true);
     v.setUint32(at + 4, movWord(1, hi(member), true), true);
@@ -461,10 +471,12 @@ function installMenu(patch: Patch, n: number): void {
  * Install N ADJ slots (6..8; 5 only for the emulator checks, the official layout through the new
  * code). Returns nothing; the ICONBIN data does not change.
  */
-export function installAdjSlots(patch: Patch, n: number, options: { menu?: boolean; functionTable?: number } = {}): void {
+export function installAdjSlots(patch: Patch, n: number, options: { menu?: boolean; functionTable?: number; lastFunction?: number } = {}): void {
   // Test 080: the function table copied with function 0x15 (exposure preview, `exposure.ts`).
   const functionTable = options.functionTable ?? 0;
-  MAX_FUNCTION = functionTable ? 0x15 : 0x14;
+  // Constant Light (`lamp.ts`) and Sensor Shift (`shift.ts`) add one more each: `lastFunction`.
+  MAX_FUNCTION = functionTable ? options.lastFunction ?? 0x15 : 0x14;
+  if (!(MAX_FUNCTION >= 0x14 && MAX_FUNCTION <= 0x17)) fail('internal', 'ADJ slots: the last ADJ function');
   if (!(Number.isInteger(n) && n >= ADJ_SLOTS_MIN && n <= ADJ_SLOTS_MAX)) fail('internal', 'ADJ slots: 5 to 8');
   for (const [at, word] of OFFICIAL) expectWord(patch, at, word);
   const officialTable = patch.readMapped(VIEW_TABLE, OFFICIAL_VIEWS * VIEW_ENTRY);
@@ -510,7 +522,36 @@ export function installAdjSlots(patch: Patch, n: number, options: { menu?: boole
     const wrap = stub(`push {r4, lr}; mov r4, r0; bl #${tramp}; mov r0, r4; ${call}; pop {r4, pc}`);
     patch.setWord(fn, branchWord(fn, wrap), what);
   };
-  after(DRAW, `mov r1, #${n}; bl #${module + E.draw_more}`, 'ADJ slots: the strip, slots 6..N');
+  // The five slots' places: the official ones in the fixed layout (movies), the N-slot ones otherwise.
+  expectWord(patch, VIEW_SET_X, MOV_IP_SP);
+  expectWord(patch, SELECTION_SET_X - 0x14, 0xe5d421fc); // ldrb r2, [r4, #0x1fc]
+  expectWord(patch, SELECTION_SET_X, branchWord(SELECTION_SET_X, VIEW_SET_X, 14, true));
+  const layout = stub(
+    `push {r4, r5, r6, r7, r8, lr}
+     mov r4, r0
+     bl #${IS_FIXED}
+     cmp r0, #1
+     movweq r6, #425; moveq r7, #60
+     movwne r6, #${adjFrameX(n, 0)}; movne r7, #${adjPitch(n)}
+     mov r5, #0
+     next: add r8, r4, r5, lsl #2
+     ldr r0, [r8, #${ADJ_FRAMES}]; mov r1, r6; bl #${VIEW_SET_X}
+     ldr r0, [r8, #${ADJ_ICONS}]; add r1, r6, #5; bl #${VIEW_SET_X}
+     add r6, r6, r7
+     add r5, r5, #1
+     cmp r5, #5; blo next
+     pop {r4, r5, r6, r7, r8, pc}`);
+  const selection = stub(
+    `push {r0, r1, r2, lr}
+     mov r0, r4; bl #${IS_FIXED}
+     cmp r0, #1
+     pop {r0, r1, r2, lr}
+     bne #${VIEW_SET_X}
+     mov r1, #60; mul r1, r1, r2
+     movw r3, #425; add r1, r1, r3
+     b #${VIEW_SET_X}`);
+  patch.setWord(SELECTION_SET_X, branchWord(SELECTION_SET_X, selection, 14, true), 'ADJ slots: the selection frame in the fixed layout');
+  after(DRAW, `mov r1, #${n}; bl #${module + E.draw_more}; mov r0, r4; bl #${layout}`, 'ADJ slots: the strip, slots 6..N; the places of slots 1..5');
   after(TOUCHABLE, `mov r1, #${n}; bl #${module + E.touchable_more}`, 'ADJ slots: icons that can be touched, slots 6..N');
   const taps = Array.from({ length: n - 5 }, (_, j) => stub(`ldrb r3, [r0, #0x1fc]; cmp r3, #${5 + j}; bxeq lr; mov r1, #${5 + j}; b #${TAP_SELECT}`));
   const tapTable = patch.append(u32le(taps.length ? taps : [0]), 4);

@@ -20,7 +20,6 @@ import * as Gr4Program111 from '../fw';
 import * as Gr4Program120 from '../fw/gr4v120';
 import * as Gr4Program121 from '../fw/gr4v121';
 import type { BuildResult, BuiltRatio, ClarityChange, ClarityEdit, ExtensionFeatures, ExtraSlotSpec, LookLayout, ShutdownPictureSpec, SoftFocusLevel, SoftFocusStrength, FactoryEntry, LangCode, Layout, NameValidation, Range, RatioSpec, SlotEdit, SlotId as NativeSlotId } from '../fw';
-import { BRIDGE_SHA256, BRIDGE_SIZE, isBridgeFirmware, makeBridgeFirmware, officialFromBridge } from '../fw/bridge';
 import { convertCube, convertXmp, hueCopy0, hueFromQ10, HUE_BLOCK_BYTES, MONO_MIXING_LIMIT, MONO_TONING_LIMIT, monoLutFromCube, monoRecipeCurve, quantizeSlot } from '../color';
 import type { SlotParams } from '../color';
 import { JpegError, checkShutdownJpeg, decodeBaselineJpeg, encodeExactJpeg, inspectJpeg } from '../jpeg';
@@ -72,7 +71,7 @@ export interface FirmwareInfo {
   models: CameraModel[];
   factoryRatios: string[];
   /** `menuPictures`: power-off pictures chosen in the camera's menu (End Screen submenu on both; GR III builds of round 5 had a Setup line after End Screen). */
-  capabilities: { build: boolean; presets: boolean; wallpaper: boolean; factoryEntry: boolean; bridge: boolean; menuPictures: boolean;
+  capabilities: { build: boolean; presets: boolean; wallpaper: boolean; factoryEntry: boolean; menuPictures: boolean;
     /** The Image Control menu order and hidden looks (GR IV; GR III 2.10 from round 8). */
     lookLayout?: boolean };
   features: { softFocus: 'clarity' | 'adj'; dateStamp: boolean; monoUnlock: boolean;
@@ -94,10 +93,39 @@ export interface FirmwareInfo {
     monoRecipes?: boolean;
     /** GR Mod Film 1.3.5: the Aspect Ratio menu's order, factory ratios included (GR IV 1.21 / Monochrome 1.11). */
     ratioOrder?: boolean;
-    /** GR Mod Film 1.3.5 (from GR Mod 0.9.1): the battery charge in steps of 10 % (GR IV 1.21 / Monochrome 1.11). */
+    /** The battery icon can show the charge in steps of 10 % (GR IV 1.11 / 1.20 / 1.21, `BuildOptions.batteryPercent`). */
     batteryPercent?: boolean;
-    /** GR Mod Film 1.3.5 (from GR Mod 0.9.1): custom grid lines for the camera's 3x3 and 4x4 styles (GR IV 1.21 / Monochrome 1.11). */
+    /** Which lines the camera's 3x3 and 4x4 grids draw can be chosen (GR IV 1.11 / 1.20 / 1.21, `BuildOptions.customGrid`). */
     customGrid?: boolean;
+    /** Live view of the added ratios can show the whole frame, the part outside darkened (GR IV 1.11 / 1.20 / 1.21, `BuildOptions.ratioShade`). */
+    ratioShade?: boolean;
+    /**
+     * GR IV 1.20 / 1.21 (test 084): the shade comes with every added ratio and how dark it is (black, 75 %, 50 %,
+     * 25 %, none) is chosen in the camera menu; `BuildOptions.ratioShade` and `ratioShadeTone` do not apply.
+     */
+    shadeMenu?: boolean;
+    /** GR IV 1.20 / 1.21 (test 084): the custom grids are values of their own in the camera's Grid Style list, next to its 3x3 and 4x4. */
+    gridMenu?: boolean;
+    /** A learned Auto for Shadow Correction (GR IV 1.11, 1.20 and 1.21; see `aspect/shadowml.ts`). */
+    shadowLearn?: boolean;
+    /** GR Mod's film grain in place of the camera's Grain Effect (GR IV 1.20 and 1.21; see `gr4v120/aspect/grain.ts`). */
+    filmGrain?: boolean;
+    /** Pre-flash (TTL) metering for a GF-2 class flash in the two red-eye flash modes (GR IV 1.20 and 1.21; see `gr4v120/aspect/flttl.ts`). */
+    flashTtl?: boolean;
+    /** Movie AF driven by the phase data (GR IV 1.20 and 1.21; see `gr4v120/aspect/videoaf.ts`). */
+    videoAf?: boolean;
+    /** A learned auto white balance for the three Auto modes (GR IV 1.20 and 1.21; see `gr4v120/aspect/awb2.ts`). */
+    awbLearn?: boolean;
+    /** Movies in the exposure mode of the mode dial (GR IV 1.20 and 1.21; see `gr4v120/aspect/movieexp.ts`). */
+    movieExposure?: boolean;
+    /** Constant Light can be added: the front lamp kept lit, switched in the still menu, on the ADJ lever and by an Fn function (GR IV 1.20 / 1.21, `BuildOptions.constantLight`). */
+    constantLight?: boolean;
+    /** Sensor Shift can be added: the picture moved and turned by hand with the shake reduction unit (GR IV 1.20 / 1.21; see `gr4v120/aspect/shift.ts`). */
+    sensorShift?: boolean;
+    /** 4K movies can be added: Frame Rate / Resolution in the movie menu (GR IV 1.20 / 1.21; see `gr4v120/aspect/movie4k.ts`). */
+    movie4k?: boolean;
+    /** Sensor-shift shake reduction for movies can be added: Movie SR with Off / Sensor Shift / Electronic (GR IV 1.20 / 1.21; see `gr4v120/aspect/moviesr.ts`). */
+    movieSr?: boolean;
     /** GR III / IIIx: the most films a build can have (9; 20 on GR III 2.10, where
      * the number is chosen with BuildOptions.filmCount and Halation is set in the camera). */
     maxFilms?: number };
@@ -117,12 +145,6 @@ export interface FirmwareInfo {
   shutdown: Partial<Record<CameraModel, ShutdownResource>>;
   /** Card files that open the camera's factory menu, as found in this firmware. */
   factoryEntry: FactoryEntry;
-  /**
-   * True when the file opened was the 1.12 bridge firmware (see `fw/bridge.ts`). Everything else
-   * describes the official 1.11 file recovered from it; builds are refused until the official file
-   * is opened.
-   */
-  bridge: boolean;
 }
 
 export interface PresetResult {
@@ -190,8 +212,8 @@ export interface FirmwareSummary {
   /** Rear LCD Auto curve; absent/false keeps stock, true selects bright. */
   brightAuto?: boolean | 'bright' | 'balanced';
   sha256: string;
-  /** `official`: the unmodified file; `modified`: a valid 1.11 container with changes; `bridge`: the 1.12 bridge firmware; `unknown`: anything else. */
-  kind: 'official' | 'modified' | 'bridge' | 'unknown';
+  /** `official`: the unmodified file; `modified`: a valid container of the open firmware's release with changes; `unknown`: anything else. */
+  kind: 'official' | 'modified' | 'unknown';
   /** Bytes of the decoded payload that differ from the official one. */
   changedBytes: number;
   /**
@@ -239,12 +261,36 @@ export interface FirmwareSummary {
   monoRecipes?: boolean;
   /** GR IV 1.21: the Aspect Ratio menu's order when it is not the usual one (identities, see BuildOptions.ratioOrder). */
   ratioOrder?: number[];
-  /** GR IV 1.21: the battery percentage (GR Mod Film 1.3.5). */
-  batteryPercent?: boolean;
-  /** GR IV 1.21: the custom grid lines (GR Mod Film 1.3.5). */
-  customGrid?: { g3: boolean[]; g4: boolean[] };
+  /** True when the file has the learned Auto for Shadow Correction. */
+  shadowLearn?: boolean;
+  /** True when the file has GR Mod's film grain in place of the camera's Grain Effect. */
+  filmGrain?: boolean;
+  /** True when the file has pre-flash (TTL) metering for a GF-2 class flash. */
+  flashTtl?: boolean;
+  /** True when the file has movie AF driven by the phase data. */
+  videoAf?: boolean;
+  /** True when the file has the learned auto white balance. */
+  awbLearn?: boolean;
+  /** True when the file records movies in the exposure mode of the mode dial. */
+  movieExposure?: boolean;
+  /** True when the file has Constant Light (the front lamp kept lit). */
+  constantLight?: boolean;
+  /** True when the file has Sensor Shift. */
+  sensorShift?: boolean;
+  /** True when the file records 4K movies (Frame Rate / Resolution in the movie menu). */
+  movie4k?: boolean;
+  /** True when the file has the sensor-shift shake reduction for movies. */
+  movieSr?: boolean;
   /** ADJ lever slots (6..8) when the file has more than the camera's five. */
   adjSlots?: number;
+  /** True when the file's battery icon shows the charge in steps of 10 %. */
+  batteryPercent?: boolean;
+  /** The file's grid lines, when they are not the camera's own. */
+  customGrid?: Gr4Program111.aspect.CustomGrid;
+  /** True when live view of the file's added ratios shows the whole frame with the part outside darkened. */
+  ratioShade?: boolean;
+  /** The shade's tone when it is not 'dark'. */
+  ratioShadeTone?: Gr4Program111.aspect.ShadeTone;
 }
 
 /** Additions besides the slots and the ratios. */
@@ -292,11 +338,100 @@ export interface BuildOptions {
   /** Test builds only (GR IV 1.20): exposure preview always off (issue #17). */
   exposurePreviewOff?: boolean;
   /**
+   * GR IV 1.11 / 1.20 / 1.21 (`features.batteryPercent`): the battery icon shows the charge in steps of 10 % (a
+   * number inside the battery) instead of the bars (see `aspect/battery.ts`).
+   */
+  batteryPercent?: boolean;
+  /** Test builds only: the battery percentage shows "?" (no usable report) and "!" (disagrees with the bars) instead of the camera's icon. */
+  batteryDiag?: boolean;
+  /** Tests only (GR IV 1.20 / 1.21): added ratios without the shade, the plain build the shade's emulator check compares with. */
+  shadeOff?: boolean;
+  /**
+   * GR IV 1.11 / 1.20 / 1.21 (`features.customGrid`): which lines the camera's 3x3 and 4x4 grid styles draw, eight
+   * each, on or off (see `aspect/grid.ts`; the 3x3 style may also have centre lines and diagonals).
+   * The camera's own grids leave it out.
+   */
+  customGrid?: Gr4Program111.aspect.CustomGrid;
+  /**
+   * GR IV 1.11 / 1.20 / 1.21 (`features.ratioShade`): live view of the added ratios shows the whole 3:2 frame with
+   * the part outside the ratio darkened, instead of the photo area only (see `aspect/shade.ts`).
+   * Photos are the same either way. Needs at least one added ratio; without one it is left out.
+   */
+  ratioShade?: boolean;
+  /** How dark the shade is: 'dark' (black at 50 %, the default) or 'light' (grey at 25 %). */
+  ratioShadeTone?: Gr4Program111.aspect.ShadeTone;
+  /**
    * 0.8.11 (GR IV 1.20, `features.exposurePreview`): exposure preview as a camera setting (On / Off
    * with Direct Flash / Always Off; still menu and ADJ lever). A 1.20 build with soft focus on the ADJ
    * lever also gets soft focus's still-menu line.
    */
   exposurePreview?: boolean;
+  /**
+   * A learned Auto for Shadow Correction (GR IV 1.11, 1.20 and 1.21, `features.shadowLearn`): Shadow
+   * Correction Auto estimates the lift from the scene instead of the camera's own rule, which comes
+   * out as no correction on real photos. The fixed levels are unchanged. Off unless asked for.
+   */
+  shadowLearn?: boolean;
+  /**
+   * GR Mod's film grain in place of the camera's Grain Effect (GR IV 1.20 and 1.21, `features.filmGrain`):
+   * with Grain Effect on, a luminance-only grain of several sizes, strongest in the midtones, its
+   * strength set per picture; the camera's Strength and Size are not used. Off unless asked for.
+   */
+  filmGrain?: boolean;
+  /**
+   * Pre-flash (TTL) metering for a GF-2 class flash (GR IV 1.20 and 1.21, `features.flashTtl`): in the two
+   * flash modes with red-eye reduction, the live view frame that catches the pre-emission sets the
+   * main flash's output in place of the focus distance; when that frame is not usable the camera's own
+   * output stays. The other flash modes are not touched. Off unless asked for.
+   */
+  flashTtl?: boolean;
+  /**
+   * Movie AF driven by the phase data (GR IV 1.20 and 1.21, `features.videoAf`): while a movie is recorded the
+   * focus is kept by steps straight to where the sensor's phase data says, at the lens's ordinary speed, and the
+   * camera's own contrast searches are refused while that data is usable; where it says nothing the camera's own
+   * search runs as before. The focus area while recording (no touch) is the middle frame. Off unless asked for.
+   */
+  videoAf?: boolean;
+  /**
+   * A learned auto white balance (GR IV 1.20 and 1.21, `features.awbLearn`): in Auto, Warmth Priority and White Priority
+   * the illuminant is estimated by a model trained on public data sets with measured illuminants; live view and the
+   * picture share one estimate, so the picture has the white balance the screen showed. The modes differ only in how much
+   * of a warm light's colour is left. Pictures taken with the flash, and the preset and manual modes, keep the camera's own
+   * result. Off unless asked for.
+   */
+  awbLearn?: boolean;
+  /**
+   * Exposure modes for movies (GR IV 1.20 and 1.21, `features.movieExposure`): movies are recorded in the exposure mode
+   * of the mode dial (P, Av, Tv, M, the user modes) with the still mode's ISO setting, instead of always in P with ISO
+   * auto; the movie screen shows shutter speed, aperture and ISO, and the dials and the ISO button work as for stills.
+   * In M the shutter speed stops at the slowest one the frame rate allows; M with B / T set for stills records in P.
+   * There is no camera menu for it. Off unless asked for.
+   */
+  movieExposure?: boolean;
+  /**
+   * Constant Light (GR IV 1.20 and 1.21, `features.constantLight`): the lamp on the front of
+   * the camera kept lit, switched by a line of the still menu, an ADJ lever function and an Fn function
+   * (`gr4v120/aspect/lamp.ts`). Off when the camera starts and when it shuts down.
+   */
+  constantLight?: boolean;
+  /**
+   * Sensor Shift (GR IV 1.20 and 1.21, `features.sensorShift`): the picture moved (four-way controller) and turned (dials)
+   * by hand with the shake reduction unit, on the shooting screen; started by an ADJ lever function, an Fn function of the
+   * Fn button or the Movie button pressed and held (`gr4v120/aspect/shift.ts`). Shake reduction is off while the sensor is
+   * away from the centre. Back at the centre when the camera starts.
+   */
+  sensorShift?: boolean;
+  /**
+   * 4K movies (GR IV 1.20 and 1.21, `features.movie4k`): the movie menu's Frame Rate becomes Frame Rate / Resolution, with
+   * FHD / 4K; 4K (3840 x 2160, a 1.35x crop of the FHD picture) is recorded at 30p and 24p (`gr4v120/aspect/movie4k.ts`).
+   */
+  movie4k?: boolean;
+  /**
+   * Shake reduction for movies by sensor shift (GR IV 1.20 and 1.21, `features.movieSr`): Movie SR offers Off, Sensor Shift
+   * (the shake reduction unit, the whole picture) and Electronic (the camera's own, cropped); Off no longer crops
+   * (`gr4v120/aspect/moviesr.ts`).
+   */
+  movieSr?: boolean;
   /** GR III 2.10: the number of films, 1..20 (`features.maxFilms`), each with a Halation
    * line in the camera. Absent: the nine-film T6 build. */
   filmCount?: number;
@@ -312,11 +447,6 @@ export interface BuildOptions {
   customButtons?: boolean;
   /** GR IV Monochrome 1.11 (1.21 file): the added slots are black-and-white recipes on Monochrome Standard (their presets converted with `mono`). */
   monoRecipes?: boolean;
-  /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the battery icon shows the charge in steps of 10 %. */
-  batteryPercent?: boolean;
-  /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the lines of the camera's 3x3 and 4x4 grid styles, 8
-   * each (horizontal top, centre, bottom; vertical left, centre, right; the two diagonals). The camera's own grids are no option. */
-  customGrid?: { g3: readonly boolean[]; g4: readonly boolean[] };
   /** GR III / IIIx (round 10): with Mode Memory's Focus unticked, the AF point back to the centre at power-on. */
   afReset?: boolean; afDim?: boolean; afTime?: boolean;
   /** GR III / IIIx (round 10): an « AF Point » box in Mode Memory; unticked, the AF point back to the centre at power-on. */
@@ -421,9 +551,9 @@ function boxBlur(rgb: Uint8Array, w: number, h: number, radius: number): Uint8Ar
 }
 
 /**
- * The GR III / IIIx programs: GR IIIx 1.60 / GR III 2.10 (fw/gr3x) and its generated port to GR IIIx
- * 1.70 / GR III 2.20 (fw/gr3x170, experimental). Every firmware address lives in one of them; an
- * engine keeps the program of the file it opened and never mixes the two.
+ * The GR III / IIIx programs, one per release: fw/gr3x (GR IIIx 1.60 / GR III 2.10) and the same program
+ * with the targets of 1.70 / 2.20 (fw/gr3x170) and 1.71 / 2.21 (fw/gr3x171), see fw/release.ts. An engine
+ * keeps the program of the file it opened and never mixes two.
  */
 const GR3_PROGRAMS = [Gr3Program210, Gr3Program220, Gr3Program221] as const;
 /** Development: the patch manifest of each GR III / IIIx build (tools/port/compare_builds.mts compares the programs' builds). */
@@ -446,14 +576,6 @@ const GR4_PROGRAMS: readonly Gr4Program[] = [Gr4Program111, Gr4Program120 as unk
 async function gr4ProgramOf(raw: Uint8Array): Promise<Gr4Program | null> {
   for (const program of GR4_PROGRAMS) if (raw.length === program.OFFICIAL_SIZE && (await sha256Hex(raw)) === program.OFFICIAL_SHA256) return program;
   return null;
-}
-
-export interface OpenOptions {
-  /**
-   * Accept the official files of the cameras' current firmware (GR IV 1.20, GR III 2.20, GR IIIx
-   * 1.70), whose programs are generated ports (experimental). Default true; the app passes its line's choice.
-   */
-  newFirmware?: boolean;
 }
 
 export class Engine {
@@ -511,15 +633,11 @@ export class Engine {
   }
 
   /**
-   * Accepts the official 1.11 file, or the 1.12 bridge firmware (opened as the official file it
-   * was made from, with `info.bridge` set); throws `FirmwareError('unsupported-firmware')` otherwise.
+   * Accepts the official firmware files GR Mod builds on (see the README's table); throws `FirmwareError('unsupported-firmware')` otherwise.
    */
-  static async open(input: Uint8Array, options: OpenOptions = {}): Promise<Engine> {
-    // The ports to the cameras' current firmware (GR IV 1.20, GR III 2.20, GR IIIx 1.70) are
-    // experimental: refused unless asked for (the released program asks for none of them).
-    const newFirmware = options.newFirmware ?? true;
-    let gr3 = await gr3ProgramOf(input);
-    if (gr3 && gr3 !== Gr3Program210 && !newFirmware) gr3 = null;
+  static async open(input: Uint8Array): Promise<Engine> {
+    // Each official release is opened by the program made for it (chosen by the file's SHA-256).
+    const gr3 = await gr3ProgramOf(input);
     if (gr3) {
       const { decoded, profile } = await gr3.openGr3xOfficial(input);
       // The camera's own power-off picture (2.10 / 1.60: GoodBye on B:; 2.20 / 1.70: GB_30th on A:, variant 6).
@@ -543,9 +661,9 @@ export class Engine {
         // Power-off images and the factory-menu entry reached the camera through a start-up script.
         // GR Mod 0.8 dropped that route, and it was never tested on these cameras: not offered.
         // Power-off pictures, the date imprint, 20 films, the menu order: GR III 2.10 and GR IIIx 1.60 (one program).
-        capabilities: { build: true, presets: true, wallpaper: false, factoryEntry: false, bridge: false, menuPictures: profile.fullFeatures, lookLayout: profile.fullFeatures },
+        capabilities: { build: true, presets: true, wallpaper: false, factoryEntry: false, menuPictures: profile.fullFeatures, lookLayout: profile.fullFeatures },
         features: { softFocus: 'adj', dateStamp: profile.fullFeatures, monoUnlock: false, maxFilms: profile.fullFeatures ? GR3X_MAX_FILMS : 9 },
-        version: profile.version, sha256: profile.sha256, bridge: false,
+        version: profile.version, sha256: profile.sha256,
         slots: GR3X_FILM_IDS.slice(0, profile.fullFeatures ? GR3X_MAX_FILMS : 9).map((id, i) => ({
           id, defaultName: GR3X_FILM_NAMES[i], icon: lookResources.film.slice(),
           names: Object.fromEntries(LANGS.map(l => [l, { text: GR3X_FILM_NAMES[i], capacity: 24 }])) as SlotInfoView['names'],
@@ -555,12 +673,10 @@ export class Engine {
       };
       return new Engine(input.slice(), decoded, info, lookResources.matrix, null, gr3);
     }
-    const bridge = await isBridgeFirmware(input);
-    const raw = bridge ? await officialFromBridge(input) : input;
-    // The official 1.11 or 1.20 file; anything else is refused by 1.11's openOfficial as before.
-    const found = await gr4ProgramOf(raw);
-    const g4 = found && (found === Gr4Program111 || newFirmware) ? found : Gr4Program111;
-    const { decoded } = await g4.openOfficial(raw);
+    // An official GR IV file; anything else is refused by 1.11's openOfficial.
+    const found = await gr4ProgramOf(input);
+    const g4 = found ?? Gr4Program111;
+    const { decoded } = await g4.openOfficial(input);
     const layout = g4.resolveLayout(decoded);
     const mo = g4.foff(layout.standard.matrix);
     const mStd = new Int16Array(9);
@@ -595,21 +711,23 @@ export class Engine {
     const info: FirmwareInfo = {
       family: 'gr4', filename: 'fwdc248b.bin', models: ['STANDARD', 'HDF', 'MONO'],
       factoryRatios: ['3:2', '4:3', '16:9', '1:1'],
-      // The 1.12 bridge firmware goes back to 1.11 only: no bridge for 1.20.
-      capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, bridge: !bridge && g4 === Gr4Program111, menuPictures: true, lookLayout: true },
-      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true, batteryPercent: true, customGrid: true } : {}) },
+      capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, menuPictures: true, lookLayout: true },
+      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}),
+        // GR Mod Film: firmware 1.21 is built by this program's own copy (`fw/gr4v121`), with its own additions; GR Mod's
+        // other additions on 1.21 come with the convergence onto GR Mod's 1.20 program (docs/fusion-0.9.md).
+        ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true, batteryPercent: true, customGrid: true } : {
+          batteryPercent: true, customGrid: true, ratioShade: true, ...(g4 !== Gr4Program111 ? { filmGrain: true } : {}), shadowLearn: true, ...(g4 !== Gr4Program111 ? { flashTtl: true, shadeMenu: true, gridMenu: true } : {}), ...(g4 !== Gr4Program111 ? { videoAf: true } : {}), ...(g4 !== Gr4Program111 ? { awbLearn: true } : {}), ...(g4 !== Gr4Program111 ? { movieExposure: true } : {}), ...(g4 !== Gr4Program111 ? { constantLight: true, sensorShift: true, movie4k: true, movieSr: true } : {}) }) },
       version: g4.FIRMWARE_VERSION,
       looks: { factory: factoryLookOrder(decoded.subarray(g4.RTOS_OFFSET), g4.aspect.ORDER_TABLE, g4.aspect.FACTORY_LOOK_IDS), extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
-      sha256: await sha256Hex(raw),
+      sha256: await sha256Hex(input),
       slots,
       tiles: { film: g4.tileTemplate(decoded, 'film'), plain: g4.tileTemplate(decoded, 'plain') },
       contentArea: CONTENT_AREA,
       allowed,
       shutdown,
       factoryEntry: g4.readFactoryEntry(decoded),
-      bridge,
     };
-    return new Engine(raw, decoded, info, mStd, layout, null, g4);
+    return new Engine(input, decoded, info, mStd, layout, null, g4);
   }
 
   /** Set by `extendVerified` while it inspects a file: the additions to build on top of it. */
@@ -633,13 +751,6 @@ export class Engine {
     } finally {
       this.extendWith = null;
     }
-  }
-
-  /** The 1.12 bridge firmware, made from the official file this engine holds (see `fw/bridge.ts`). */
-  async bridgeFirmware(): Promise<Uint8Array> {
-    if (this.layout === null) requireGr3xPort('bridge firmware');
-    if (this.g4 !== Gr4Program111) throw new FirmwareError('unsupported-firmware', 'the bridge firmware is made from the official 1.11 file only');
-    return makeBridgeFirmware(this.raw);
   }
 
   /**
@@ -709,7 +820,6 @@ export class Engine {
         ...(matched && pictures.length ? { shutdownPictures: pictures.map((p, k) => ({ id: p.id ?? k + 1, name: p.name, jpeg: p.jpeg })) } : {}),
         ...(matched && lookLayout ? { lookLayout: { order: [...lookLayout.order], hidden: [...lookLayout.hidden] } } : {}) };
     }
-    if (raw.length === BRIDGE_SIZE && sha256 === BRIDGE_SHA256) return { sha256, kind: 'bridge', changedBytes: 0, verified: true, slots: [], ratios: [], softFocus: [], adjSoftFocus: false, dateStamp: false, monoUnlock: false, extraSlots: [] };
     const describe = (d: Uint8Array): FirmwareSummary['slots'] =>
       this.g4.SLOTS.map((s) => {
         const names = {} as Record<LangCode, string>;
@@ -825,12 +935,21 @@ export class Engine {
       ...(features.hdrGainMap ? { hdrGainMap: true } : {}),
       ...(features.adjSlots ? { adjSlots: features.adjSlots } : {}),
       ...(features.exposurePreview ? { exposurePreview: true } : {}),
-      ...(features.noMovie ? { noMovie: true } : {}),
-      ...(features.customButtons ? { customButtons: true } : {}),
-      ...(features.monoRecipes ? { monoRecipes: true } : {}),
-      ...((features as { batteryPercent?: boolean }).batteryPercent ? { batteryPercent: true } : {}),
-      ...((features as { customGrid?: { g3: readonly boolean[]; g4: readonly boolean[] } }).customGrid ? { customGrid: { g3: [...(features as any).customGrid.g3], g4: [...(features as any).customGrid.g4] } } : {}),
+      ...((features as { noMovie?: boolean }).noMovie ? { noMovie: true } : {}),
+      ...((features as { customButtons?: boolean }).customButtons ? { customButtons: true } : {}),
+      ...((features as { monoRecipes?: boolean }).monoRecipes ? { monoRecipes: true } : {}),
       ...((features as { ratioOrder?: readonly number[] }).ratioOrder ? { ratioOrder: [...(features as { ratioOrder: readonly number[] }).ratioOrder] } : {}),
+      ...(features.batteryPercent ? { batteryPercent: true } : {}),
+      ...(features.customGrid ? { customGrid: features.customGrid } : {}),
+      ...(features.ratioShade ? { ratioShade: true } : {}),
+      ...(features.ratioShadeTone ? { ratioShadeTone: features.ratioShadeTone } : {}),
+      ...(features.shadowLearn ? { shadowLearn: true } : {}),
+      ...(features.filmGrain ? { filmGrain: true } : {}),
+      ...(features.flashTtl ? { flashTtl: true } : {}),
+      ...(features.videoAf ? { videoAf: true } : {}),
+      ...(features.awbLearn ? { awbLearn: true } : {}),
+      ...(features.movieExposure ? { movieExposure: true } : {}), ...(features.sensorShift ? { sensorShift: true } : {}), ...(features.movie4k ? { movie4k: true } : {}), ...(features.movieSr ? { movieSr: true } : {}),
+      ...(features.constantLight ? { constantLight: true } : {}),
     });
     if (!specs) return modified(false, [], aligned);
     let ratios: BuiltRatio[] = [];
@@ -1144,7 +1263,6 @@ export class Engine {
       return { ...r, file: r.file.slice() };
     }
     if (this.layout === null || !this.info.capabilities.build) requireGr3xPort('custom firmware');
-    if (this.info.bridge) throw new FirmwareError('bridge-firmware', 'open the official firmware: the bridge firmware is not a base for builds');
     const edits: SlotEdit[] = [];
     const cinemaHalation: Partial<Record<'CY' | 'CG', true>> = {};
     for (const r of requests) {
@@ -1195,24 +1313,67 @@ export class Engine {
     if (askedOrder && (askedOrder.length !== usualOrder.length || [...askedOrder].sort((a, b) => a - b).some((v, i) => v !== [...usualOrder].sort((a, b) => a - b)[i]))) throw new FirmwareError('bad-edit', 'the ratio order must name every ratio once');
     const ratioOrder = askedOrder && askedOrder.some((v, i) => v !== usualOrder[i]) ? askedOrder : undefined;
     if (ratioOrder && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the ratio order cannot be combined with the clarity-table soft focus of 0.4.x');
-    const batteryPercent = !!(options && options.batteryPercent);
-    const gridAsked = options && options.customGrid ? { g3: [...options.customGrid.g3], g4: [...options.customGrid.g4] } : undefined;
-    if (gridAsked && !this.info.features.customGrid) throw new FirmwareError('bad-edit', 'custom grid lines need GR IV firmware 1.21 (GR IV Monochrome 1.11) in this program');
-    if (gridAsked && !Gr4Program121.aspect.validCustomGrid(gridAsked)) throw new FirmwareError('bad-edit', 'a grid style has 8 lines, each on or off');
-    const customGrid = gridAsked && !Gr4Program121.aspect.isCameraGrid(gridAsked) ? gridAsked : undefined;
-    if (customGrid && clarity.length > 0) throw new FirmwareError('bad-clarity', 'custom grid lines cannot be combined with the clarity-table soft focus of 0.4.x');
-    if (batteryPercent && !this.info.features.batteryPercent) throw new FirmwareError('bad-edit', 'the battery percentage needs GR IV firmware 1.21 (GR IV Monochrome 1.11) in this program');
-    if (batteryPercent && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the battery percentage cannot be combined with the clarity-table soft focus of 0.4.x');
     if (noMovie && !this.info.features.noMovie) throw new FirmwareError('bad-edit', 'no movie needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
+    const batteryPercent = !!(options && options.batteryPercent);
+    if (batteryPercent && !this.info.features.batteryPercent) throw new FirmwareError('bad-edit', 'the battery percentage needs GR IV firmware 1.11, 1.20 or 1.21');
+    if (batteryPercent && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the battery percentage cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (options && options.customGrid !== undefined && !Gr4Program111.aspect.validCustomGrid(options.customGrid)) throw new FirmwareError('bad-edit', 'custom grid: eight lines on or off for each style');
+    const customGrid = options && options.customGrid && !Gr4Program111.aspect.isCameraGrid(options.customGrid) ? { g3: [...options.customGrid.g3], g4: [...options.customGrid.g4] } : undefined;
+    if (customGrid && !this.info.features.customGrid) throw new FirmwareError('bad-edit', 'custom grid lines need GR IV firmware 1.11, 1.20 or 1.21');
+    if (customGrid && clarity.length > 0) throw new FirmwareError('bad-clarity', 'custom grid lines cannot be combined with the clarity-table soft focus of 0.4.x');
+    // GR IV 1.20 / 1.21: the shade comes with every added ratio, how dark is chosen in the camera.
+    const shadeMenu = !!this.info.features.shadeMenu;
+    const ratioShade = (shadeMenu ? !(options && options.shadeOff) : !!(options && options.ratioShade)) && ratios.length > 0;
+    if (ratioShade && !this.info.features.ratioShade) throw new FirmwareError('bad-edit', 'the live-view shade needs GR IV firmware 1.11, 1.20 or 1.21');
+    const ratioShadeTone = ratioShade && !shadeMenu && options.ratioShadeTone && options.ratioShadeTone !== 'dark' ? options.ratioShadeTone : undefined;
+    if (ratioShadeTone && !Gr4Program111.aspect.SHADE_TONES.includes(ratioShadeTone)) throw new FirmwareError('bad-edit', 'unknown shade tone');
+    if (options && options.shadowLearn !== undefined && typeof options.shadowLearn !== 'boolean') throw new FirmwareError('bad-edit', 'shadowLearn must be boolean');
+    const shadowLearn = !!(options && options.shadowLearn);
+    if (shadowLearn && !this.info.features.shadowLearn) throw new FirmwareError('bad-edit', 'the learned shadow correction needs GR IV firmware 1.11, 1.20 or 1.21');
+    if (shadowLearn && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the learned shadow correction cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (options && options.filmGrain !== undefined && typeof options.filmGrain !== 'boolean') throw new FirmwareError('bad-edit', 'filmGrain must be boolean');
+    const filmGrain = !!(options && options.filmGrain);
+    if (filmGrain && !this.info.features.filmGrain) throw new FirmwareError('bad-edit', 'the film grain needs GR IV firmware 1.20 or 1.21');
+    if (filmGrain && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the film grain cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (options && options.flashTtl !== undefined && typeof options.flashTtl !== 'boolean') throw new FirmwareError('bad-edit', 'flashTtl must be boolean');
+    const flashTtl = !!(options && options.flashTtl);
+    if (flashTtl && !this.info.features.flashTtl) throw new FirmwareError('bad-edit', 'flash TTL needs GR IV firmware 1.20 or 1.21');
+    if (flashTtl && clarity.length > 0) throw new FirmwareError('bad-clarity', 'flash TTL cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (options && options.videoAf !== undefined && typeof options.videoAf !== 'boolean') throw new FirmwareError('bad-edit', 'videoAf must be boolean');
+    const videoAf = !!(options && options.videoAf);
+    if (videoAf && !this.info.features.videoAf) throw new FirmwareError('bad-edit', 'the movie AF needs GR IV firmware 1.20 or 1.21');
+    if (videoAf && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the movie AF cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (options && options.awbLearn !== undefined && typeof options.awbLearn !== 'boolean') throw new FirmwareError('bad-edit', 'awbLearn must be boolean');
+    const awbLearn = !!(options && options.awbLearn);
+    if (awbLearn && !this.info.features.awbLearn) throw new FirmwareError('bad-edit', 'the learned white balance needs GR IV firmware 1.20 or 1.21');
+    if (awbLearn && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the learned white balance cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (options && options.movieExposure !== undefined && typeof options.movieExposure !== 'boolean') throw new FirmwareError('bad-edit', 'movieExposure must be boolean');
+    const movieExposure = !!(options && options.movieExposure);
+    if (movieExposure && !this.info.features.movieExposure) throw new FirmwareError('bad-edit', 'the exposure modes for movies need GR IV firmware 1.20 or 1.21');
+    if (movieExposure && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the exposure modes for movies cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (options && options.constantLight !== undefined && typeof options.constantLight !== 'boolean') throw new FirmwareError('bad-edit', 'constantLight must be boolean');
+    const constantLight = !!(options && options.constantLight);
+    if (constantLight && !this.info.features.constantLight) throw new FirmwareError('bad-edit', 'Constant Light needs GR IV firmware 1.20 or 1.21');
+    if (constantLight && clarity.length > 0) throw new FirmwareError('bad-clarity', 'Constant Light cannot be combined with the clarity-table soft focus of 0.4.x');
+    const added = (name: 'sensorShift' | 'movie4k' | 'movieSr', what: string): boolean => {
+      if (options && options[name] !== undefined && typeof options[name] !== 'boolean') throw new FirmwareError('bad-edit', `${name} must be boolean`);
+      const on = !!(options && options[name]);
+      if (on && !this.info.features[name]) throw new FirmwareError('bad-edit', `${what} needs GR IV firmware 1.20 or 1.21`);
+      if (on && clarity.length > 0) throw new FirmwareError('bad-clarity', `${what} cannot be combined with the clarity-table soft focus of 0.4.x`);
+      return on;
+    };
+    const sensorShift = added('sensorShift', 'Sensor Shift');
+    const movie4k = added('movie4k', '4K movie recording');
+    const movieSr = added('movieSr', 'the sensor-shift shake reduction for movies');
     if (hdrGainMap && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the HDR gain map cannot be combined with the clarity-table soft focus of 0.4.x');
     if (directFlash && clarity.length > 0) throw new FirmwareError('bad-clarity', 'Direct Flash cannot be combined with the clarity-table soft focus of 0.4.x');
     if (pictures.length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'power-off pictures cannot be combined with the clarity-table soft focus of 0.4.x');
     if (adjSoftFocus && clarity.length > 0) throw new FirmwareError('bad-clarity', 'soft focus on the ADJ lever and on the clarity table cannot be combined');
     if (dateStamp && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the date imprint cannot be combined with the clarity-table soft focus of 0.4.x');
     if (extraSlots.length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'added slots cannot be combined with the clarity-table soft focus of 0.4.x');
-    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !ratioOrder && !batteryPercent && !customGrid && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
+    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !filmGrain && !shadowLearn && !flashTtl && !videoAf && !awbLearn && !constantLight && !noMovie && !customButtons && !ratioOrder && !options.brightAuto && !batteryPercent && !customGrid && !movieExposure && !sensorShift && !movie4k && !movieSr) throw new FirmwareError('bad-edit', 'nothing to change');
     if (Object.keys(cinemaHalation).length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'halation cannot be combined with the clarity-table soft focus of 0.4.x');
-    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}), ...(ratioOrder ? { ratioOrder } : {}), ...(batteryPercent ? { batteryPercent } : {}), ...(customGrid ? { customGrid } : {}) };
+    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}), ...(ratioOrder ? { ratioOrder } : {}), ...(batteryPercent ? { batteryPercent } : {}), ...(customGrid ? { customGrid } : {}), ...(ratioShade ? { ratioShade } : {}), ...(ratioShadeTone ? { ratioShadeTone } : {}), ...(shadowLearn ? { shadowLearn } : {}), ...(filmGrain ? { filmGrain } : {}), ...(flashTtl ? { flashTtl } : {}), ...(videoAf ? { videoAf } : {}), ...(awbLearn ? { awbLearn } : {}), ...(movieExposure ? { movieExposure } : {}), ...(constantLight ? { constantLight } : {}), ...(sensorShift ? { sensorShift } : {}), ...(movie4k ? { movie4k } : {}), ...(movieSr ? { movieSr } : {}) };
     const test = {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),
@@ -1220,6 +1381,7 @@ export class Engine {
       ...(options && options.monoCurve ? { monoCurve: options.monoCurve } : {}),
       ...(options && options.hdrDiag ? { hdrDiag: true } : {}),
       ...(options && options.exposurePreviewOff ? { exposurePreviewOff: true } : {}),
+      ...(batteryPercent && options.batteryDiag ? { batteryDiag: true } : {}),
     };
     const { decoded: _decoded, ...rest } = await this.g4.buildFirmware(this.raw, edits, ratios, clarity, features, test);
     return rest;

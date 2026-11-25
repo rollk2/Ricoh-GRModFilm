@@ -23,7 +23,7 @@ const icon = new Uint8Array(40 * 40 * 4);
 
 describe('GR IV Monochrome: black-and-white recipes', () => {
   it.skipIf(!f121 || !existsSync(f121))('1.21: converts a .cube, warns of a mix of channels, refuses another preset kind', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f121!)), { newFirmware: true });
+    const eng = await Engine.open(new Uint8Array(readFileSync(f121!)));
     expect(eng.info.features.monoRecipes).toBe(true);
     const r = eng.convertPreset('cube', grey, undefined, { mono: true });
     expect(r.warnings).toEqual([]);
@@ -36,14 +36,14 @@ describe('GR IV Monochrome: black-and-white recipes', () => {
   }, 300_000);
   it.skipIf(!f121 || !existsSync(f121))('1.21: two recipes with the whole product (no movie, buttons), built, self-checked, read back', async () => {
     const raw = new Uint8Array(readFileSync(f121!));
-    const eng = await Engine.open(raw, { newFirmware: true });
+    const eng = await Engine.open(raw);
     const slots = [grey, redFilter].map((text, i) => {
       const r = eng.convertPreset('cube', text, undefined, { mono: true });
       return { name: `Mono ${i + 1}`, matrixQ13: r.matrixQ13, curves: r.curves, icon };
     });
     const built = await eng.buildFirmware([], [], [], { noMovie: true, extraSlots: slots, monoRecipes: true });
     expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
-    const back = await (await Engine.open(raw, { newFirmware: true })).inspect(built.file);
+    const back = await (await Engine.open(raw)).inspect(built.file);
     expect(back.kind).toBe('modified');
     expect(back.verified).toBe(true);
     expect(back.monoRecipes).toBe(true);
@@ -54,7 +54,7 @@ describe('GR IV Monochrome: black-and-white recipes', () => {
     await expect(eng.buildFirmware([], [], [], { noMovie: true, monoRecipes: true })).rejects.toMatchObject({ code: 'bad-edit' });
   }, 600_000);
   it.skipIf(!f120 || !existsSync(f120))('1.20: not offered, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)), { newFirmware: true });
+    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)));
     expect(eng.info.features.monoRecipes).toBeFalsy();
     expect(() => eng.convertPreset('cube', grey, undefined, { mono: true })).toThrow(expect.objectContaining({ code: 'bad-edit' }));
   }, 300_000);

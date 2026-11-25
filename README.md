@@ -12,6 +12,19 @@ does is kept (version 1.1 follows GR Mod 0.8.15). Not a Ricoh product, not an of
 | GR IV / GR IV HDF | 1.21, 1.20, 1.11 | yes | not yet (planned) |
 | GR IV Monochrome | 1.11, 1.10 (the GR IV 1.21 and 1.20 files) | yes | not yet (planned) |
 
+Every firmware this program opens (the list GR Mod's tools keep up to date):
+
+<!-- BEGIN releases (written by tools/releases/generate.mjs from releases.json) -->
+
+| Camera | Supported firmware |
+| --- | --- |
+| GR IV / GR IV HDF | 1.21, 1.20 or 1.11 |
+| GR IV Monochrome | 1.11 or 1.10 (the same files as GR IV 1.21 and 1.20) |
+| GR III / GR III HDF | 2.21, 2.20 or 2.10 |
+| GR IIIx / GR IIIx HDF | 1.71, 1.70 or 1.60 |
+
+<!-- END releases -->
+
 GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx firmwares are GR Mod's own,
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.

@@ -23,7 +23,7 @@ describe('GR IV 1.21: custom grid lines', () => {
 
   it.skipIf(!f121 || !existsSync(f121))('two hooks; built, read back with the battery and the ratio order; the camera grid is no option', async () => {
     const raw = new Uint8Array(readFileSync(f121!));
-    const eng = await Engine.open(raw, { newFirmware: true });
+    const eng = await Engine.open(raw);
     expect(eng.info.features.customGrid).toBe(true);
     const g4 = (eng as any).g4, dec: Uint8Array = (eng as any).decoded;
     const r = g4.aspect.installExtensions(dec.slice(g4.RTOS_OFFSET, g4.RTOS_OFFSET + g4.aspect.OFFICIAL_RTOS_LENGTH), dec.slice(g4.ICONBIN_OFFSET, g4.ICONBIN_OFFSET + g4.aspect.OFFICIAL_ICONBIN_LENGTH), [], { guard: true, customButtons: true, customGrid: GRID }, 4);
@@ -33,7 +33,7 @@ describe('GR IV 1.21: custom grid lines', () => {
 
     const built = await eng.buildFirmware([], [], [], { noMovie: true, customGrid: GRID, batteryPercent: true, ratioOrder: [0, 3, 1, 2] });
     expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
-    const back = await (await Engine.open(raw, { newFirmware: true })).inspect(built.file);
+    const back = await (await Engine.open(raw)).inspect(built.file);
     expect(back.verified).toBe(true);
     expect(back.customGrid).toEqual(GRID);
     expect(back.batteryPercent).toBe(true);
@@ -45,9 +45,13 @@ describe('GR IV 1.21: custom grid lines', () => {
     await expect(eng.buildFirmware([], [], [], { customGrid: { g3: [true], g4: GRID.g4 } })).rejects.toMatchObject({ code: 'bad-edit' });
   }, 900_000);
 
-  it.skipIf(!f120 || !existsSync(f120))('1.20: not offered in this program, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)), { newFirmware: true });
-    expect(eng.info.features.customGrid).toBeFalsy();
-    await expect(eng.buildFirmware([], [], [], { customGrid: GRID })).rejects.toMatchObject({ code: 'bad-edit' });
-  }, 300_000);
+  it.skipIf(!f120 || !existsSync(f120))('1.20: offered by the GR Mod 0.9 program, built and read back', async () => {
+    const raw = new Uint8Array(readFileSync(f120!));
+    const eng = await Engine.open(raw);
+    expect(eng.info.features.customGrid).toBe(true);
+    const built = await eng.buildFirmware([], [], [], { customGrid: GRID });
+    const back = await (await Engine.open(raw)).inspect(built.file);
+    expect(back.verified).toBe(true);
+    expect(back.customGrid).toEqual({ customGrid: GRID }.customGrid);
+  }, 600_000);
 });

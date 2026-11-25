@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { isMobile } from './host-android';
 import { t } from './i18n';
 import type { Key } from './i18n';
-import { endTour, getState, isGr3, resetTours, startTour, tourStep, useStore, skipAllTours } from './store';
+import { endTour, getState, isGr3, resetTours, skipTours, startTour, tourStep, useStore } from './store';
 import type { TourId } from './store';
 
 type Side = 'right' | 'left' | 'top' | 'bottom';
@@ -31,8 +31,8 @@ export const TOURS: Record<TourId, Step[]> = {
     step('language', 'OvLang'),
     step('nav-ic', 'OvIc'),
     step('nav-ratio', 'OvRatio'),
-    step('nav-feat', 'OvFeat'),
-    step(['nav-ic', 'nav-ratio'], 'OvCombine'),
+    step('nav-extras', 'OvExtras'),
+    step(['nav-ic', 'nav-ratio', 'nav-extras'], 'OvCombine'),
     step('nav-wall', 'OvWall'),
     step('nav-community', 'OvCommunity'),
     step('nav-copies', 'OvCopies'),
@@ -55,16 +55,40 @@ export const TOURS: Record<TourId, Step[]> = {
     step('ic-preview', 'IcPreview', 'left'),
     step('write', 'IcWrite', 'top'),
   ],
-  feat: [
-    step('ic-soft', 'IcSoft', 'bottom'),
-  ],
   ratio: [
     step('ratio-factory', 'RatioFactory', 'bottom'),
     step('ratio-row', 'RatioRow', 'bottom'),
     step('ratio-add', 'RatioAdd', 'bottom'),
     step('ratio-common', 'RatioCommon', 'bottom'),
+    step('ratio-live', 'RatioLive', 'bottom'),
     step('ratio-backdrop', 'RatioBackdrop', 'bottom'),
     step('ratio-frame', 'RatioFrame', 'left'),
+    step('write', 'IcWrite', 'top'),
+  ],
+  extras: [
+    { target: 'ex-list', title: 'tIcSoftT', body: 'tIcSoftB', side: 'bottom' },
+    // then each addition on its own
+    { target: 'ex-f-soft', title: 'navSoft', body: 'tIcFSoftB' },
+    { target: 'ex-f-date', title: 'navDate', body: 'tIcFDateB' },
+    { target: 'ex-f-mono', title: 'navMono', body: 'tIcFMonoB' },
+    { target: 'ex-f-flash', title: 'navFlash', body: 'tIcFFlashB' },
+    { target: 'ex-f-hdr', title: 'navHdr', body: 'tIcFHdrB' },
+    { target: 'ex-f-preview', title: 'navPreview', body: 'tIcFPreviewB' },
+    { target: 'ex-f-shadow', title: 'navShadow', body: 'tIcFShadowB' },
+    { target: 'ex-f-battery', title: 'navBattery', body: 'tIcFBatteryB' },
+    { target: 'ex-f-grain', title: 'navGrain', body: 'tIcFGrainB' },
+    { target: 'ex-f-vaf', title: 'navVideoAf', body: 'tIcFVafB' },
+    { target: 'ex-f-mexp', title: 'navMovieExp', body: 'tIcFMexpB' },
+    { target: 'ex-f-4k', title: 'navMovie4k', body: 'tIcFMovie4kB' },
+    { target: 'ex-f-msr', title: 'navMovieSr', body: 'tIcFMovieSrB' },
+    { target: 'ex-f-awb', title: 'navAwb', body: 'tIcFAwbB' },
+    { target: 'ex-f-lamp', title: 'navLamp', body: 'tIcFLampB' },
+    { target: 'ex-f-shift', title: 'navShift', body: 'tIcFShiftB' },
+    { target: 'ex-f-grid', title: 'navGrid', body: 'tGridB' },
+    { target: 'ex-f-adj', title: 'navAdjSlots', body: 'tIcFAdjB' },
+    { target: 'ex-f-bright', title: 'navBrightAuto', body: 'tIcFBrightB' },
+    // the custom grid's editor (opened from its capsule)
+    { target: 'grid-switch', title: 'navGrid', body: 'tGridB', side: 'bottom' },
     step('write', 'IcWrite', 'top'),
   ],
   wall: [
@@ -96,7 +120,8 @@ const MOBILE_OVERVIEW: Step[] = [
   step('m-settings', 'MSettings', 'bottom'),
   step('nav-ic', 'OvIc', 'top'),
   step('nav-ratio', 'OvRatio', 'top'),
-  step(['nav-ic', 'nav-ratio'], 'OvCombine', 'top'),
+  step('nav-extras', 'OvExtras', 'top'),
+  step(['nav-ic', 'nav-ratio', 'nav-extras'], 'OvCombine', 'top'),
   step('nav-wall', 'OvWall', 'top'),
   step('export', 'OvExport', 'top'),
   step('write', 'OvWrite', 'top'),
@@ -109,7 +134,8 @@ const WIDE_OVERVIEW: Step[] = [
   step('m-settings', 'MSettings', 'right'),
   step('nav-ic', 'OvIc', 'right'),
   step('nav-ratio', 'OvRatio', 'right'),
-  step(['nav-ic', 'nav-ratio'], 'OvCombine', 'right'),
+  step('nav-extras', 'OvExtras', 'right'),
+  step(['nav-ic', 'nav-ratio', 'nav-extras'], 'OvCombine', 'right'),
   step('nav-wall', 'OvWall', 'right'),
   step('export', 'OvExport', 'top'),
   step('write', 'OvWrite', 'top'),
@@ -163,7 +189,7 @@ export function beginTour(id: TourId, replay: boolean): boolean {
   startTour(id, steps, replay);
   return true;
 }
-/** Every guide again as on first use: the overview now, each page's guide on its next visit (not skippable). */
+/** Every guide again as on first use: the overview now, each page's guide on its next visit ("Skip guides" ends them all). */
 export function restartTours(): void { resetTours(); }
 /** The help button: the current page's tour again, or the overview while the page has nothing on it. */
 export function replayTour(): void {
@@ -307,7 +333,7 @@ function TourLayer() {
           <span className="tour-count">{tour.index + 1} / {tour.steps.length}</span>
           <span className="grow" />
           {tour.replay && !last && <button type="button" className="btn ghost small" onClick={() => endTour()}>{t('tourSkip')}</button>}
-          {!tour.replay && !last && <button type="button" className="btn ghost small" onClick={() => skipAllTours()}>{t('tourSkipAll')}</button>}
+          {!tour.replay && !last && <button type="button" className="btn ghost small" title={t('tourSkipAllTip')} onClick={() => skipTours()}>{t('tourSkipAll')}</button>}
           {tour.index > 0 && <button type="button" className="btn small" onClick={() => tourStep(-1)}>{t('tourBack')}</button>}
           <button type="button" className="btn primary small" ref={next} onClick={() => tourStep(1)}>{last ? t('tourDone') : t('tourNext')}</button>
         </div>

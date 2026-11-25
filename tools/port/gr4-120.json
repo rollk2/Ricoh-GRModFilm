@@ -6,6 +6,10 @@
   "relink": true,
   "files": [
     [
+      "core/src/fw/target.ts",
+      "core/src/fw/gr4v120/target.ts"
+    ],
+    [
       "core/src/fw/profile.ts",
       "core/src/fw/gr4v120/profile.ts"
     ],
@@ -90,6 +94,22 @@
     [
       "tools/adjslots",
       "tools/gr4v120/adjslots"
+    ],
+    [
+      "tools/battery",
+      "tools/gr4v120/battery"
+    ],
+    [
+      "tools/grid",
+      "tools/gr4v120/grid"
+    ],
+    [
+      "tools/shade",
+      "tools/gr4v120/shade"
+    ],
+    [
+      "tools/shadowml",
+      "tools/gr4v120/shadowml"
     ]
   ],
   "exclude": [
@@ -143,6 +163,22 @@
       "tools/gr4v120/adjslots/"
     ],
     [
+      "tools/battery/",
+      "tools/gr4v120/battery/"
+    ],
+    [
+      "tools/grid/",
+      "tools/gr4v120/grid/"
+    ],
+    [
+      "tools/shade/",
+      "tools/gr4v120/shade/"
+    ],
+    [
+      "tools/shadowml/",
+      "tools/gr4v120/shadowml/"
+    ],
+    [
       "parents[2]",
       "parents[3]"
     ]
@@ -187,6 +223,10 @@
     ],
     [
       "python3",
+      "tools/gr4v120/shadowml/gen.py"
+    ],
+    [
+      "python3",
       "tools/port/native_scan.py",
       "tools/port/gr4-120-map.json",
       "core/src/fw/gr4v120/aspect/native.ts",
@@ -199,5 +239,11 @@
       "core/src/fw/gr4v120/aspect/adjslots-code.ts"
     ]
   ],
-  "old_marker": "1.11"
+  "old_marker": "1.11",
+  "preserve": [
+    "core/src/fw/gr4v120/aspect/grain-code.ts",
+    "core/src/fw/gr4v120/aspect/flttl-code.ts",
+    "core/src/fw/gr4v120/aspect/videoaf-code.ts",
+    "core/src/fw/gr4v120/aspect/awb2-code.ts"
+  ]
 }

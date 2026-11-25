@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
+import { programOverlays } from '../core/overlays.mjs';
 
 const version = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 // the phone app's own version (Android versionName, iOS MARKETING_VERSION are kept equal to it)
@@ -9,6 +10,9 @@ const mobileVersion = (JSON.parse(readFileSync(new URL('../mobile/package.json',
 export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
+    // A later release's program is its base program's files with the release's own on top (core/overlays.mjs).
+    // The engine runs in the worker: the worker's own pipeline needs it too (below).
+    programOverlays(),
     react(),
     // The Android app (mode "android", built into ../mobile/www) has no shell to give it /host.js.
     // It is drawn edge to edge: the page pads itself by the system bars (styles.css, .app.mobile).
@@ -23,7 +27,7 @@ export default defineConfig(({ mode }) => ({
   define: { __GRMOD_VERSION__: JSON.stringify(version), __GRMOD_MOBILE_VERSION__: JSON.stringify(mobileVersion), __APP_VERSION__: JSON.stringify(version) },
   // Old enough for the browsers of macOS 10.13-10.15 (Chrome/Edge up to 116, Firefox ESR 115,
   // Safari 14+): a classic worker (module workers need Safari 15) and syntax lowered to ES2020.
-  worker: { format: 'iife' },
+  worker: { format: 'iife', plugins: () => [programOverlays()] },
   build: {
     target: ['es2020', 'chrome87', 'edge88', 'firefox78', 'safari14'], sourcemap: false, chunkSizeWarningLimit: 2000,
     ...(mode === 'android' ? { outDir: '../mobile/www', emptyOutDir: true } : {}),

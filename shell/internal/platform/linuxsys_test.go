@@ -189,6 +189,13 @@ func TestLinuxSystemVolumesEdgeCases(t *testing.T) {
 		t.Errorf("/dev/root: %+v, %v (want no volume)", vols, err)
 	}
 
+	// The system spread over two disks (/ on one, /boot/efi on another, as on
+	// GitHub's machines and many desktops): neither is offered, even with all=1.
+	sys = f.system("29 1 8:17 / / rw - ext4 /dev/sdb1 rw\n31 29 259:1 / /boot/efi rw - vfat /dev/nvme0n1p1 rw\n")
+	if vols, _ := sys.Volumes(true); len(vols) != 0 {
+		t.Errorf("second system disk listed: %+v", vols)
+	}
+
 	// Without udev the FAT version comes from the size.
 	sys = f.system(fakeMountinfo)
 	sys.Udev = ""

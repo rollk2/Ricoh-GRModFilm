@@ -29,7 +29,7 @@ function orderOf(rtos: Uint8Array, n: number): number[] {
 describe('GR IV 1.21: Aspect Ratio menu order', () => {
   it.skipIf(!f121 || !existsSync(f121))('the factory ratios alone: the official table reordered in place, nothing else', async () => {
     const raw = new Uint8Array(readFileSync(f121!));
-    const eng = await Engine.open(raw, { newFirmware: true });
+    const eng = await Engine.open(raw);
     expect(eng.info.features.ratioOrder).toBe(true);
     const g4 = (eng as any).g4, dec: Uint8Array = (eng as any).decoded;
     const rtos = () => dec.slice(g4.RTOS_OFFSET, g4.RTOS_OFFSET + g4.aspect.OFFICIAL_RTOS_LENGTH);
@@ -46,7 +46,7 @@ describe('GR IV 1.21: Aspect Ratio menu order', () => {
 
     const built = await eng.buildFirmware([], [], [], { noMovie: true, ratioOrder: [3, 0, 2, 1] });
     expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
-    const back = await (await Engine.open(raw, { newFirmware: true })).inspect(built.file);
+    const back = await (await Engine.open(raw)).inspect(built.file);
     expect(back.kind).toBe('modified');
     expect(back.verified).toBe(true);
     expect(back.ratioOrder).toEqual([3, 0, 2, 1]);
@@ -55,7 +55,7 @@ describe('GR IV 1.21: Aspect Ratio menu order', () => {
 
   it.skipIf(!f121 || !existsSync(f121))('with added ratios: factory and added mixed; the usual order builds as before; the RAW list unchanged', async () => {
     const raw = new Uint8Array(readFileSync(f121!));
-    const eng = await Engine.open(raw, { newFirmware: true });
+    const eng = await Engine.open(raw);
     const ratios = [{ ratio: '65:24', name: 'XPan' }, { ratio: '2:1', name: 'Wide' }];
     const order = [0, 7, 3, 1, 8, 2];
     const g4 = (eng as any).g4, dec: Uint8Array = (eng as any).decoded;
@@ -72,7 +72,7 @@ describe('GR IV 1.21: Aspect Ratio menu order', () => {
 
     const built = await eng.buildFirmware([], ratios, [], { noMovie: true, ratioOrder: order });
     expect(Object.values(built.checks).every((v) => v === true)).toBe(true);
-    const back = await (await Engine.open(raw, { newFirmware: true })).inspect(built.file);
+    const back = await (await Engine.open(raw)).inspect(built.file);
     expect(back.verified).toBe(true);
     expect(back.ratioOrder).toEqual(order);
     expect(back.ratios.map((r) => r.name)).toEqual(['XPan', 'Wide']);
@@ -87,7 +87,7 @@ describe('GR IV 1.21: Aspect Ratio menu order', () => {
   }, 900_000);
 
   it.skipIf(!f120 || !existsSync(f120))('1.20: not offered, refused', async () => {
-    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)), { newFirmware: true });
+    const eng = await Engine.open(new Uint8Array(readFileSync(f120!)));
     expect(eng.info.features.ratioOrder).toBeFalsy();
     await expect(eng.buildFirmware([], [], [], { ratioOrder: [3, 0, 1, 2] })).rejects.toMatchObject({ code: 'bad-edit' });
   }, 300_000);

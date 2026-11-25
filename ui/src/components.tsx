@@ -41,22 +41,35 @@ export const Ico = {
   grip: <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="7.4" cy="5.2" r="1.25" /><circle cx="12.6" cy="5.2" r="1.25" /><circle cx="7.4" cy="10" r="1.25" /><circle cx="12.6" cy="10" r="1.25" /><circle cx="7.4" cy="14.8" r="1.25" /><circle cx="12.6" cy="14.8" r="1.25" /></svg>,
   eye: <svg viewBox="0 0 20 20" {...P}><path d="M2.6 10S5.3 5 10 5s7.4 5 7.4 5-2.7 5-7.4 5-7.4-5-7.4-5z" /><circle cx="10" cy="10" r="2.2" /></svg>,
   eyeOff: <svg viewBox="0 0 20 20" {...P}><path d="M8.3 5.2A7.4 7.4 0 0 1 10 5c4.7 0 7.4 5 7.4 5a12.4 12.4 0 0 1-2 2.6M12.3 14.6A6.8 6.8 0 0 1 10 15c-4.7 0-7.4-5-7.4-5a12.6 12.6 0 0 1 3.1-3.6M8.5 8.5a2.2 2.2 0 0 0 3 3M3.6 3.6l12.8 12.8" /></svg>,
-  bridge: <svg viewBox="0 0 20 20" {...P}><path d="M2.5 7.5h15M2.5 13.5h15M4.5 7.5v6M15.5 7.5v6M4.5 7.5c1.6 2.6 3.4 3.9 5.5 3.9s3.9-1.3 5.5-3.9" /></svg>,
   download: <svg viewBox="0 0 20 20" {...P}><path d="M10 3.2v9.6M6 9.2l4 3.8 4-3.8M4 16.2h12" /></svg>,
   info: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="7.2" /><path d="M10 9.2v4.4" /><circle cx="10" cy="6.4" r="0.6" fill="currentColor" /></svg>,
   soft: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="3.3" /><circle cx="10" cy="10" r="7.2" strokeDasharray="1.4 2.35" /></svg>,
-  film: <svg viewBox="0 0 20 20" {...P}><rect x="2.4" y="5" width="15.2" height="10" rx="1" /><path d="M2.4 7.4h15.2M2.4 12.6h15.2M5 5v2.4M8 5v2.4M11 5v2.4M14 5v2.4M5 12.6V15M8 12.6V15M11 12.6V15M14 12.6V15" /></svg>,
-  dial: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="6.4" /><circle cx="10" cy="10" r="2.2" /><path d="M10 3.6v2M3 3l14 14" /></svg>,
-  noMovie: <svg viewBox="0 0 20 20" {...P}><rect x="2.4" y="5.6" width="10.6" height="8.8" rx="1.6" /><path d="M13 9l4.6-2.6v7.2L13 11M3 3l14 14" /></svg>,
   date: <svg viewBox="0 0 20 20" {...P}><rect x="2.8" y="4.4" width="14.4" height="12" rx="2" /><path d="M2.8 8.2h14.4M6.6 2.8v3M13.4 2.8v3M6.4 11.4h1.6M9.2 11.4h1.6M12 11.4h1.6M6.4 13.8h1.6M9.2 13.8h1.6" /></svg>,
   adj: <svg viewBox="0 0 20 20" {...P}><rect x="1.8" y="6.6" width="3.4" height="3.4" rx="0.8" /><rect x="6.4" y="6.6" width="3.4" height="3.4" rx="0.8" /><rect x="11" y="6.6" width="3.4" height="3.4" rx="0.8" /><rect x="15.6" y="6.6" width="2.6" height="3.4" rx="0.8" /><path d="M3.5 13.4h13" /></svg>,
-  grid: <svg viewBox="0 0 20 20" {...P}><rect x="3" y="4.5" width="14" height="11" rx="1.4" /><path d="M7.7 4.5v11M12.3 4.5v11M3 8.2h14M3 11.8h14" /></svg>,
-  battery: <svg viewBox="0 0 20 20" {...P}><rect x="3.6" y="6" width="12.4" height="8" rx="1.4" /><path d="M16 8.6h1.2v2.8H16M6.4 8.8v2.4M8.8 8.8v2.4" /></svg>,
+  lamp: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="3.2" /><path d="M10 2.6v2M10 15.4v2M2.6 10h2M15.4 10h2M4.8 4.8l1.4 1.4M13.8 13.8l1.4 1.4M4.8 15.2l1.4-1.4M13.8 6.2l1.4-1.4" /></svg>,
   flash: <svg viewBox="0 0 20 20" {...P}><path d="M11.8 2.6L5.4 11h4.2l-1.8 6.4 6.8-8.8h-4.4l1.6-6z" /></svg>,
   hdr: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="3.2" /><path d="M10 2.2v2.2M10 15.6v2.2M2.2 10h2.2M15.6 10h2.2M4.5 4.5l1.6 1.6M13.9 13.9l1.6 1.6M4.5 15.5l1.6-1.6M13.9 6.1l1.6-1.6" /></svg>,
+  battery: <svg viewBox="0 0 20 20" {...P}><rect x="4.2" y="6" width="13" height="8" rx="1.6" /><path d="M2.6 8.6v2.8" /><path d="M7.4 8.4v3.2M10 8.4h1.8v3.2H10zM14.6 8.4l-1.2 3.2" strokeWidth="1.1" /></svg>,
+  extras: <svg viewBox="0 0 20 20" {...P}><rect x="2.6" y="3.2" width="14.8" height="5.6" rx="2.8" /><circle cx="14.6" cy="6" r="1.5" fill="currentColor" stroke="none" /><rect x="2.6" y="11.2" width="14.8" height="5.6" rx="2.8" /><circle cx="5.4" cy="14" r="1.5" /></svg>,
+  grid: <svg viewBox="0 0 20 20" {...P}><rect x="2.8" y="4.2" width="14.4" height="11.6" rx="1.6" /><path d="M7.6 4.2v11.6M12.4 4.2v11.6M2.8 8.1h14.4M2.8 11.9h14.4" /></svg>,
+  /* a tone curve lifted in the shadows */
+  shadow: <svg viewBox="0 0 20 20" {...P}><rect x="2.8" y="2.8" width="14.4" height="14.4" rx="2" /><path d="M5 15C6.4 9.6 9.6 6.6 15 5" /><path d="M5 15l10-10" strokeDasharray="1.2 2" /></svg>,
+  /* film grain: dots of a few sizes */
+  grain: <svg viewBox="0 0 20 20" {...P}><rect x="2.8" y="2.8" width="14.4" height="14.4" rx="2" /><circle cx="6.6" cy="6.8" r="1" fill="currentColor" stroke="none" /><circle cx="12.2" cy="5.9" r="0.6" fill="currentColor" stroke="none" /><circle cx="9.6" cy="10.2" r="1.4" fill="currentColor" stroke="none" /><circle cx="14" cy="11.4" r="0.8" fill="currentColor" stroke="none" /><circle cx="6.2" cy="13.4" r="0.7" fill="currentColor" stroke="none" /><circle cx="11.6" cy="14.4" r="0.9" fill="currentColor" stroke="none" /></svg>,
+  /* a movie camera with a focus frame */
+  movie: <svg viewBox="0 0 20 20" {...P}><rect x="2" y="5.6" width="11" height="8.8" rx="1.6" /><path d="M13 8.8l4.6-2.4v7.2L13 11.2" /><path d="M5.6 8.4v-.8h.8M9.4 7.6h.8v.8M10.2 11.6v.8h-.8M6.4 12.4h-.8v-.8" /></svg>,
+  movie4k: <svg viewBox="0 0 20 20" {...P}><rect x="2" y="5.6" width="11" height="8.8" rx="1.6" /><path d="M13 8.8l4.6-2.4v7.2L13 11.2" /><path d="M5.9 8.2L4.4 10.6h2.4M6.2 9.6v2.3M8.5 8.2v3.7M10.7 8.2L8.6 10.2l2.2 1.7" strokeWidth="1.15" /></svg>,
+  movieSr: <svg viewBox="0 0 20 20" {...P}><rect x="2" y="5.6" width="11" height="8.8" rx="1.6" /><path d="M13 8.8l4.6-2.4v7.2L13 11.2" /><rect x="6" y="8.5" width="3" height="3" rx="0.5" strokeWidth="1.15" /><path d="M4.5 8.3q-.8 1.7 0 3.4M10.5 8.3q.8 1.7 0 3.4" strokeWidth="1.15" /></svg>,
+  shift: <svg viewBox="0 0 20 20" {...P}><rect x="2.6" y="3.8" width="11.4" height="8.6" rx="1.2" strokeDasharray="1.7 1.7" /><rect x="6" y="7.6" width="11.4" height="8.6" rx="1.2" /></svg>,
+  movieExp: <svg viewBox="0 0 20 20" {...P}><rect x="2" y="5.6" width="11" height="8.8" rx="1.6" /><path d="M13 8.8l4.6-2.4v7.2L13 11.2" /><path d="M4.6 10h2.6M5.9 8.7v2.6M8.4 10h2.4" /></svg>,
+  wb: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="6.6" /><path d="M10 3.4a6.6 6.6 0 0 0 0 13.2z" fill="currentColor" stroke="none" opacity="0.35" /><path d="M10 3.4v13.2" /></svg>,
   preview: <svg viewBox="0 0 20 20" {...P}><path d="M1.8 10c2.2-3.6 5-5.4 8.2-5.4s6 1.8 8.2 5.4c-2.2 3.6-5 5.4-8.2 5.4S4 13.6 1.8 10z" /><circle cx="10" cy="10" r="2.6" /></svg>,
   mono: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="7.2" /><path d="M10 2.8a7.2 7.2 0 0 1 0 14.4z" fill="currentColor" stroke="none" /></svg>,
   help: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="7.2" /><path d="M7.9 8a2.2 2.2 0 1 1 3.3 1.9c-.8.5-1.2 1-1.2 1.8" /><circle cx="10" cy="13.9" r="0.6" fill="currentColor" /></svg>,
+  // GR Mod Film's own icons.
+  film: <svg viewBox="0 0 20 20" {...P}><rect x="2.4" y="5" width="15.2" height="10" rx="1" /><path d="M2.4 7.4h15.2M2.4 12.6h15.2M5 5v2.4M8 5v2.4M11 5v2.4M14 5v2.4M5 12.6V15M8 12.6V15M11 12.6V15M14 12.6V15" /></svg>,
+  dial: <svg viewBox="0 0 20 20" {...P}><circle cx="10" cy="10" r="6.4" /><circle cx="10" cy="10" r="2.2" /><path d="M10 3.6v2M3 3l14 14" /></svg>,
+  noMovie: <svg viewBox="0 0 20 20" {...P}><rect x="2.4" y="5.6" width="10.6" height="8.8" rx="1.6" /><path d="M13 9l4.6-2.6v7.2L13 11M3 3l14 14" /></svg>,
   coffee: <svg viewBox="0 0 20 20" {...P}><path d="M4 8h10v4.2a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" /><path d="M14 9.2h1.2a2 2 0 0 1 0 4H14" /><path d="M7.4 3.4c-.6.8.6 1.4 0 2.4M10.6 3.4c-.6.8.6 1.4 0 2.4" /></svg>,
   users: <svg viewBox="0 0 20 20" {...P}><circle cx="7.5" cy="7" r="2.6" /><path d="M2.8 16c0-2.7 2.1-4.6 4.7-4.6s4.7 1.9 4.7 4.6" /><circle cx="13.6" cy="7.6" r="2.1" /><path d="M13.4 11.6c2.2 0 3.8 1.6 3.8 3.9" /></svg>,
   external: <svg viewBox="0 0 20 20" {...P}><path d="M8 5H5.5A1.5 1.5 0 0 0 4 6.5v8A1.5 1.5 0 0 0 5.5 16h8a1.5 1.5 0 0 0 1.5-1.5V12M11 4h5v5M16 4l-7 7" /></svg>,
@@ -540,7 +553,7 @@ export function ConfirmDialog() {
   if (!c) return null;
   return (
     <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) answerConfirm(false); }}>
-      <div className="dialog" role="alertdialog" aria-modal="true">
+      <div className="dialog confirm" role="alertdialog" aria-modal="true">
         <h3>{c.title}</h3>
         {c.lines.length > 0 && <ul className={`dialog-lines ${c.warn ? '' : 'last'}`}>{c.lines.map((l) => (isMobile ? <SwipeLine key={l} text={l} /> : <li key={l}>{l}</li>))}</ul>}
         {c.warn && <p className="dialog-warn">{c.warn}</p>}

@@ -37,8 +37,13 @@ Expliquer la démarche, les termes nouveaux et ce qui est fait, sans noyer.
 - Depuis la 1.1 (fusion de GR Mod 0.8.15) : variables `GRMOD_GR4_120_FIRMWARE` et `GRMOD_GR4_121_FIRMWARE`
   (GR IV 1.20 / 1.21 = GR IV Monochrome 1.10 / 1.11, `fwdc248b.bin`), `GRMOD_GR3_221_FIRMWARE`,
   `GRMOD_GR3X_171_FIRMWARE`, etc. Le mode pellicule reste sur les programmes 2.10 / 1.60 (`core/src/fw/gr3x`) ;
-  les portages de l'amont sont dans `core/src/fw/gr3x170`, `gr3x171`, `gr4v120`, `gr4v121`. Scripts de build hors
-  Vitest : passer par `npx esbuild … --bundle --platform=node --format=esm` (imports de types de l'amont).
+  les portages de l'amont sont dans `core/src/fw/gr3x170`, `gr3x171`, `gr4v120`, `gr4v121`.
+- Depuis la convergence avec GR Mod 0.9.1 (`docs/fusion-0.9.md`, branche `fusion-0.9`) : un dossier de firmware est son
+  programme de base avec ses propres fichiers par-dessus (`core/overlays.mjs`), donc les scripts hors Vitest passent par
+  `npx vite-node` (esbuild ne résout pas la superposition). L'application est découpée : `ui/src/store/*.ts` (nos parties
+  dans `store/film.ts` et `store/community.ts`), `ui/src/pages/*.tsx`, textes dans `ui/src/locales/*` plus notre bloc
+  `filmZh` / `filmEn` de `ui/src/i18n.ts`. Contrôles de l'amont : `npm run check`. Notre copie 1.21 (`fw/gr4v121`) est
+  gardée entière jusqu'à l'étape 2.
 - Bogues de la campagne V1 : `docs/V1-TESTS.md` (protocole) et `docs/V1-BUGS.md` (bogues collectés, tests de
   vérification faits à la fin, décision du 2026-11-15).
 - Site web (sans le programme) : `cd ui && npx vite build --mode web` ; accès aux fichiers du navigateur dans
