@@ -75,6 +75,12 @@
 "how": "aligned",
 "ok": true
 },
+"0x5316c9d8": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x5316f3b8": {
 "new": "0x5316f478",
 "how": "aligned + refs 0x5316f478x3",
@@ -376,6 +382,18 @@
 "how": "aligned",
 "ok": true
 },
+"0x531ada20": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x531ada3c": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x531adc6c": {
 "new": "0x531add44",
 "how": "aligned + refs 0x531add44x1",
@@ -396,6 +414,24 @@
 "how": "aligned",
 "ok": true
 },
+"0x531adf20": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x531adf3c": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x531adf60": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x531ae818": {
 "new": "0x531ae8f0",
 "how": "aligned + refs 0x531ae8f0x1",
@@ -406,6 +442,18 @@
 "how": "aligned",
 "ok": true
 },
+"0x531af3a4": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x531af3b8": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x531af494": {
 "new": "0x531af56c",
 "how": "aligned",
@@ -415,6 +463,18 @@
 "new": "0x531af580",
 "how": "aligned",
 "ok": true
+},
+"0x531af584": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x531af598": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x531af6ac": {
 "new": "0x531af784",
@@ -461,6 +521,18 @@
 "how": "aligned",
 "ok": true
 },
+"0x531afbe0": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x531afc8c": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x531affa0": {
 "new": "0x531b0078",
 "how": "aligned",
@@ -491,10 +563,22 @@
 "how": "aligned",
 "ok": true
 },
+"0x531b04f4": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x531b0514": {
 "new": "0x531b05ec",
 "how": "aligned + refs 0x531b05ecx1",
 "ok": true
+},
+"0x531b0534": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x531b0564": {
 "new": "0x531b063c",
@@ -526,10 +610,22 @@
 "how": "aligned",
 "ok": true
 },
+"0x531b0d64": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x531b0d8c": {
 "new": "0x531b0e64",
 "how": "aligned",
 "ok": true
+},
+"0x531b0db4": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x531b1060": {
 "new": "0x531b1138",
@@ -1100,6 +1196,12 @@
 "new": "0x53228988",
 "how": "aligned + refs 0x53228988x1615",
 "ok": true
+},
+"0x53228a90": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x53228c4c": {
 "new": "0x53228d24",
@@ -1707,6 +1809,24 @@
 "how": "aligned",
 "ok": true
 },
+"0x5327a060": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x5327a0b0": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x5327a0b4": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x5327b394": {
 "new": "0x5327b46c",
 "how": "aligned + refs 0x5327b46cx14",
@@ -2009,10 +2129,22 @@
 "how": "aligned + refs 0x532a9c20x1",
 "ok": true
 },
+"0x532ac86c": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x532aca68": {
 "new": "0x532acb58",
 "how": "aligned + refs 0x532acb58x1",
 "ok": true
+},
+"0x532acb50": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x532ace68": {
 "new": "0x532acf58",
@@ -2259,6 +2391,12 @@
 "how": "aligned",
 "ok": true
 },
+"0x532c1ac0": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x532c1cf4": {
 "new": "0x532c1de4",
 "how": "aligned + refs 0x532c1de4x2",
@@ -2278,6 +2416,12 @@
 "new": "0x532c27b0",
 "how": "aligned + refs 0x532c27b0x5",
 "ok": true
+},
+"0x532c293c": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x532c297c": {
 "new": "0x532c2a6c",
@@ -3074,6 +3218,18 @@
 "new": "0x5354b654",
 "how": "aligned + refs 0x5354b654x233",
 "ok": true
+},
+"0x5354d104": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
+"0x5354d138": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x53550e68": {
 "new": "0x53550f58",
@@ -4387,6 +4543,12 @@
 "ok": true,
 "why": "identity bytes of GR III vs IIIx (test bounds): the 2.20 / 1.70 differences, RTOS 0x200e..0x207a, 0x6b63dc..0x6b6664, 0x81fe24..0x81fe74, 0xd61cf4"
 },
+"0x53826c54": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
+},
 "0x53828014": {
 "new": "0x53828028",
 "how": "aligned + refs 0x53828028x53",
@@ -4890,6 +5052,12 @@
 "how": "override",
 "ok": true,
 "why": "emulator scratch memory / link address of a probe or module generator, not a firmware address"
+},
+"0x558ff000": {
+"new": null,
+"how": "GR Mod Film",
+"ok": false,
+"why": "GR Mod Film's film mode: GR III 2.10 / GR IIIx 1.60 only, no 2.20 firmware to map it; its lines are taken out of the 2.20 copy by the patch (convergence step 2, docs/fusion-0.9.md)"
 },
 "0x55900000": {
 "new": "0x55900000",
