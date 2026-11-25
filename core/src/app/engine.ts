@@ -92,6 +92,8 @@ export interface FirmwareInfo {
     customButtons?: boolean;
     /** GR Mod Film 1.3: black-and-white recipes as added slots (GR IV Monochrome 1.11). */
     monoRecipes?: boolean;
+    /** GR Mod Film 1.3.5: the Aspect Ratio menu's order, factory ratios included (GR IV 1.21 / Monochrome 1.11). */
+    ratioOrder?: boolean;
     /** GR III / IIIx: the most films a build can have (9; 20 on GR III 2.10, where
      * the number is chosen with BuildOptions.filmCount and Halation is set in the camera). */
     maxFilms?: number };
@@ -231,6 +233,8 @@ export interface FirmwareSummary {
   customButtons?: boolean;
   /** True when the added slots are black-and-white recipes (GR Mod Film 1.3, GR IV Monochrome 1.11). */
   monoRecipes?: boolean;
+  /** GR IV 1.21: the Aspect Ratio menu's order when it is not the usual one (identities, see BuildOptions.ratioOrder). */
+  ratioOrder?: number[];
   /** ADJ lever slots (6..8) when the file has more than the camera's five. */
   adjSlots?: number;
 }
@@ -322,7 +326,9 @@ export interface BuildOptions {
   hiddenSettings?: Gr3xHiddenSettings;
   /** GR III / IIIx (round 10): the rear dial's rotation ignored everywhere (its four keys and OK kept); with the Hold lines, Fn held + the front dial for the rear dial. */
   rearDialOff?: boolean;
-  /** GR III / IIIx: the Aspect Ratio menu's order, as identities (3:2 0, 1:1 3, the added ratios 4.. in their order), each once. */
+  /** The Aspect Ratio menu's order, as identities, each once. GR III / IIIx: 3:2 0, 1:1 3, the added ratios 4.. in their
+   * order. GR IV 1.21 / Monochrome 1.11: 3:2 0, 4:3 1, 16:9 2, 1:1 3, the added ratios 7.. in their order (the usual
+   * order 0, 1, 3, 2, 7.. builds as before; the in-camera RAW development keeps its own). */
   ratioOrder?: number[];
   /** GR III / IIIx (round 10): Shake Reduction's list Off, 1/4000 .. 30": SR On at that speed and slower, Off faster; the shooting screen's SR icon follows (from 0.9.5). */
   srSpeed?: boolean;
@@ -578,7 +584,7 @@ export class Engine {
       factoryRatios: ['3:2', '4:3', '16:9', '1:1'],
       // The 1.12 bridge firmware goes back to 1.11 only: no bridge for 1.20.
       capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, bridge: !bridge && g4 === Gr4Program111, menuPictures: true, lookLayout: true },
-      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true } : {}) },
+      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true } : {}) },
       version: g4.FIRMWARE_VERSION,
       looks: { factory: factoryLookOrder(decoded.subarray(g4.RTOS_OFFSET), g4.aspect.ORDER_TABLE, g4.aspect.FACTORY_LOOK_IDS), extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
       sha256: await sha256Hex(raw),
@@ -809,6 +815,7 @@ export class Engine {
       ...(features.noMovie ? { noMovie: true } : {}),
       ...(features.customButtons ? { customButtons: true } : {}),
       ...(features.monoRecipes ? { monoRecipes: true } : {}),
+      ...((features as { ratioOrder?: readonly number[] }).ratioOrder ? { ratioOrder: [...(features as { ratioOrder: readonly number[] }).ratioOrder] } : {}),
     });
     if (!specs) return modified(false, [], aligned);
     let ratios: BuiltRatio[] = [];
@@ -1166,6 +1173,13 @@ export class Engine {
     const monoRecipes = !!(options && options.monoRecipes);
     if (monoRecipes && !this.info.features.monoRecipes) throw new FirmwareError('bad-edit', 'black-and-white recipes need GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (monoRecipes && extraSlots.length === 0) throw new FirmwareError('bad-edit', 'black-and-white recipes without added slots');
+    // GR Mod Film 1.3.5: the Aspect Ratio menu's order (GR IV 1.21); the usual order is no option at all, so earlier files rebuild the same.
+    const usualOrder = [0, 1, 3, 2, ...ratios.map((_, k) => 7 + k)];
+    const askedOrder = options && options.ratioOrder && options.ratioOrder.length ? [...options.ratioOrder] : undefined;
+    if (askedOrder && !this.info.features.ratioOrder) throw new FirmwareError('bad-edit', 'the order of the factory ratios needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
+    if (askedOrder && (askedOrder.length !== usualOrder.length || [...askedOrder].sort((a, b) => a - b).some((v, i) => v !== [...usualOrder].sort((a, b) => a - b)[i]))) throw new FirmwareError('bad-edit', 'the ratio order must name every ratio once');
+    const ratioOrder = askedOrder && askedOrder.some((v, i) => v !== usualOrder[i]) ? askedOrder : undefined;
+    if (ratioOrder && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the ratio order cannot be combined with the clarity-table soft focus of 0.4.x');
     if (noMovie && !this.info.features.noMovie) throw new FirmwareError('bad-edit', 'no movie needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (hdrGainMap && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the HDR gain map cannot be combined with the clarity-table soft focus of 0.4.x');
     if (directFlash && clarity.length > 0) throw new FirmwareError('bad-clarity', 'Direct Flash cannot be combined with the clarity-table soft focus of 0.4.x');
@@ -1173,9 +1187,9 @@ export class Engine {
     if (adjSoftFocus && clarity.length > 0) throw new FirmwareError('bad-clarity', 'soft focus on the ADJ lever and on the clarity table cannot be combined');
     if (dateStamp && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the date imprint cannot be combined with the clarity-table soft focus of 0.4.x');
     if (extraSlots.length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'added slots cannot be combined with the clarity-table soft focus of 0.4.x');
-    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
+    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !ratioOrder && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
     if (Object.keys(cinemaHalation).length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'halation cannot be combined with the clarity-table soft focus of 0.4.x');
-    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}) };
+    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}), ...(ratioOrder ? { ratioOrder } : {}) };
     const test = {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),

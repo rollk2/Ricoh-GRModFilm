@@ -608,3 +608,25 @@ Demande : ranger 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés dans l'ordre choisi 
   - vérifications : `tools/gr4v121/aspect/boot_checks.py` attend aujourd'hui `[0, 1, 3, 2]` en tête, à généraliser ; test
     du cycle Fn et des listes avec l'ordre choisi.
 - Hors champ : le fichier 1.20 (Monochrome 1.10), qui n'a pas nos ajouts.
+
+### 15.1 Étape 2 : le programme (2026-11-25)
+
+- Option `ratioOrder` (moteur : `BuildOptions.ratioOrder`, identités GR IV : 0 = 3:2, 1 = 4:3, 2 = 16:9, 3 = 1:1, 7.. les
+  ratios ajoutés ; programme : `ExtensionFeatures.ratioOrder`, `fw/gr4v121/aspect/build.ts`). Fichier 1.21 seulement
+  (`info.features.ratioOrder`) ; refusée sur 1.20.
+- Sans ratio ajouté : le mot 0x53DE6F30 (les 4 octets d'origine, vérifiés `00 01 03 02` avant) reçoit l'ordre ; c'est le seul
+  mot qui change dans l'image d'origine (test). Avec des ratios ajoutés : la table de `installMenu` prend l'ordre ; mêmes
+  crochets aux mêmes adresses qu'avec l'ordre habituel (test). Le développement RAW garde son ordre (`installRaw`,
+  `FACTORY_ORDER`), décision du 2026-11-25.
+- L'ordre habituel n'est pas une option : il donne exactement le même fichier qu'avant (test), donc les fichiers 1.3.4 et
+  antérieurs se relisent et se reconstruisent comme avant.
+- Enregistrement : 3e octet de fonctions après le 2e (`FEATURE3_RATIO_ORDER`, puis `n` et les identités). Relu par
+  l'inspection (`ratioOrder` dans le résumé), vérifié en reconstruisant le fichier à l'identique. Une version antérieure de
+  l'application, qui ne connaît pas cet octet, ne reconnaît pas le fichier.
+- Refus : un ordre qui ne nomme pas chaque ratio une fois (`bad-edit`).
+- Tests : `core/test/gr4-ratio-order.test.ts` (3) ; tests GR IV et ratios existants : 38 réussis.
+- Émulateur (`tools/gr4v121/aspect/boot_checks.py`, assertion généralisée, `BOOT_ORDER` pour l'ordre attendu), avec 65:24 et
+  2:1, boutons et sans vidéo : ordre habituel, mélangé `0,7,3,1,8,2` et inversé `8,2,3,1,7,0`. Les deux listes (nombre,
+  validité, noms, icônes), le cycle Fn (de chaque ratio au suivant, d'un ratio inconnu au premier), les réglages (180 cas),
+  le développement RAW (12 cas, ordre d'origine) et les autres enveloppes (440 cas) : tout conforme. Sans ratio ajouté, le
+  cycle Fn d'origine avec les 24 ordres : 96 cas, 0 écart (section 15).

@@ -17,6 +17,7 @@ the settings load / save / recall wrappers.
 
 Run through verify_file.py --boot, or directly: python3 boot_checks.py PATCHED_RTOS.bin
 """
+import os
 import random
 import struct
 import sys
@@ -530,7 +531,10 @@ def check_menu(official, patched):
     assert len(tables) == 1, 'order table addresses differ'
     table = tables.pop()
     order = list(patched[table - BASE:table - BASE + count])
-    assert order[:4] == [0, 1, 3, 2] and len(set(order)) == count and all(n >= 7 for n in order[4:]), 'menu order'
+    # GR Mod Film 1.3.5: the factory ratios may be anywhere in the order (BOOT_ORDER=0,7,3,... names the one expected).
+    expected = os.environ.get('BOOT_ORDER')
+    assert len(set(order)) == count and set(order) >= {0, 1, 2, 3} and all(n >= 7 for n in order if n > 3), 'menu order'
+    assert order == ([int(x) for x in expected.split(',')] if expected else [0, 1, 3, 2] + sorted(n for n in order if n > 3)), ('menu order', order)
     # Validator, name and icon lookups: identical for the factory ratios, defined for the others.
     for public in range(0, 256):
         for r2 in (0, 1):
@@ -976,6 +980,8 @@ def run(official, patched, icon_bytes, official_icons, quiet=False):
     say('text / icon directories: %d lookups identical, %d new name hits, %d new icons' % (checked, names, icons))
     count, order = check_menu(official, patched)
     say('menu: count %d, order %s; validator, names, icons and Fn cycling as expected' % (count, order))
+    # The RAW development and the other wrappers keep the usual order whatever the menu's (GR Mod Film 1.3.5).
+    order = [0, 1, 3, 2] + sorted(n for n in order if n > 3)
     cases = check_settings(official, patched, order)
     say('settings save / load / recall wrappers: %d cases' % cases)
     check_first_record(patched, count - 4)
