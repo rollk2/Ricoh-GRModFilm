@@ -85,5 +85,5 @@ Contenu : recette Tri-X 400, sans vidéo, boutons, ratio 65:24 ajouté, ordre du
 
 | Test | Date | Résultat | Remarques |
 | --- | --- | --- | --- |
-| T-SRB1 (GR III) | | | |
-| T-BG1 (GR IV Monochrome) | | | |
+| T-SRB1 (GR III) | 2026-11-25 | Partiel | Flashé sans la préparation sous 1.3.4 (aucune vitesse choisie avant) : Shake Reduction ne propose que On / Off, comme attendu. La remise à On d'une vitesse héritée (points 2 et 5) n'a pas pu être observée. |
+| T-BG1 (GR IV Monochrome) | 2026-11-25 | Validé, une question sur les grilles | Batterie : nombre affiché en prise de vue et en lecture (30, puis 20 en jaune), icône prise sur USB, retour du nombre au débranchement (points 1, 2, 4, 5, 6 ; 3 non testable). Ratios (bouton réglé sur Image Control, même cycle), Tri-X, veille puis look ou ratio : sans gel. Grilles : « 3x3 » donne la grille complexe (diagonales, case centrale coupée en 4), « 4x4 » une grille simple qui ressemble à du 3x3 ; l'utilisateur pense à une inversion. Lecture : c'est exactement ce qui était programmé (3x3 = tiers + centres + diagonales ; 4x4 = quarts seuls, soit 4 lignes et 9 cases inégales). À confirmer : dans la 4x4, la bande centrale doit être deux fois plus large que les bandes du bord. |
