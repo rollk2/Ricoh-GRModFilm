@@ -22,7 +22,8 @@ describe.skipIf(UPSTREAM_121 || !f121 || !existsSync(f121))('GR IV 1.21 during c
       ['movie4k', { movie4k: true } as BuildOptions], ['movieSr', { movieSr: true } as BuildOptions]];
     for (const [k, options] of later) {
       expect(f[k], k).toBeFalsy();
-      await expect(eng.buildFirmware([], [], [], options), k).rejects.toThrow();
+      // The shade comes only with an added ratio (as GR Mod 0.9): one is given, so that every option is really asked for.
+      await expect(eng.buildFirmware([], [{ ratio: '65:24', name: 'XPan' }], [], options).then(() => 'built', () => 'refused'), k).resolves.toBe('refused');
     }
   }, 300_000);
 });
