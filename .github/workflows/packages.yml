@@ -10,10 +10,10 @@
 # without them it is left unsigned, to be signed locally.
 name: Packages
 
+# GR Mod Film (convergence, docs/fusion-0.9.md): by hand only. Our releases are made by release.yml on the v* tags;
+# GR Mod's packages (desktop, Android) are not GR Mod Film's.
 on:
   workflow_dispatch:
-  push:
-    tags: ['v*']
 
 permissions:
   contents: read

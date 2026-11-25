@@ -43,7 +43,7 @@ Expliquer la démarche, les termes nouveaux et ce qui est fait, sans noyer.
   `npx vite-node` (esbuild ne résout pas la superposition). L'application est découpée : `ui/src/store/*.ts` (nos parties
   dans `store/film.ts` et `store/community.ts`), `ui/src/pages/*.tsx`, textes dans `ui/src/locales/*` plus notre bloc
   `filmZh` / `filmEn` de `ui/src/i18n.ts`. Contrôles de l'amont : `npm run check`. Notre copie 1.21 (`fw/gr4v121`) est
-  gardée entière jusqu'à l'étape 2.
+  gelée dans `fw/gr4v121film` depuis l'étape 2, pour relire les fichiers 1.2 à 1.3.5 ; le 1.21 est construit par le programme 1.20.
 - Bogues de la campagne V1 : `docs/V1-TESTS.md` (protocole) et `docs/V1-BUGS.md` (bogues collectés, tests de
   vérification faits à la fin, décision du 2026-11-15).
 - Site web (sans le programme) : `cd ui && npx vite build --mode web` ; accès aux fichiers du navigateur dans
