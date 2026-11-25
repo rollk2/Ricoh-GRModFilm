@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Engine, fw } from '../src';
 import type { BuildOptions } from '../src/app/engine';
 import { testRatios } from './fw-helpers/test-firmware';
+import { upstream121 } from './fw-helpers/fusion';
 
 const FILES: Record<string, string | undefined> = { '1.20': process.env.GRMOD_GR4_120_FIRMWARE, '1.21': process.env.GRMOD_GR4_121_FIRMWARE };
 const DUMP = process.env.GRMOD_DUMP;
@@ -30,7 +31,7 @@ function rtosOf(file: Uint8Array): Uint8Array {
   return d.subarray(r.offset, r.offset + r.size);
 }
 
-for (const [release, path] of Object.entries(FILES)) {
+for (const [release, path] of Object.entries(FILES).filter(([r]) => upstream121(r))) {
   describe.skipIf(!path || !existsSync(path))(`GR IV ${release}: battery percentage, custom grid, live-view shade`, () => {
     const raw = path && existsSync(path) ? new Uint8Array(readFileSync(path)) : new Uint8Array();
     let eng: Engine;

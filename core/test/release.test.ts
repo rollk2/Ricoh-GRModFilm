@@ -12,7 +12,8 @@ import { ADDRESSES as TO_170 } from '../src/fw/gr3x170/addresses';
 import { ADDRESSES as TO_171 } from '../src/fw/gr3x171/addresses';
 import { ADDRESSES } from '../src/fw/gr4v121/addresses';
 import { BASE as BASE_120, ICON_CATALOG as ICON_CATALOG_120, OFFICIAL_RTOS_LENGTH as LENGTH_120 } from '../src/fw/gr4v120/aspect/build';
-// @ts-expect-error not a file: gr4v120's module under gr4v121's path (the type checker only knows the index)
+// @ts-ignore not a file upstream: gr4v120's module under gr4v121's path (GR Mod Film keeps its own gr4v121 copy until
+// convergence step 2, docs/fusion-0.9.md, where it is a real file)
 import { BASE as BASE_121, ICON_CATALOG as ICON_CATALOG_121, OFFICIAL_RTOS_LENGTH as LENGTH_121 } from '../src/fw/gr4v121/aspect/build';
 
 describe('release targets', () => {

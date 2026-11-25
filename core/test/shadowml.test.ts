@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Engine, fw } from '../src';
 import type { BuildOptions } from '../src/app/engine';
+import { upstream121 } from './fw-helpers/fusion';
 
 const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 // hook: ldr r2,[fp,#-0x450] after the Y-array builder; gain: Auto's entry of the gain table (TB[4]).
@@ -26,7 +27,7 @@ const word = (b: Uint8Array, at: number) => new DataView(b.buffer, b.byteOffset,
 const branchTarget = (at: number, w: number) => at + 8 + (((w & 0xffffff) << 8) >> 6);
 const recordStart = (v: Uint8Array) => v.length - 16 - new DataView(v.buffer, v.byteOffset, v.byteLength).getUint32(v.length - 16, true);
 
-for (const f of files) describe.skipIf(!existsSync(f.path))(`learned shadow correction ${f.version}`, () => {
+for (const f of files.filter((f) => upstream121(f.version))) describe.skipIf(!existsSync(f.path))(`learned shadow correction ${f.version}`, () => {
   const raw = existsSync(f.path) ? new Uint8Array(readFileSync(f.path)) : new Uint8Array();
   for (const options of [{}, { dateStamp: true, directFlash: true, hdrGainMap: true, adjSlots: 8, brightAuto: 'balanced' as const }]) {
     it(`${Object.keys(options).length ? 'with the other additions' : 'alone'}: one hook, Auto's gain, appended last; verified and read back`, async () => {

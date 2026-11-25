@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Engine, fw } from '../src';
 import type { BuildOptions } from '../src';
+import { upstream121 } from './fw-helpers/fusion';
 
 const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 const file120 = process.env.GRMOD_GR4_120_FIRMWARE || P + 'official120.bin';
@@ -40,7 +41,7 @@ const word = (b: Uint8Array, at: number) => new DataView(b.buffer, b.byteOffset,
 const branchTarget = (at: number, w: number) => at + 8 + (((w & 0xffffff) << 8) >> 6);
 const rgb = (v: number) => new Uint8Array(720 * 480 * 3).fill(v);
 
-for (const { version, path, NOPS, DIAL, GATE, STEP, ISO_AUTO, ITEMS, POSITIONS, ARGUMENTS } of releases) describe.skipIf(!existsSync(path))(`exposure modes for movies ${version}`, () => {
+for (const { version, path, NOPS, DIAL, GATE, STEP, ISO_AUTO, ITEMS, POSITIONS, ARGUMENTS } of releases.filter((r) => upstream121(r.version))) describe.skipIf(!existsSync(path))(`exposure modes for movies ${version}`, () => {
   const raw = existsSync(path) ? new Uint8Array(readFileSync(path)) : new Uint8Array();
   // What the build changes inside the official image: address -> word.
   const expected = new Map<number, number>();

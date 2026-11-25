@@ -17,8 +17,9 @@ import * as names120 from '../src/fw/gr4v120/names';
 // @ts-ignore the 1.21 overlay: the same module on 1.21's addresses (core/overlays.mjs)
 import * as names121 from '../src/fw/gr4v121/names';
 import { testRatios } from './fw-helpers/test-firmware';
+import { upstream121 } from './fw-helpers/fusion';
 
-const files = [['1.20', process.env.GRMOD_GR4_120_FIRMWARE], ['1.21', process.env.GRMOD_GR4_121_FIRMWARE]].filter(([, f]) => !!f && existsSync(f)) as [string, string][];
+const files = [['1.20', process.env.GRMOD_GR4_120_FIRMWARE], ['1.21', process.env.GRMOD_GR4_121_FIRMWARE]].filter(([r, f]) => upstream121(r!) && !!f && existsSync(f)) as [string, string][];
 const file111 = new URL('../testdata/private/official.bin', import.meta.url);
 
 const rtosOf = (file: Uint8Array): Uint8Array => {

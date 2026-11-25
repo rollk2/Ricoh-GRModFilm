@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { Engine, fw } from '../src';
 import type { BuildOptions } from '../src';
 import { AWB2_CODE, AWB2_CODE_LENGTH, AWB2_DATA, AWB2_DATA_LENGTH, AWB2_MAGIC, AWB2_OFFSETS } from '../src/fw/gr4v120/aspect/awb2-code';
+import { upstream121 } from './fw-helpers/fusion';
 
 const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 const file120 = process.env.GRMOD_GR4_120_FIRMWARE || P + 'official120.bin';
@@ -37,7 +38,7 @@ const findWord = (b: Uint8Array, v: number) => { for (let i = 0; i + 4 <= b.leng
 const bytesAt = (b: Uint8Array, at: number, n: number) => Buffer.from(b.slice(at - 0x53000000, at - 0x53000000 + n));
 const rgb = (v: number) => new Uint8Array(720 * 480 * 3).fill(v);
 
-for (const { version, path, CALL, STAGE, ALLOC, FLASH, WAIT } of releases) describe.skipIf(!existsSync(path))(`learned auto WB ${version}`, () => {
+for (const { version, path, CALL, STAGE, ALLOC, FLASH, WAIT } of releases.filter((r) => upstream121(r.version))) describe.skipIf(!existsSync(path))(`learned auto WB ${version}`, () => {
   const raw = existsSync(path) ? new Uint8Array(readFileSync(path)) : new Uint8Array();
   const module = Buffer.from(AWB2_CODE, 'base64'), tables = Buffer.from(AWB2_DATA, 'base64');
   const recipes: [string, (e: Engine) => BuildOptions][] = [

@@ -1,3 +1,4 @@
+/// <reference path="./env.d.ts" />
 import { makeWebHost } from './webhost';
 // The platform behind the page. On Windows and macOS this is the GRMod shell's local HTTP API; the Android app
 // provides the same interface with its own implementation (host-android.ts).

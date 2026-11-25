@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { Engine, fw } from '../src';
 import type { BuildOptions } from '../src';
 import { FLTTL_CODE, FLTTL_CODE_LENGTH } from '../src/fw/gr4v120/aspect/flttl-code';
+import { upstream121 } from './fw-helpers/fusion';
 
 const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 const file120 = process.env.GRMOD_GR4_120_FIRMWARE || P + 'official120.bin';
@@ -38,7 +39,7 @@ const recordStart = (v: Uint8Array) => v.length - 16 - new DataView(v.buffer, v.
 const findWord = (b: Uint8Array, v: number) => { for (let i = 0; i + 4 <= b.length; i += 4) if (word(b, 0x53000000 + i) === v) return 0x53000000 + i; return -1; };
 const rgb = (v: number) => new Uint8Array(720 * 480 * 3).fill(v);
 
-for (const { version, path, SITES, NATIVES } of releases) describe.skipIf(!existsSync(path))(`flash TTL ${version}`, () => {
+for (const { version, path, SITES, NATIVES } of releases.filter((r) => upstream121(r.version))) describe.skipIf(!existsSync(path))(`flash TTL ${version}`, () => {
   const raw = existsSync(path) ? new Uint8Array(readFileSync(path)) : new Uint8Array();
   const module = Uint8Array.from(Buffer.from(FLTTL_CODE, 'base64'));
   const recipes: [string, (e: Engine) => BuildOptions][] = [

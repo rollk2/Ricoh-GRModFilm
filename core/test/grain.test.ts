@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Engine, fw } from '../src';
 import type { BuildOptions, ExtraSlotSpec } from '../src';
+import { upstream121 } from './fw-helpers/fusion';
 
 const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 const file120 = process.env.GRMOD_GR4_120_FIRMWARE || P + 'official120.bin';
@@ -33,7 +34,7 @@ const branchTarget = (at: number, w: number) => at + 8 + (((w & 0xffffff) << 8) 
 const recordStart = (v: Uint8Array) => v.length - 16 - new DataView(v.buffer, v.byteOffset, v.byteLength).getUint32(v.length - 16, true);
 const curve = (g: number): number[] => Array.from({ length: 256 }, (_, i) => Math.min(16383, Math.round(16383 * Math.pow(i / 255, g))));
 
-for (const { version, path, NATIVE_GRAIN, DEV_SITE, JPEG_HOOK, MENU } of releases) describe.skipIf(!existsSync(path))(`film grain ${version}`, () => {
+for (const { version, path, NATIVE_GRAIN, DEV_SITE, JPEG_HOOK, MENU } of releases.filter((r) => upstream121(r.version))) describe.skipIf(!existsSync(path))(`film grain ${version}`, () => {
   const raw = existsSync(path) ? new Uint8Array(readFileSync(path)) : new Uint8Array();
   const halo = (e: Engine): ExtraSlotSpec => ({ name: 'Halo', matrixQ13: [8192, 0, 0, 0, 8192, 0, 0, 0, 8192], curves: [curve(0.9), curve(1), curve(1.1)],
     postQ9: [512, 0, 0, 0, 512, 0, 0, 0, 512], icon: fw.composeIcon(e.info.tiles.film, new Float32Array(1600).fill(0.6)), halation: true } as ExtraSlotSpec);
