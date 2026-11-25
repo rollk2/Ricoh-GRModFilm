@@ -68,3 +68,8 @@ L'amont ne trie pas non plus les ratios d'usine du GR IV (`FACTORY_ORDER` fixe).
 - Firmware de test T-BG1 (site, Monochrome 1.11) : Tri-X 400, sans vidéo, ratios triés (3:2, 65:24, 1:1, 16:9, 4:3),
   batterie, grilles (3x3 : les 8 lignes ; 4x4 : les quarts seulement, sans lignes centrales ni diagonales). Relu, vérifié ;
   sondes batterie, grilles, Hold (mots intacts) et menus des ratios conformes sur ce fichier.
+
+## Résultat sur le boîtier (2026-11-25)
+- T-BG1 validé sur GR IV Monochrome 1.11 : batterie en pourcentage (affichage, jaune à 20 %, icône d'origine sur USB) et
+  grilles (positions mesurées sur les photos de l'écran : 3x3 aux tiers + centres + diagonales, 4x4 aux quarts, comme
+  programmé ; la correspondance des styles de l'amont, +0xF4 = 0 pour 3x3, est confirmée sur la 1.21).
