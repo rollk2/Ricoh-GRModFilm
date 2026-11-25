@@ -285,6 +285,8 @@ Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre 
 - **GR IV : trier les ratios** (demande du 2026-11-24 ; **fait, validé sur le boîtier T-RO1 le 2026-11-25, 1.3.5**) : 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés rangés dans l'ordre choisi
   (menu Aspect Ratio et cycle Fn). Pas de masquage (décision du 2026-11-24 : on les garde tous). Piste : la table d'ordre que
   le programme écrit déjà (`installMenu`, `FACTORY_ORDER`). Étapes : recherche, programme, application, test boîtier.
+- **GR IV : cacher un style de grille** (3x3 ou 4x4) dans le menu Grid Style : faisable (liste SelectMenuController
+  record 93), **abandonné le 2026-11-25** (jugé trop optionnel) ; la 1.3.5 part sans.
 - **GR III : un mode veille** (demande du 2026-11-25, constat pendant T-SRB1) : le GR III n'a pas de veille comme le GR IV
   (écran coupé, réveil instantané par un appui). À étudier : ce que fait l'extinction automatique d'origine (Auto Power
   Off), et s'il existe dans le firmware un état d'économie que l'on puisse appeler au lieu d'éteindre.
