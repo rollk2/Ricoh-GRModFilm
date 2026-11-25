@@ -643,3 +643,15 @@ Demande : ranger 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés dans l'ordre choisi 
 - Navigateur (site construit, firmware 1.21) : 16:9 monté de deux crans, 65:24 ajouté puis monté de trois : liste
   3:2, 65:24, 16:9, 4:3, 1:1 ; firmware téléchargé relu par le moteur : vérifié, ordre `[0, 7, 2, 1, 3]`. GR III : l'ordre
   des ratios fonctionne comme avant ; GR IV 1.11 : inchangé. Aucune erreur dans la console.
+
+### 15.3 Étape 4 : firmware de test T-RO1 (2026-11-25)
+
+- Construit par le site (comme l'utilisateur) sur le fichier 1.21 : modèle GR IV Monochrome, une recette (Tri-X 400 du pack
+  Ilford / Kodak, Pat David), sans vidéo, boutons, 65:24 ajouté ; ordre du menu 3:2, 65:24, 1:1, 16:9, 4:3.
+- Relu par le moteur : vérifié, recette noir et blanc, ordre `[0, 7, 3, 2, 1]`.
+- Émulateur sur ce fichier : listes, noms, icônes, cycle Fn conformes à l'ordre ; développement RAW (10 cas, ordre d'origine) ;
+  autres enveloppes (400 cas). Le contrôle des réglages de `boot_checks.py` ne sait pas exécuter le module des places
+  ajoutées (lecture hors mémoire simulée à 0x5443B0BC) : même résultat avec l'ordre habituel, donc limite du contrôle et non
+  effet du tri ; il passe sur les builds sans place ajoutée (180 cas, section 15.1).
+- À vérifier sur le boîtier : ordre du menu Aspect Ratio (noms, icônes), cycle Fn, taille des photos par ratio, ordre du
+  développement RAW inchangé, recette Tri-X, pas de gel après la veille ni au changement de look.
