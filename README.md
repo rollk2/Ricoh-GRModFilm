@@ -25,6 +25,10 @@ Version 1.3.5 (the latest is always on the [Releases](https://github.com/rollk2/
 - **SR by shutter speed is now a beta option** (GR III / IIIx, Features page, off by default): the lens can still hum
   on some speeds. Without it, Shake Reduction keeps the camera's own Off / On list, and a speed chosen with an earlier
   build is put back to On when the camera starts.
+- **GR IV / GR IV Monochrome (the 1.21 file): sort the aspect ratios.** On the Aspect ratio page, 3:2, 4:3, 1:1 and 16:9
+  move with the arrows, among your added ratios; the camera's Aspect Ratio menu and the Fn button follow that order
+  (in-camera RAW development keeps its usual order). Tried on a GR IV Monochrome 1.11. A sorted file is read by
+  GR Mod Film 1.3.5 and later.
 
 ## What is new in 1.3.4
 

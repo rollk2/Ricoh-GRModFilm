@@ -655,3 +655,8 @@ Demande : ranger 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés dans l'ordre choisi 
   effet du tri ; il passe sur les builds sans place ajoutée (180 cas, section 15.1).
 - À vérifier sur le boîtier : ordre du menu Aspect Ratio (noms, icônes), cycle Fn, taille des photos par ratio, ordre du
   développement RAW inchangé, recette Tri-X, pas de gel après la veille ni au changement de look.
+
+### 15.4 Résultat sur le boîtier (2026-11-25)
+
+- T-RO1 sur GR IV Monochrome 1.11 : **validé par l'utilisateur** (tri des ratios conforme sur le boîtier). Intégré à
+  l'application pour la 1.3.5.

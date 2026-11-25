@@ -282,7 +282,7 @@ Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre 
 
     Pour 22 à 24 : étudier d'abord si les structures du GR IV existent sur GR III avant toute estimation.
 
-- **GR IV : trier les ratios** (demande du 2026-11-24) : 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés rangés dans l'ordre choisi
+- **GR IV : trier les ratios** (demande du 2026-11-24 ; **fait, validé sur le boîtier T-RO1 le 2026-11-25, 1.3.5**) : 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés rangés dans l'ordre choisi
   (menu Aspect Ratio et cycle Fn). Pas de masquage (décision du 2026-11-24 : on les garde tous). Piste : la table d'ordre que
   le programme écrit déjà (`installMenu`, `FACTORY_ORDER`). Étapes : recherche, programme, application, test boîtier.
 - **Fonctions de GR Mod 0.9.x** (amont, 2026-11-24, `docs/amont-0.9-etude.md`) : batterie en %, grilles, Matte Brightness,
