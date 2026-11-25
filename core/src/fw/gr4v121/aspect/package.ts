@@ -88,6 +88,8 @@ const FEATURE2_MONO_RECIPES = 128;
 /** Third feature byte (GR Mod Film 1.3.5), after the second and its bytes: bit 0, the Aspect Ratio menu order, then
  * `u8 n` and its n identities (`ratioOrder`). Older readers find a byte they do not know and report the file as newer. */
 const FEATURE3_RATIO_ORDER = 1;
+/** Third feature byte, bit 1 (GR Mod Film 1.3.5): the battery percentage (`battery.ts`). */
+const FEATURE3_BATTERY = 2;
 
 /**
  * `u8 count, then per ratio: u8 length + ratio text, u8 length + name`, (revision 3: `u8 features`),
@@ -116,15 +118,17 @@ function encodeRecord(specs: readonly RatioSpec[], revision: BuildRevision, feat
   }
   if (features.directFlash && revision < 3) fail('internal', 'Direct Flash needs revision 3');
   const order = features.ratioOrder;
+  const f3 = (order ? FEATURE3_RATIO_ORDER : 0) | (features.batteryPercent ? FEATURE3_BATTERY : 0);
   if (order && (revision < 3 || order.length > 255 || order.some((v) => !(Number.isInteger(v) && v >= 0 && v < 256)))) fail('internal', 'ratio order cannot be recorded');
-  if (features.brightAuto || features.hdrGainMap || (features.adjSlots && features.adjSlots > 5) || features.exposurePreview || features.softFocusMenu || features.noMovie || features.customButtons || features.monoRecipes || order) {
+  if (features.brightAuto || features.hdrGainMap || (features.adjSlots && features.adjSlots > 5) || features.exposurePreview || features.softFocusMenu || features.noMovie || features.customButtons || features.monoRecipes || f3) {
     if (revision < 3) fail('internal', 'the HDR gain map, ADJ slots, bright Auto, exposure preview and the soft focus line need revision 3');
     const adj = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
     if (adj && !(Number.isInteger(adj) && adj <= ADJ_SLOTS_MAX)) fail('internal', 'ADJ slots cannot be recorded');
     bytes.push((features.hdrGainMap ? FEATURE2_HDR_GAIN_MAP : 0) | (adj ? FEATURE2_ADJ_SLOTS : 0) | (features.brightAuto ? FEATURE2_BRIGHT_AUTO : 0) | (features.exposurePreview ? FEATURE2_EXPOSURE_PREVIEW : 0) | (features.softFocusMenu ? FEATURE2_SOFT_FOCUS_MENU : 0) | (features.noMovie ? FEATURE2_NO_MOVIE : 0) | (features.customButtons ? FEATURE2_CUSTOM_BUTTONS : 0) | (features.monoRecipes ? FEATURE2_MONO_RECIPES : 0));
     if (adj) bytes.push(adj);
     if (features.brightAuto) bytes.push(features.brightAuto === 'balanced' ? 2 : 1);
-    if (order) bytes.push(FEATURE3_RATIO_ORDER, order.length, ...order);
+    if (f3) bytes.push(f3);
+    if (order) bytes.push(order.length, ...order);
   }
   while (bytes.length % 4) bytes.push(0);
   return Uint8Array.from(bytes);
@@ -236,7 +240,8 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
       }
       if (p < rec.length) {
         const f3 = rec[p++];
-        if ((f3 & ~FEATURE3_RATIO_ORDER) !== 0) return null;
+        if ((f3 & ~(FEATURE3_RATIO_ORDER | FEATURE3_BATTERY)) !== 0) return null;
+        if (f3 & FEATURE3_BATTERY) features.batteryPercent = true;
         if (f3 & FEATURE3_RATIO_ORDER) {
           if (p >= rec.length) return null;
           const n = rec[p++];
@@ -246,7 +251,7 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
         }
       }
     }
-    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.exposurePreview && !features.brightAuto && !features.noMovie && !features.customButtons && !features.ratioOrder) return null;
+    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.exposurePreview && !features.brightAuto && !features.noMovie && !features.customButtons && !features.ratioOrder && !features.batteryPercent) return null;
   }
   for (; p < rec.length; p++) if (rec[p] !== 0) return null;
   return { specs: out, features, extraSlots, shutdownPictures };

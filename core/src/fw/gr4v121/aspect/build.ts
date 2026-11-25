@@ -42,6 +42,7 @@ import { installFnLists } from './fnlists';
 import { installHoldButtons } from './holdbuttons';
 import { HOLD_BYTES, MACRO_BYTE, installHoldLines, installMacroIcon } from './holdlines';
 import { installAdjRedFilter, installAdjRedFilterIcon } from './adjredfilter';
+import { extendBatteryZeroFill, installBatteryPercent } from './battery';
 import { installMonoCurve } from './monocurve';
 import { CINEMA_STYLES, installExtraSlots, installHalation } from './slots';
 import { HALATION_TEST, halationLight } from './halation';
@@ -190,6 +191,8 @@ export interface ExtensionFeatures {
    * The in-camera RAW development keeps its own order.
    */
   ratioOrder?: readonly number[];
+  /** GR Mod Film 1.3.5 (from GR Mod 0.9.1): the battery icon shows the charge in steps of 10 % (`battery.ts`). */
+  batteryPercent?: boolean;
 }
 
 /** For test builds only: a fixed setting byte (1 short, 3 long style) instead of the camera menu. */
@@ -568,7 +571,7 @@ function installMenu(patch: Patch, ratios: readonly RatioEntry[], iconIds: Reado
 // --------------------------------------------------------------------------------------------
 // crop_geometry.py
 
-class Program {
+export class Program {
   /** The image as it was when the program was created (displaced instructions are read from it). */
   private readonly source: Uint8Array;
   cursor: number;
@@ -1110,7 +1113,7 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   const shutdown = features.shutdown && features.shutdown.pictures.length > 0 ? features.shutdown : undefined;
   const cinema = (['CY', 'CG'] as const).filter((id) => features.cinemaHalation?.[id] === true);
   const adjSlots = features.adjSlots && features.adjSlots > 5 ? features.adjSlots : 0;
-  const extra = !!features.brightAuto || !!features.exposurePreview || !!features.adjSoftFocus || !!features.dateStamp || !!features.monoUnlock || slots.length > 0 || !!shutdown || !!features.guard || cinema.length > 0 || !!features.directFlash || adjSlots > 0 || !!features.hdrGainMap || !!features.noMovie || !!features.customButtons || !!features.ratioOrder;
+  const extra = !!features.brightAuto || !!features.exposurePreview || !!features.adjSoftFocus || !!features.dateStamp || !!features.monoUnlock || slots.length > 0 || !!shutdown || !!features.guard || cinema.length > 0 || !!features.directFlash || adjSlots > 0 || !!features.hdrGainMap || !!features.noMovie || !!features.customButtons || !!features.ratioOrder || !!features.batteryPercent;
   // Revision 4 (GR Mod Film 1.3.4): the custom buttons' Hold words moved (`holdbuttons.ts`); a revision-3 file is rebuilt as it was.
   if (extra) revision = revision === 3 ? 3 : features.customButtons ? 4 : 3;
   if (revision !== 1 && revision !== 2 && revision !== 3 && revision !== 4) fail('internal', 'unknown build revision');
@@ -1226,7 +1229,13 @@ function installExtensionsInner(rtos: Uint8Array, iconbin: Uint8Array, ratios: r
   // Last: wraps every other settings save/load and user-mode recall hook.
   if (features.guard) installSettingsGuard(patch, { slots: slots.length, ratios: ratios.length > 0, adjSoftFocus: !!features.adjSoftFocus, ...(features.lookLayout ? { hiddenLooks: features.lookLayout.hidden } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.hdrGainMap ? { hdr: true } : {}), ...(ep ? { exposurePreview: true } : {}) });
   if (features.brightAuto) installBrightAuto(patch, features.brightAuto === 'balanced' ? 'balanced' : 'bright');
+  // GR Mod Film 1.3.5: the battery percentage; its start-up zero fill over the sbrk arena last of all (the other additions
+  // expect the fill's end at 0x55839014 or 0x55839040).
+  if (features.batteryPercent) {
+    icons = installBatteryPercent(patch, icons);
+    extendBatteryZeroFill(patch);
+  }
   if (patch.length % 4 !== 0) fail('internal', 'image length is not a multiple of 4');
   if (BASE + patch.length >= APPEND_LIMIT) fail('too-many-ratios', 'the appended area would reach the RAM area');
-  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { ...(features.brightAuto ? { brightAuto: features.brightAuto === 'balanced' ? 'balanced' as const : 'bright' as const } : {}), adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}), ...(features.hdrGainMap ? { hdrGainMap: true } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.exposurePreview ? { exposurePreview: true } : {}), ...(features.softFocusMenu ? { softFocusMenu: true } : {}), ...(features.noMovie ? { noMovie: true } : {}), ...(features.customButtons ? { customButtons: true } : {}), ...(features.monoRecipes && slots.length > 0 ? { monoRecipes: true } : {}), ...(features.ratioOrder ? { ratioOrder: [...features.ratioOrder] } : {}) } };
+  return { revision, rtos: patch.bytes(), iconbin: icons, ratios: [...ratios], words: patch.words, features: { ...(features.brightAuto ? { brightAuto: features.brightAuto === 'balanced' ? 'balanced' as const : 'bright' as const } : {}), adjSoftFocus: !!features.adjSoftFocus, ...(features.dateStamp ? { dateStamp: true } : {}), ...(features.monoUnlock ? { monoUnlock: true } : {}), ...(slots.length > 0 ? { extraSlots: [...slots] } : {}), ...(shutdown ? { shutdown } : {}), ...(features.guard ? { guard: true } : {}), ...(cinema.length > 0 ? { cinemaHalation: Object.fromEntries(cinema.map((id) => [id, true])) } : {}), ...(features.lookLayout ? { lookLayout: features.lookLayout } : {}), ...(features.directFlash ? { directFlash: true } : {}), ...(features.hdrGainMap ? { hdrGainMap: true } : {}), ...(adjSlots > 0 ? { adjSlots } : {}), ...(features.exposurePreview ? { exposurePreview: true } : {}), ...(features.softFocusMenu ? { softFocusMenu: true } : {}), ...(features.noMovie ? { noMovie: true } : {}), ...(features.customButtons ? { customButtons: true } : {}), ...(features.monoRecipes && slots.length > 0 ? { monoRecipes: true } : {}), ...(features.ratioOrder ? { ratioOrder: [...features.ratioOrder] } : {}), ...(features.batteryPercent ? { batteryPercent: true } : {}) } };
 }

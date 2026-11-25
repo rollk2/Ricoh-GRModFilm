@@ -32,3 +32,21 @@ L'amont ne trie pas non plus les ratios d'usine du GR IV (`FACTORY_ORDER` fixe).
   diagnostic (`hdrDiag`) ; aucun conflit dans les firmwares livrés.
 - Intérêt pour le Monochrome : batterie, grilles, Matte Brightness, Shadow Correction apprise, grain, Flash TTL. Sans objet :
   balance des blancs apprise (pas de couleur), fonctions vidéo (vidéo retirée).
+
+## Batterie en pourcentage, portée dans GR Mod Film 1.3.5 (2026-11-25)
+- Source : `core/src/fw/gr4v120/aspect/battery.ts` de GR Mod 0.9.1 (Maxwooow ; l'original 1.11 de dgmaia, PR #37 de
+  l'amont), recopié dans `core/src/fw/gr4v121/aspect/battery.ts` avec les adresses 1.21 de la table de l'amont, chacune
+  vérifiée dans l'image officielle 1.21 : GetBatteryIcon 0x533AA150 (commence par `cmp r1,#1 ; mov ip,sp`), service lu
+  par 0x537A4118 (garde 0x5537EFC4, objet 0x5537EEA0), copie du rapport 0x537A7938 (+0xAC, +0x5C, rapport en +4).
+  Le reste est le code de l'amont, inchangé. Icônes 1100..1111 (libres chez nous).
+- Mémoire : un octet à 0x55839040 (début de la zone sbrk, inutilisée par le firmware) ; la remise à zéro du démarrage est
+  étendue jusqu'à 0x55839080, en tout dernier (notre module des images d'extinction attend la fin de remise à zéro à
+  0x55839014 ou 0x55839040). Aucun recouvrement avec nos mots (Hold 0x55839014 / 18, HDR 0x5583901C, look 0x55839024 / 34 /
+  38, halation 0x55839028 / 2C). `hold_gap_probe.py` sur un build avec batterie : mots intacts.
+- Option `batteryPercent` (programme, moteur, enregistrement : bit 1 du 3e octet de fonctions), interrupteur « Battery
+  percentage » sur la page Features (GR IV 1.21 / Monochrome 1.11 seulement), coupé par défaut.
+- Tests : `core/test/gr4-battery.test.ts` (3, dont la relecture avec le tri des ratios). Émulateur :
+  `tools/gr4v121/battery_probe.py` (écrit pour GR Mod Film, modèle des règles) : 20 000 appels au hasard plus 40 journées
+  simulées (charge qui baisse par à-coups), 36 147 appels conformes (icône, ou code de l'appareil avec registres et drapeaux
+  intacts, palier affiché retenu), pas d'oscillation du chiffre. Navigateur : interrupteur, firmware téléchargé relu, vérifié.
+- Reste : test sur le boîtier (avec les grilles, un seul flash).
