@@ -15,7 +15,7 @@ import {
   addRatio, addWallFiles, askForOfficial, getState, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
   maxRatios, moveRatio, ratioListNow, ratioOrderable, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
-  setDateStamp, setFilmMode, setNoMovie, setBatteryPercent, batteryChoosable, setRearDialOff, setSrSpeed, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, noMovieChoosable, filmModeOn, filmCodeProblem,
+  setDateStamp, setFilmMode, setNoMovie, setBatteryPercent, batteryChoosable, gridChoosable, setGridOn, toggleGridLine, resetGrid, setRearDialOff, setSrSpeed, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, noMovieChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
   setDirectFlash, setAdjSlots, adjSlotsOf, setHdr, setExposurePreview, setBrightAuto,
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
@@ -778,6 +778,48 @@ function FeatureRow({ icon, title, sub, on, onChange, tour }: { icon: ReactNode;
   );
 }
 
+/** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the lines of the camera's 3x3 and 4x4 grids. */
+const GRID_KEYS = ['gridL0', 'gridL1', 'gridL2', 'gridL3', 'gridL4', 'gridL5', 'gridL6', 'gridL7'] as const;
+function GridPreview({ style, lines }: { style: 'g3' | 'g4'; lines: boolean[] }) {
+  const n = style === 'g3' ? 3 : 4, W = 60, H = 40;
+  const at = [1 / n, 1 / 2, (n - 1) / n];
+  const seg: [number, number, number, number][] = [];
+  at.forEach((f, k) => { if (lines[k]) seg.push([0, H * f, W, H * f]); });
+  at.forEach((f, k) => { if (lines[3 + k]) seg.push([W * f, 0, W * f, H]); });
+  if (lines[6]) seg.push([0, 0, W, H]);
+  if (lines[7]) seg.push([0, H, W, 0]);
+  return (
+    <svg className="grid-preview" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="2" />
+      {seg.map(([x1, y1, x2, y2], i) => <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+    </svg>
+  );
+}
+function GridRow() {
+  const grid = useStore((s) => s.grid);
+  return (
+    <>
+      <FeatureRow icon={Ico.grid} title={t('navGrid')} sub={t('gridSub')} on={grid.on} onChange={setGridOn} />
+      {grid.on && (
+        <div className="grid-edit">
+          {(['g3', 'g4'] as const).map((style) => (
+            <div key={style} className="grid-style">
+              <GridPreview style={style} lines={grid[style]} />
+              <b className="small">{style === 'g3' ? '3x3' : '4x4'}</b>
+              <div className="chips">
+                {GRID_KEYS.map((k, i) => (
+                  <button key={k} className={`btn small ${grid[style][i] ? 'on' : 'ghost'}`} aria-pressed={grid[style][i]} aria-label={`${style === 'g3' ? '3x3' : '4x4'} · ${t(k)}`} onClick={() => toggleGridLine(style, i)}>{t(k)}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button className="btn small ghost" onClick={resetGrid}>{t('gridReset')}</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 /** ADJ lever slots: the camera's five, or 6..8 (set in the camera, Customize Settings). */
 function AdjSlotsRow({ max }: { max: number }) {
   const n = useStore((s) => adjSlotsOf(s));
@@ -810,6 +852,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
   const noMovie = useStore((s) => s.noMovie);
   const battery = useStore((s) => s.batteryPercent);
   const batteryOk = useStore((s) => batteryChoosable(s));
+  const gridOk = useStore((s) => gridChoosable(s));
   const rearDialOff = useStore((s) => s.rearDialOff);
   const srSpeed = useStore((s) => s.srSpeed);
   const filmOk = useStore((s) => filmModeChoosable(s));
@@ -858,6 +901,7 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
       {filmOk && <FeatureRow icon={Ico.film} title={t('navFilmMode')} sub={t('filmModeSub')} on={filmMode} onChange={setFilmMode} tour="ic-f-film" />}
       {noMovieOk && <FeatureRow icon={Ico.noMovie} title={t('navNoMovie')} sub={t('noMovieSub')} on={noMovie} onChange={setNoMovie} />}
       {batteryOk && <FeatureRow icon={Ico.battery} title={t('navBattery')} sub={t('batterySub')} on={battery} onChange={setBatteryPercent} />}
+      {gridOk && <GridRow />}
       {filmOk && <FeatureRow icon={Ico.dial} title={t('navRearDialOff')} sub={t('rearDialOffSub')} on={rearDialOff} onChange={setRearDialOff} />}
       {filmOk && <FeatureRow icon={Ico.aperture} title={t('navSrSpeed')} sub={t('srSpeedSub')} on={srSpeed} onChange={setSrSpeed} />}
       {filmOk && filmMode && <HiddenSettings />}

@@ -32,6 +32,9 @@ Version 1.3.5 (the latest is always on the [Releases](https://github.com/rollk2/
 - **GR IV / GR IV Monochrome (the 1.21 file): battery percentage** (Features page, off by default), from GR Mod 0.9.1:
   the battery icon shows the charge in steps of 10 % instead of the three bars; below 5 % or on external power, the
   camera's own icon.
+- **GR IV / GR IV Monochrome (the 1.21 file): custom grid lines** (Features page, off by default), from GR Mod 0.9.1:
+  choose which lines the camera's 3x3 and 4x4 grids draw (top, centre and bottom, left, centre and right, the two
+  diagonals); the camera's Grid Style 3x3 and 4x4 then draw them.
 
 ## What is new in 1.3.4
 
@@ -208,7 +211,7 @@ GR Mod Film is built on [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod) by Max
 None of this would exist without [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod). Maxwooow mapped
 the GR III / IIIx firmware, found the addresses, built the tools that patch, check and emulate it,
 and wrote the whole desktop program; his first release opened the way. GR Mod Film builds on top of
-his work. The battery percentage of 1.3.5 is his and dgmaia's (GR Mod 0.9.1), brought into this program.
+his work. The battery percentage and the custom grid lines of 1.3.5 are his and dgmaia's (GR Mod 0.9.1), brought into this program.
 
 The recipe packs of the Community page include LUTs by [abpy](https://github.com/abpy/FujifilmCameraProfiles)
 (Fujifilm film simulations, CC BY-NC-SA 4.0) and by [Pat David](https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/)

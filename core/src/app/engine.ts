@@ -96,6 +96,8 @@ export interface FirmwareInfo {
     ratioOrder?: boolean;
     /** GR Mod Film 1.3.5 (from GR Mod 0.9.1): the battery charge in steps of 10 % (GR IV 1.21 / Monochrome 1.11). */
     batteryPercent?: boolean;
+    /** GR Mod Film 1.3.5 (from GR Mod 0.9.1): custom grid lines for the camera's 3x3 and 4x4 styles (GR IV 1.21 / Monochrome 1.11). */
+    customGrid?: boolean;
     /** GR III / IIIx: the most films a build can have (9; 20 on GR III 2.10, where
      * the number is chosen with BuildOptions.filmCount and Halation is set in the camera). */
     maxFilms?: number };
@@ -239,6 +241,8 @@ export interface FirmwareSummary {
   ratioOrder?: number[];
   /** GR IV 1.21: the battery percentage (GR Mod Film 1.3.5). */
   batteryPercent?: boolean;
+  /** GR IV 1.21: the custom grid lines (GR Mod Film 1.3.5). */
+  customGrid?: { g3: boolean[]; g4: boolean[] };
   /** ADJ lever slots (6..8) when the file has more than the camera's five. */
   adjSlots?: number;
 }
@@ -310,6 +314,9 @@ export interface BuildOptions {
   monoRecipes?: boolean;
   /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the battery icon shows the charge in steps of 10 %. */
   batteryPercent?: boolean;
+  /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the lines of the camera's 3x3 and 4x4 grid styles, 8
+   * each (horizontal top, centre, bottom; vertical left, centre, right; the two diagonals). The camera's own grids are no option. */
+  customGrid?: { g3: readonly boolean[]; g4: readonly boolean[] };
   /** GR III / IIIx (round 10): with Mode Memory's Focus unticked, the AF point back to the centre at power-on. */
   afReset?: boolean; afDim?: boolean; afTime?: boolean;
   /** GR III / IIIx (round 10): an « AF Point » box in Mode Memory; unticked, the AF point back to the centre at power-on. */
@@ -590,7 +597,7 @@ export class Engine {
       factoryRatios: ['3:2', '4:3', '16:9', '1:1'],
       // The 1.12 bridge firmware goes back to 1.11 only: no bridge for 1.20.
       capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, bridge: !bridge && g4 === Gr4Program111, menuPictures: true, lookLayout: true },
-      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true, batteryPercent: true } : {}) },
+      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true, batteryPercent: true, customGrid: true } : {}) },
       version: g4.FIRMWARE_VERSION,
       looks: { factory: factoryLookOrder(decoded.subarray(g4.RTOS_OFFSET), g4.aspect.ORDER_TABLE, g4.aspect.FACTORY_LOOK_IDS), extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
       sha256: await sha256Hex(raw),
@@ -822,6 +829,7 @@ export class Engine {
       ...(features.customButtons ? { customButtons: true } : {}),
       ...(features.monoRecipes ? { monoRecipes: true } : {}),
       ...((features as { batteryPercent?: boolean }).batteryPercent ? { batteryPercent: true } : {}),
+      ...((features as { customGrid?: { g3: readonly boolean[]; g4: readonly boolean[] } }).customGrid ? { customGrid: { g3: [...(features as any).customGrid.g3], g4: [...(features as any).customGrid.g4] } } : {}),
       ...((features as { ratioOrder?: readonly number[] }).ratioOrder ? { ratioOrder: [...(features as { ratioOrder: readonly number[] }).ratioOrder] } : {}),
     });
     if (!specs) return modified(false, [], aligned);
@@ -1188,6 +1196,11 @@ export class Engine {
     const ratioOrder = askedOrder && askedOrder.some((v, i) => v !== usualOrder[i]) ? askedOrder : undefined;
     if (ratioOrder && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the ratio order cannot be combined with the clarity-table soft focus of 0.4.x');
     const batteryPercent = !!(options && options.batteryPercent);
+    const gridAsked = options && options.customGrid ? { g3: [...options.customGrid.g3], g4: [...options.customGrid.g4] } : undefined;
+    if (gridAsked && !this.info.features.customGrid) throw new FirmwareError('bad-edit', 'custom grid lines need GR IV firmware 1.21 (GR IV Monochrome 1.11) in this program');
+    if (gridAsked && !Gr4Program121.aspect.validCustomGrid(gridAsked)) throw new FirmwareError('bad-edit', 'a grid style has 8 lines, each on or off');
+    const customGrid = gridAsked && !Gr4Program121.aspect.isCameraGrid(gridAsked) ? gridAsked : undefined;
+    if (customGrid && clarity.length > 0) throw new FirmwareError('bad-clarity', 'custom grid lines cannot be combined with the clarity-table soft focus of 0.4.x');
     if (batteryPercent && !this.info.features.batteryPercent) throw new FirmwareError('bad-edit', 'the battery percentage needs GR IV firmware 1.21 (GR IV Monochrome 1.11) in this program');
     if (batteryPercent && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the battery percentage cannot be combined with the clarity-table soft focus of 0.4.x');
     if (noMovie && !this.info.features.noMovie) throw new FirmwareError('bad-edit', 'no movie needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
@@ -1197,9 +1210,9 @@ export class Engine {
     if (adjSoftFocus && clarity.length > 0) throw new FirmwareError('bad-clarity', 'soft focus on the ADJ lever and on the clarity table cannot be combined');
     if (dateStamp && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the date imprint cannot be combined with the clarity-table soft focus of 0.4.x');
     if (extraSlots.length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'added slots cannot be combined with the clarity-table soft focus of 0.4.x');
-    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !ratioOrder && !batteryPercent && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
+    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !ratioOrder && !batteryPercent && !customGrid && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
     if (Object.keys(cinemaHalation).length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'halation cannot be combined with the clarity-table soft focus of 0.4.x');
-    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}), ...(ratioOrder ? { ratioOrder } : {}), ...(batteryPercent ? { batteryPercent } : {}) };
+    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}), ...(ratioOrder ? { ratioOrder } : {}), ...(batteryPercent ? { batteryPercent } : {}), ...(customGrid ? { customGrid } : {}) };
     const test = {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),

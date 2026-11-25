@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { FACTORY_LOOK_IDS, card, GR3X_FILM_IDS, GR3X_HIDEABLE, readGr3xSettingsFile, GR3X_MAX_CUSTOM_RATIOS, GR3X_T4_CUSTOM, LANGS, MAX_CUSTOM_RATIOS, MAX_EXTRA_SLOTS, SHUTDOWN_MAX_PICTURES, SHUTDOWN_NAME_MAX, validateExtraSlotName, validateGr3xRatioName, validateRatioName, validateShutdownName } from '@grmod/core';
+import { CAMERA_GRID, GRID_LINE_COUNT, FACTORY_LOOK_IDS, card, GR3X_FILM_IDS, GR3X_HIDEABLE, readGr3xSettingsFile, GR3X_MAX_CUSTOM_RATIOS, GR3X_T4_CUSTOM, LANGS, MAX_CUSTOM_RATIOS, MAX_EXTRA_SLOTS, SHUTDOWN_MAX_PICTURES, SHUTDOWN_NAME_MAX, validateExtraSlotName, validateGr3xRatioName, validateRatioName, validateShutdownName } from '@grmod/core';
 import type { CameraModel, ClarityChange, ExtraSlotSpec, FirmwareInfo, FirmwareSummary, LangCode, LookLayout, PresetResult, RatioPreview, RatioSpec, ShutdownPictureSpec, SlotId, SlotRequest, SoftFocusRequest, SoftFocusStrength } from '@grmod/core';
 import { engine, EngineError } from './engine';
 import { host, HostError, isMobile, onWeb, sha256Hex } from './host';
@@ -84,6 +84,8 @@ export interface State {
   filmMode: boolean; noMovie: boolean;
   /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the battery charge in steps of 10 %. */
   batteryPercent: boolean;
+  /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): custom grid lines, on, and the 8 lines of each style. */
+  grid: { on: boolean; g3: boolean[]; g4: boolean[] };
   /** GR III / IIIx: the rear dial's rotation ignored everywhere. */
   rearDialOff: boolean;
   /** GR III / IIIx (beta): Shake Reduction's list of speeds (off: the factory Off / On only). */
@@ -132,7 +134,7 @@ const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', text: '',
 const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 let state: State = {
   ready: false, page: 'ic', fwBusy: false, model: 'GR3', lang: cameraLang(), langAuto: uiLangPref() === '',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', brightAuto: false, soft: false, dateStamp: false, monoUnlock: false, directFlash: false, filmMode: false, noMovie: false, rearDialOff: false, srSpeed: false, batteryPercent: false, hiddenSettings: {}, hdr: false, exposurePreview: false, adjSlots: 5, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [],
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, ratioBackdrop: 'photo', brightAuto: false, soft: false, dateStamp: false, monoUnlock: false, directFlash: false, filmMode: false, noMovie: false, rearDialOff: false, srSpeed: false, batteryPercent: false, grid: { on: false, g3: [...CAMERA_GRID.g3], g4: [...CAMERA_GRID.g4] }, hiddenSettings: {}, hdr: false, exposurePreview: false, adjSlots: 5, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [],
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -260,7 +262,7 @@ function familyData(s: State): FamilyDoc {
     ratios: s.ratios.map((r) => ({ id: r.id, ratio: r.ratio, name: r.name })),
     ratioOrder: s.ratioOrder,
     brightAuto: s.brightAuto, soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, hdr: s.hdr, exposurePreview: s.exposurePreview, adjSlots: s.adjSlots, filmCount: s.filmCount,
-    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, srSpeed: s.srSpeed, batteryPercent: s.batteryPercent, hiddenSettings: s.hiddenSettings,
+    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, srSpeed: s.srSpeed, batteryPercent: s.batteryPercent, grid: s.grid, hiddenSettings: s.hiddenSettings,
   };
 }
 
@@ -291,7 +293,7 @@ function parseFamily(doc: FamilyDoc | null): Partial<State> {
     brightAuto: doc?.brightAuto === 'balanced' ? 'balanced' : doc?.brightAuto === true || doc?.brightAuto === 'bright' ? 'bright' : false,
     soft: doc?.soft === true || (!!doc?.softFocus && typeof doc.softFocus === 'object' && Object.keys(doc.softFocus).length > 0),
     dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true, hdr: doc?.hdr === true, exposurePreview: doc?.exposurePreview === true, adjSlots: typeof doc?.adjSlots === 'number' && Number.isInteger(doc.adjSlots) && doc.adjSlots >= 5 && doc.adjSlots <= 8 ? doc.adjSlots : 5,
-    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true, srSpeed: doc?.srSpeed === true, batteryPercent: doc?.batteryPercent === true,
+    filmMode: doc?.filmMode === true, noMovie: doc?.noMovie === true, rearDialOff: doc?.rearDialOff === true, srSpeed: doc?.srSpeed === true, batteryPercent: doc?.batteryPercent === true, grid: gridOf(doc?.grid),
     hiddenSettings: Object.fromEntries(Object.entries(doc?.hiddenSettings && typeof doc.hiddenSettings === 'object' ? doc.hiddenSettings : {})
       .filter(([k, v]) => k in GR3X_HIDEABLE && (GR3X_HIDEABLE as Record<string, { values: readonly number[] }>)[k].values.includes(v as number))) as Record<string, number>,
     filmCount: Number.isInteger(doc?.filmCount) && doc!.filmCount >= 0 && doc!.filmCount <= GR3X_FILM_IDS.length ? doc!.filmCount : doc && doc.filmCount === undefined && doc.slots ? 9 : 0,
@@ -1124,6 +1126,30 @@ export function setFilmMode(filmMode: boolean): void {
   if (filmMode && !filmModeChoosable()) return;
   set({ filmMode }); scheduleSave();
 }
+/** A saved grid, or the camera's own when it is missing or damaged. */
+function gridOf(g: unknown): State['grid'] {
+  const lines = (x: unknown, d: readonly boolean[]): boolean[] => (Array.isArray(x) && x.length === GRID_LINE_COUNT && x.every((v) => typeof v === 'boolean') ? [...x] : [...d]);
+  const o = (typeof g === 'object' && g !== null ? g : {}) as Record<string, unknown>;
+  return { on: o.on === true, g3: lines(o.g3, CAMERA_GRID.g3), g4: lines(o.g4, CAMERA_GRID.g4) };
+}
+export const gridChoosable = (s: State = state): boolean => !!s.info?.features.customGrid;
+/** The grid sent to the build: on, offered, and not the camera's own (which needs no change). */
+export function gridOn(s: State = state): { g3: boolean[]; g4: boolean[] } | undefined {
+  if (!s.grid.on || !gridChoosable(s)) return undefined;
+  const same = (['g3', 'g4'] as const).every((k) => s.grid[k].every((v, i) => v === CAMERA_GRID[k][i]));
+  return same ? undefined : { g3: [...s.grid.g3], g4: [...s.grid.g4] };
+}
+export function setGridOn(on: boolean): void {
+  if (on && !gridChoosable()) return;
+  set({ grid: { ...state.grid, on } }); scheduleSave();
+}
+export function toggleGridLine(style: 'g3' | 'g4', i: number): void {
+  const lines = [...state.grid[style]]; lines[i] = !lines[i];
+  set({ grid: { ...state.grid, [style]: lines } }); scheduleSave();
+}
+export function resetGrid(): void {
+  set({ grid: { ...state.grid, g3: [...CAMERA_GRID.g3], g4: [...CAMERA_GRID.g4] } }); scheduleSave();
+}
 export const batteryChoosable = (s: State = state): boolean => !!s.info?.features.batteryPercent;
 export function batteryOn(s: State = state): boolean { return !!s.batteryPercent && batteryChoosable(s); }
 export function setBatteryPercent(batteryPercent: boolean): void {
@@ -1188,7 +1214,7 @@ export function setAdjSlots(adjSlots: number): void {
 /** The ADJ lever slots the build gets (5: none added). */
 export function adjSlotsOf(s: State = state): number { const max = s.info?.features.maxAdjSlots ?? 5; return s.adjSlots > 5 && s.adjSlots <= max ? s.adjSlots : 5; }
 /** Any addition that is not a slot or a ratio. */
-export function extrasOn(s: State = state): boolean { return !!brightAutoOf(s) || exposurePreviewOn(s) || softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || adjSlotsOf(s) > 5 || hdrOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s) || srSpeedOn(s) || batteryOn(s); }
+export function extrasOn(s: State = state): boolean { return !!brightAutoOf(s) || exposurePreviewOn(s) || softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || adjSlotsOf(s) > 5 || hdrOn(s) || filmModeOn(s) || noMovieOn(s) || rearDialOffOn(s) || srSpeedOn(s) || batteryOn(s) || !!gridOn(s); }
 const MINUS = '\u2212';
 const strengthLabel = (st: SoftFocusStrength | 'custom'): string => t(st === 'weak' ? 'softWeak' : st === 'medium' ? 'softMedium' : st === 'strong' ? 'softStrong' : 'softCustom');
 /** "−2 weak / −3 medium" (−1 first), for confirmations and the copies page. */
@@ -1552,7 +1578,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const dateStamp = !stock && !!state.dateStamp && !!state.info.features.dateStamp;
   const monoUnlock = !stock && monoUnlockOn();
   const directFlash = !stock && directFlashOn();
-  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn(), srSpeed = !stock && srSpeedOn(), batteryPercent = !stock && batteryOn();
+  const filmMode = !stock && filmModeOn(), noMovie = !stock && noMovieOn(), rearDialOff = !stock && rearDialOffOn(), srSpeed = !stock && srSpeedOn(), batteryPercent = !stock && batteryOn(), customGrid = stock ? undefined : gridOn();
   const hiddenSettings = stock ? {} : hiddenSettingsOn(), hiddenCount = Object.keys(hiddenSettings).length;
   if (filmMode && shownSlots().some((x) => filmCodeProblem(x.id))) { toast(t('filmCodeIncomplete'), 'error'); return; }
   const hdr = !stock && hdrOn();
@@ -1569,7 +1595,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const pictures = noPictures ? [] : menuPictures();
   const films = filmCountChoosable() ? state.filmCount : 0;
   const lookLayout = stock ? undefined : lookLayoutSpec();
-  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && !hdr && !exposurePreview && !brightAuto && adjSlots === 5 && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !srSpeed && !batteryPercent && !ratioOrderIds() && !state.info?.features.customButtons) { toast(t('nothingToDo'), 'info'); return; }
+  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && !hdr && !exposurePreview && !brightAuto && adjSlots === 5 && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !srSpeed && !batteryPercent && !customGrid && !ratioOrderIds() && !state.info?.features.customButtons) { toast(t('nothingToDo'), 'info'); return; }
   const fresh = newFirmwareWarning(sourceInfo);
   // The cannot-go-back warning is a paragraph (the dialog's lines are cut to one line each).
   // GR III / IIIx cannot take a firmware over Wi-Fi (only the GR IV's camera has that interface).
@@ -1599,6 +1625,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
     if (filmMode) lines.push(`${t('navFilmMode')}  ·  ${Object.values(filmCodes()).join(' / ') || '-'}`);
     if (noMovie) lines.push(t('navNoMovie'));
     if (batteryPercent) lines.push(t('navBattery'));
+    if (customGrid) lines.push(t('navGrid'));
     if (rearDialOff) lines.push(t('navRearDialOff'));
     if (srSpeed) lines.push(t('navSrSpeed'));
     if (hiddenCount) lines.push(t('hideLine', { n: hiddenCount }));
@@ -1621,7 +1648,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
           // The film mode brings the WB and Macro buttons' lines in Fn Button Settings (each keeps its own function until changed),
           // the Hold lines of Fn and the 4-way pad (Snap DOF left out from 0.9.4: Fn + the front dial), the film lines
           // hidden from the menu while a roll is loaded, and the grain (Grain Off by default on every film's parameter screen).
-          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, holdButtons: true, rollLock: true, playLast: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}), ...(batteryPercent ? { batteryPercent } : {}),
+          ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, holdButtons: true, rollLock: true, playLast: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}), ...(batteryPercent ? { batteryPercent } : {}), ...(customGrid ? { customGrid } : {}),
           ...(rearDialOff ? { rearDialOff } : {}), ...(hiddenCount ? { hiddenSettings } : {}),
           ...(!stock && ratioOrderIds() ? { ratioOrder: ratioOrderIds() } : {}),
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked),

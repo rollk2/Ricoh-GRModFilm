@@ -50,3 +50,21 @@ L'amont ne trie pas non plus les ratios d'usine du GR IV (`FACTORY_ORDER` fixe).
   simulées (charge qui baisse par à-coups), 36 147 appels conformes (icône, ou code de l'appareil avec registres et drapeaux
   intacts, palier affiché retenu), pas d'oscillation du chiffre. Navigateur : interrupteur, firmware téléchargé relu, vérifié.
 - Reste : test sur le boîtier (avec les grilles, un seul flash).
+
+## Grilles personnalisées, portées dans GR Mod Film 1.3.5 (2026-11-25)
+- Source : `core/src/fw/gr4v120/aspect/grid.ts` de GR Mod 0.9.1 (Maxwooow ; l'original 1.11 de dgmaia, PR #38 de l'amont),
+  recopié dans `core/src/fw/gr4v121/aspect/grid.ts` avec les 16 adresses 1.21 de la table de l'amont (GridView::Draw
+  0x5359C510 / 0x5359C5A0, mise en page 0x5359C26C / 0x5359C2EC / 0x5359C314, appels des diagonales 0x5359C364 /
+  0x5359C3A4, etc.) ; chaque instruction attendue est vérifiée par le module à la construction (passe sur l'image 1.21).
+- Construit **sans** `GridSelect` (comme l'amont sur 1.11) : les valeurs 3x3 et 4x4 de Grid Style dessinent les lignes
+  choisies ; pas de valeur ajoutée dans la liste de l'appareil (cela demanderait `viewmenu.ts`, module de menus bien plus
+  gros, laissé pour la fusion 0.9). La grille d'origine n'est pas une option (même fichier qu'avant).
+- Option `customGrid` (programme, moteur ; enregistrement : bit 2 du 3e octet, puis un octet par style), éditeur sur la
+  page Features (interrupteur, aperçu, 8 lignes par style, retour à la grille d'origine), enregistré dans le projet.
+- Tests : `core/test/gr4-grid.test.ts` (3). Émulateur : `tools/gr4v121/grid_probe.py` (écrit pour GR Mod Film) exécute les
+  deux crochets avec les fonctions de l'appareil remplacées par des relevés : 4 combinaisons de lignes, 2 styles, 5 cadres
+  chacun ; chaque ligne droite à k x (longueur / divisions) - 1, 2 pixels, chaque diagonale de coin à coin, couleur de la
+  grille, les autres cachées ; registres conservés. Conforme.
+- Firmware de test T-BG1 (site, Monochrome 1.11) : Tri-X 400, sans vidéo, ratios triés (3:2, 65:24, 1:1, 16:9, 4:3),
+  batterie, grilles (3x3 : les 8 lignes ; 4x4 : tiers... quarts sans lignes centrales ni diagonales). Relu, vérifié ;
+  sondes batterie, grilles, Hold (mots intacts) et menus des ratios conformes sur ce fichier.
