@@ -1209,12 +1209,21 @@ export const ratioName = (r: RatioItem): string => r.name.trim() || r.preview?.l
 export function ratioSpecs(s: State = state): RatioSpec[] {
   return s.ratios.filter((r) => r.ratio.trim() && r.preview && !ratioProblem(r)).map((r) => ({ name: ratioName(r), ratio: r.ratio.trim() }));
 }
-/** GR III / IIIx: the menu's entries in order (the camera's 3:2 and 1:1, then the rows that will be built). */
-const RATIO_FACTORY_KEYS = ['3:2', '1:1'];
-export const isFactoryRatioKey = (k: string): boolean => RATIO_FACTORY_KEYS.includes(k);
-/** GR III / IIIx: every line of the ratio list in menu order (the camera's 3:2 and 1:1, and every row, finished or not). */
+/** The camera's own ratios that can be moved in the Aspect Ratio menu: GR III / IIIx 3:2 and 1:1; GR IV 1.21 (and the
+ * Monochrome 1.11) 3:2, 4:3, 1:1, 16:9 (GR Mod Film 1.3.5); none elsewhere. */
+const GR3X_RATIO_KEYS = ['3:2', '1:1'];
+const GR4_RATIO_KEYS = ['3:2', '4:3', '1:1', '16:9'];
+/** GR IV identities of the factory ratios (the firmware's: 3:2 0, 4:3 1, 16:9 2, 1:1 3; the added ones 7, 8, ...). */
+const GR4_RATIO_IDS: Record<string, number> = { '3:2': 0, '4:3': 1, '16:9': 2, '1:1': 3 };
+export function ratioFactoryKeys(s: State = state): string[] {
+  return s.info?.family === 'gr3x' ? GR3X_RATIO_KEYS : s.info?.features.ratioOrder ? GR4_RATIO_KEYS : [];
+}
+/** Whether this firmware's Aspect Ratio menu can be ordered here (GR III / IIIx; GR IV 1.21 / Monochrome 1.11). */
+export const ratioOrderable = (s: State = state): boolean => ratioFactoryKeys(s).length > 0;
+export const isFactoryRatioKey = (k: string): boolean => GR3X_RATIO_KEYS.includes(k) || GR4_RATIO_KEYS.includes(k);
+/** Every line of the ratio list in menu order (the camera's own ratios, and every row, finished or not). */
 export function ratioListNow(s: State = state): string[] {
-  return normalizeOrder(s.ratioOrder, [...RATIO_FACTORY_KEYS, ...s.ratios.map((r) => r.id)]);
+  return normalizeOrder(s.ratioOrder, [...ratioFactoryKeys(s), ...s.ratios.map((r) => r.id)]);
 }
 export function ratioMenuNow(s: State = state): { key: string; label: string }[] {
   const rows = s.ratios.filter((r) => r.ratio.trim() && r.preview && !ratioProblem(r));
@@ -1232,11 +1241,17 @@ export function moveRatio(key: string, delta: number): void {
   });
   scheduleSave();
 }
-/** The order as the engine takes it (3:2 0, 1:1 3, the built rows 4.. in their order), or undefined for the usual one. */
+/** The order as the engine takes it, or undefined for the usual one. GR III / IIIx: 3:2 0, 1:1 3, the built rows 4.. in
+ * their order. GR IV: 3:2 0, 4:3 1, 16:9 2, 1:1 3, the built rows 7.. (usual order 0, 1, 3, 2, 7..). */
 export function ratioOrderIds(s: State = state): number[] | undefined {
+  if (!ratioOrderable(s)) return undefined;
+  const gr3x = s.info?.family === 'gr3x';
   const rows = s.ratios.filter((r) => r.ratio.trim() && r.preview && !ratioProblem(r)).map((r) => r.id);
-  const ids = ratioMenuNow(s).map(({ key }) => (key === '3:2' ? 0 : key === '1:1' ? 3 : 4 + rows.indexOf(key)));
-  return ids.every((id, i) => id === [0, 3, ...rows.map((_, k) => 4 + k)][i]) ? undefined : ids;
+  const first = gr3x ? 4 : 7;
+  const factoryId = (key: string): number | undefined => (gr3x ? ({ '3:2': 0, '1:1': 3 } as Record<string, number>)[key] : GR4_RATIO_IDS[key]);
+  const ids = ratioMenuNow(s).map(({ key }) => factoryId(key) ?? first + rows.indexOf(key));
+  const usual = [...(gr3x ? [0, 3] : [0, 1, 3, 2]), ...rows.map((_, k) => first + k)];
+  return ids.every((id, i) => id === usual[i]) ? undefined : ids;
 }
 /** True while a filled row is wrong or still being looked at: nothing is written then. */
 export function hasRatioErrors(s: State = state): boolean {
@@ -1546,7 +1561,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
   const pictures = noPictures ? [] : menuPictures();
   const films = filmCountChoosable() ? state.filmCount : 0;
   const lookLayout = stock ? undefined : lookLayoutSpec();
-  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && !hdr && !exposurePreview && !brightAuto && adjSlots === 5 && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !srSpeed && !state.info?.features.customButtons) { toast(t('nothingToDo'), 'info'); return; }
+  if (!stock && changes.length === 0 && ratios.length === 0 && !soft && !dateStamp && !monoUnlock && !directFlash && !hdr && !exposurePreview && !brightAuto && adjSlots === 5 && extras.length === 0 && pictures.length === 0 && films === 0 && !lookLayout && !filmMode && !noMovie && !rearDialOff && !srSpeed && !ratioOrderIds() && !state.info?.features.customButtons) { toast(t('nothingToDo'), 'info'); return; }
   const fresh = newFirmwareWarning(sourceInfo);
   // The cannot-go-back warning is a paragraph (the dialog's lines are cut to one line each).
   // GR III / IIIx cannot take a firmware over Wi-Fi (only the GR IV's camera has that interface).
@@ -1560,6 +1575,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
     const named = (name: string, n: number, unit: Key = 'chkCount'): string => (n > 1 ? `${name}  ·  ${t(unit, { n })}` : name);
     const lines = changes.map((c) => named(state.info?.family === 'gr3x' ? (state.slots[c.id].names[state.lang] || state.info.slots.find(s => s.id === c.id)?.defaultName || c.id) : t(('slot' + c.id) as Key), c.labels.length, 'chkChanges'));
     if (ratios.length) lines.push(named(t('chkRatios'), ratios.length));
+    if (ratioOrderIds()) lines.push(t('ratioOrderLine'));
     if (soft) lines.push(t('navSoft'));
     if (films) lines.push(named(t('extraTitle'), films));
     if (dateStamp) lines.push(t('navDate'));
@@ -1598,7 +1614,7 @@ export async function outputFirmware(dest: Dest, stock = false): Promise<void> {
           // hidden from the menu while a roll is loaded, and the grain (Grain Off by default on every film's parameter screen).
           ...(filmMode ? { filmMode: { codes: filmCodes() }, wbButton: true, macroButton: true, holdButtons: true, rollLock: true, playLast: true, grain: true } : {}), ...(noMovie ? { noMovie } : {}),
           ...(rearDialOff ? { rearDialOff } : {}), ...(hiddenCount ? { hiddenSettings } : {}),
-          ...(state.info.family === 'gr3x' && !stock && ratioOrderIds() ? { ratioOrder: ratioOrderIds() } : {}),
+          ...(!stock && ratioOrderIds() ? { ratioOrder: ratioOrderIds() } : {}),
           // Every full GR III / IIIx build: the « AF Point » box in Mode Memory (ticked by default: no change until unticked),
           // and, in beta when chosen, Shake Reduction's list of speeds (1/4000, the factory On: no change until another speed is chosen).
           ...(filmModeChoosable() ? { afPoint: true, memoryU: true, ...(srSpeed ? { srSpeed: true } : {}) } : {}) });
@@ -1790,6 +1806,7 @@ export function describeCopy(summary: FirmwareSummary, s: State = state): string
   if (summary.adjSlots) lines.push(t('adjSlotsLine', { n: summary.adjSlots }));
   if (summary.extraSlots?.length) lines.push(t('extraLine', { n: summary.extraSlots.length, l: summary.extraSlots.map((x) => x.name).join(' / ') }));
   if (summary.lookLayout) lines.push(t('lookOrderLine', { n: summary.lookLayout.hidden.length }));
+  if (summary.ratioOrder) lines.push(t('ratioOrderLine'));
   if (summary.shutdownPictures?.length) lines.push(t('wallMenuLine', { n: summary.shutdownPictures.length, l: summary.shutdownPictures.map((p) => p.name).join(' / ') }));
   if (summary.softFocus?.length) lines.push(t('softLine', { l: softText(summary.softFocus) }));
   return lines;

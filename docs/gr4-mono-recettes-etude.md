@@ -630,3 +630,16 @@ Demande : ranger 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés dans l'ordre choisi 
   validité, noms, icônes), le cycle Fn (de chaque ratio au suivant, d'un ratio inconnu au premier), les réglages (180 cas),
   le développement RAW (12 cas, ordre d'origine) et les autres enveloppes (440 cas) : tout conforme. Sans ratio ajouté, le
   cycle Fn d'origine avec les 24 ordres : 96 cas, 0 écart (section 15).
+
+### 15.2 Étape 3 : l'application (2026-11-25)
+
+- Page Aspect ratio du GR IV 1.21 / Monochrome 1.11 (`info.features.ratioOrder`) : une seule liste dans l'ordre du menu,
+  3:2, 4:3, 1:1, 16:9 (lignes fixes avec leur taille pleine : 6192x4128, 5504x4128, 4128x4128, 6192x3480) et les ratios
+  ajoutés, chacun avec ses flèches, comme sur le GR III. Fichiers 1.20 et 1.11 : affichage inchangé (pas de flèches).
+- `ui/src/store.ts` : `ratioFactoryKeys` / `ratioOrderable` selon l'appareil, `ratioOrderIds` traduit l'ordre en identités
+  GR IV (3:2 0, 4:3 1, 16:9 2, 1:1 3, ajoutés 7..) ; l'ordre habituel n'envoie rien. L'ordre suit le projet (`ratioOrder`,
+  déjà enregistré). Un ordre changé suffit pour écrire un firmware ; ligne « Aspect Ratio menu: reordered » dans la
+  confirmation et dans la description d'un fichier relu.
+- Navigateur (site construit, firmware 1.21) : 16:9 monté de deux crans, 65:24 ajouté puis monté de trois : liste
+  3:2, 65:24, 16:9, 4:3, 1:1 ; firmware téléchargé relu par le moteur : vérifié, ordre `[0, 7, 2, 1, 3]`. GR III : l'ordre
+  des ratios fonctionne comme avant ; GR IV 1.11 : inchangé. Aucune erreur dans la console.

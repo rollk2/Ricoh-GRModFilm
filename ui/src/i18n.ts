@@ -1,7 +1,7 @@
 const zh = {
   app: 'GR Mod Film',
   navIC: '影像控制', navWall: '结束画面', navCopies: '固件副本',
-  navRatio: '长宽比', ratioAdd: '添加比例', ratioFactory: '原厂', ratioGray: '灰色', ratioMax: '最多 {n} 个', ratioLine: '新增长宽比 {n}  ·  {l}',
+  navRatio: '长宽比', ratioAdd: '添加比例', ratioFactory: '原厂', ratioOrderLine: '长宽比菜单：已调整顺序', ratioGray: '灰色', ratioMax: '最多 {n} 个', ratioLine: '新增长宽比 {n}  ·  {l}',
   ratioBad: '无法识别', ratioIsFactory: '与原厂比例重复', ratioPortrait: '仅支持横向比例（长:宽）。竖拍时，请将照相机竖直握持。', ratioExtreme: '长宽比过小', ratioQuick: '重播不支持此比例', ratioMetering: '测光不支持此比例', ratioConflict: '与其他比例冲突', ratioDup: '比例重复',
   ratioNameBad: '仅可输入英文字母、数字和符号', ratioNameLong: '名称超过可输入的长度', ratioPlaceholder: '长：宽',
   copiesCardTab: '存储卡', copiesPcTab: '电脑', copiesPc: '电脑上的备份', copiesEmptyCard: '此存储卡中没有已移开的文件', copiesEmptyPc: '尚无备份', copiesAll: '全选',
@@ -204,7 +204,7 @@ const zh = {
 const en: typeof zh = {
   app: 'GR Mod Film',
   navIC: 'Image Control', navWall: 'Power-off image', navCopies: 'Firmware copies',
-navRatio: 'Aspect ratio', ratioAdd: 'Add ratio', ratioFactory: 'Factory', ratioGray: 'Gray', ratioMax: 'At most {n}', ratioLine: 'Added aspect ratios {n}  ·  {l}',
+navRatio: 'Aspect ratio', ratioAdd: 'Add ratio', ratioFactory: 'Factory', ratioOrderLine: 'Aspect Ratio menu: reordered', ratioGray: 'Gray', ratioMax: 'At most {n}', ratioLine: 'Added aspect ratios {n}  ·  {l}',
   ratioBad: 'Not a ratio', ratioIsFactory: 'Already a factory ratio', ratioPortrait: 'Must be wider than tall; turn the camera for upright pictures', ratioExtreme: 'Too narrow', ratioQuick: 'Playback cannot show it', ratioMetering: 'Metering cannot follow it', ratioConflict: 'Clashes with another ratio', ratioDup: 'Duplicate',
   ratioNameBad: 'Letters, digits and symbols only', ratioNameLong: 'Name too long', ratioPlaceholder: 'W:H',
   copiesCardTab: 'Card', copiesPcTab: 'Computer', copiesPc: 'Backups on this computer', copiesEmptyCard: 'Nothing has been moved aside on this card', copiesEmptyPc: 'No backups yet', copiesAll: 'Select all',

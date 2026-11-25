@@ -13,7 +13,7 @@ import { onUiScale, uiScale } from './fit';
 import { applySlot } from './preview';
 import {
   addRatio, addWallFiles, askForOfficial, getState, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
-  maxRatios, moveRatio, ratioListNow, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
+  maxRatios, moveRatio, ratioListNow, ratioOrderable, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
   setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setSrSpeed, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, noMovieChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
@@ -1062,16 +1062,18 @@ function RatioMove({ k, label, first, last }: { k: string; label: string; first:
 }
 type MoveAt = { first: boolean; last: boolean };
 
-/** GR III / IIIx: the camera's own 3:2 or 1:1, a fixed line that only moves. */
+/** The camera's own ratio (GR III / IIIx 3:2 or 1:1; GR IV 3:2, 4:3, 1:1, 16:9), a fixed line that only moves. */
 const FACTORY_SIZES: Record<string, [number, number]> = { '3:2': [6000, 4000], '1:1': [4000, 4000] };
+const GR4_FACTORY_SIZES: Record<string, [number, number]> = { '3:2': [6192, 4128], '4:3': [5504, 4128], '1:1': [4128, 4128], '16:9': [6192, 3480] };
 function FactoryRatioRow({ k, at, tour }: { k: string; at: MoveAt; tour?: string }) {
+  const sizes = useStore((s) => (s.info?.family === 'gr3x' ? FACTORY_SIZES : GR4_FACTORY_SIZES));
   return (
     <div className="ratio-row factory" data-tour={tour}>
       <RatioMove k={k} label={k} first={at.first} last={at.last} />
       <RatioIcon width={48} label={k} />
       <input className="input ratio-in" value={k} disabled aria-label={t('navRatio')} />
       <input className="input ratio-name" value={k} disabled aria-label={t('name')} title={t('ratioFactory')} />
-      <span className="ratio-size">{FACTORY_SIZES[k] ? size(FACTORY_SIZES[k]) : ''}</span>
+      <span className="ratio-size">{sizes[k] ? size(sizes[k]) : ''}</span>
       <span className="ratio-x-space" />
     </div>
   );
@@ -1160,6 +1162,8 @@ export function RatioPage() {
   const full = ratios.length >= max;
   const used = new Set(ratios.map((r) => r.ratio.trim()));
   const gr3x = info?.family === 'gr3x';
+  // GR III / IIIx, GR IV 1.21 / Monochrome 1.11: one list in the Aspect Ratio menu's order, the camera's own ratios included.
+  const orderable = useStore((s) => ratioOrderable(s));
   const order = useStore((s) => s.ratioOrder);
   const list = useMemo(() => ratioListNow({ ...getState(), ratios, ratioOrder: order }), [ratios, order]);
   return (
@@ -1177,14 +1181,14 @@ export function RatioPage() {
       {info && (
         <div className="ratio" data-tour-page="ratio">
           <div className="ratio-list">
-            {gr3x ? <p className="muted small">{t('gr3xRatioAdj')}</p> : (
+            {gr3x ? <p className="muted small">{t('gr3xRatioAdj')}</p> : orderable ? null : (
               <div className="ratio-factory" data-tour="ratio-factory">
                 <span className="muted small">{t('ratioFactory')}</span>
                 {(info.factoryRatios || FACTORY_RATIOS).map((f) => <span key={f} className="chip muted">{f}</span>)}
               </div>
             )}
-            {gr3x
-              // one list in the Aspect Ratio menu's order: the camera's 3:2 and 1:1 with the added ratios
+            {orderable
+              // one list in the Aspect Ratio menu's order: the camera's own ratios with the added ones
               ? list.map((k, i) => {
                 const at = { first: i === 0, last: i === list.length - 1 };
                 const r = ratios.find((x) => x.id === k);
