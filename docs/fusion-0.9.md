@@ -53,7 +53,22 @@ le même nom).
 - Shell Go : `internal/platform` passe (les deux corrections du disque système Linux gardées).
 - `npm run check` : listes de firmwares (README avec ses balises), textes natifs, versions, table d'adresses : ok. Ports :
   `gr4-120`, `gr4-121`, `gr3-p3` ok ; **`gr3-p2` non** (voir ci-dessous).
-- Cœur : voir le résultat de la suite complète consigné en bas.
+- Cœur (suite complète avec les firmwares GR III 2.10, GR IIIx 1.60, GR IV 1.11, 1.20, 1.21) : après la fusion,
+  33 échecs dans 11 fichiers, tous expliqués et traités :
+  - tests de l'amont pour ses fonctions sur le 1.21 (grain, Flash TTL, Shadow Correction, zone assombrie, AF vidéo,
+    balance apprise, Constant Light, Sensor Shift, vidéo) : notre copie 1.21 ne les annonce pas encore. Ils sont filtrés
+    par un seul interrupteur, `UPSTREAM_121` de `core/test/fw-helpers/fusion.ts`, à passer à `true` à l'étape 2 ; le
+    nouveau test `fusion-121.test.ts` vérifie en attendant que le 1.21 annonce nos fonctions et refuse celles de l'amont ;
+  - tests « batterie et grilles refusées sur le 1.20 » : le programme 0.9 les propose sur le 1.20, tests réécrits
+    (construit et relu sur le 1.20) ;
+  - empreintes de référence (`golden-builds.json`) réenregistrées avec `GRMOD_GOLDEN=record` : GR III 2.10 et
+    GR IIIx 1.60 (notre programme : garde du SR, mode pellicule), GR IV 1.21 (notre copie), et pour le 1.11 / 1.20 la
+    seule recette « added slots, menu order » (et « everything ») parce que notre moteur lit l'ordre réel des looks
+    dans le firmware (`factoryLookOrder`) : la recette masque `looks.factory[9]`, qui n'est pas le même look. Les
+    2.20 / 2.21 / 1.70 / 1.71 (sans firmware ici) gardent les empreintes de l'amont.
+  - typage : `ui/src/host.ts` référence `env.d.ts` ; `release.test.ts` tolère notre fichier 1.21 réel.
+- Relecture d'un firmware GR III construit par le site fusionné (mode pellicule et ratio ajouté) : vérifié, et la
+  table de garde du SR contrôlée dans l'image (256 valeurs, aucun écart).
 
 ### Écarts connus, à traiter à l'étape 2
 - **Port `gr3-p2` (outils GR III 2.20)** : nos ajouts du mode pellicule dans des outils de l'amont (`guard_probe.py`,
