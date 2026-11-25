@@ -285,6 +285,9 @@ Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre 
 - **GR IV : trier les ratios** (demande du 2026-11-24 ; **fait, validé sur le boîtier T-RO1 le 2026-11-25, 1.3.5**) : 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés rangés dans l'ordre choisi
   (menu Aspect Ratio et cycle Fn). Pas de masquage (décision du 2026-11-24 : on les garde tous). Piste : la table d'ordre que
   le programme écrit déjà (`installMenu`, `FACTORY_ORDER`). Étapes : recherche, programme, application, test boîtier.
+- **GR III : un mode veille** (demande du 2026-11-25, constat pendant T-SRB1) : le GR III n'a pas de veille comme le GR IV
+  (écran coupé, réveil instantané par un appui). À étudier : ce que fait l'extinction automatique d'origine (Auto Power
+  Off), et s'il existe dans le firmware un état d'économie que l'on puisse appeler au lieu d'éteindre.
 - **Fonctions de GR Mod 0.9.x** (amont, 2026-11-24, `docs/amont-0.9-etude.md`) : batterie en %, grilles, Matte Brightness,
   Shadow Correction apprise, grain, Flash TTL, utiles au Monochrome. Fusion à planifier : code réorganisé et mot de RAM
   0x55839018 partagé avec nos boutons Hold.
