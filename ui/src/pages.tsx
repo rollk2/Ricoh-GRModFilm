@@ -13,9 +13,9 @@ import { onUiScale, uiScale } from './fit';
 import { applySlot } from './preview';
 import {
   addRatio, addWallFiles, askForOfficial, getState, bridgeLoaded, loadFirmwareFile, loadIconImage, loadPresetFile, loadPreviewFile, moveWall, nameProblem, openCrop, outputFirmware, previewPhoto, removePreset, removeWall,
-  maxRatios, moveRatio, ratioListNow, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
+  maxRatios, moveRatio, ratioListNow, ratioOrderable, ratioName, ratioProblem, removeRatio, setActiveRatio, setActiveSlot, setCrop, setIcon, setName, setPreviewMode, setRatio, setRatioBackdrop, useStore, wallBitmap,
   setSoft,
-  setDateStamp, setFilmMode, setNoMovie, setRearDialOff, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, noMovieChoosable, filmModeOn, filmCodeProblem,
+  setDateStamp, setFilmMode, setNoMovie, setBatteryPercent, batteryChoosable, gridChoosable, setGridOn, toggleGridLine, resetGrid, setRearDialOff, setSrSpeed, setFilmCode, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile, filmModeChoosable, noMovieChoosable, filmModeOn, filmCodeProblem,
   setMonoUnlock,
   setDirectFlash, setAdjSlots, adjSlotsOf, setHdr, setExposurePreview, setBrightAuto,
   extraName, extraNameProblem, extraProblem, halationOf, removeExtraSlot, setExtraCount, setExtraName, setHalation, slotOf,
@@ -778,6 +778,48 @@ function FeatureRow({ icon, title, sub, on, onChange, tour }: { icon: ReactNode;
   );
 }
 
+/** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the lines of the camera's 3x3 and 4x4 grids. */
+const GRID_KEYS = ['gridL0', 'gridL1', 'gridL2', 'gridL3', 'gridL4', 'gridL5', 'gridL6', 'gridL7'] as const;
+function GridPreview({ style, lines }: { style: 'g3' | 'g4'; lines: boolean[] }) {
+  const n = style === 'g3' ? 3 : 4, W = 60, H = 40;
+  const at = [1 / n, 1 / 2, (n - 1) / n];
+  const seg: [number, number, number, number][] = [];
+  at.forEach((f, k) => { if (lines[k]) seg.push([0, H * f, W, H * f]); });
+  at.forEach((f, k) => { if (lines[3 + k]) seg.push([W * f, 0, W * f, H]); });
+  if (lines[6]) seg.push([0, 0, W, H]);
+  if (lines[7]) seg.push([0, H, W, 0]);
+  return (
+    <svg className="grid-preview" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="2" />
+      {seg.map(([x1, y1, x2, y2], i) => <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+    </svg>
+  );
+}
+function GridRow() {
+  const grid = useStore((s) => s.grid);
+  return (
+    <>
+      <FeatureRow icon={Ico.grid} title={t('navGrid')} sub={t('gridSub')} on={grid.on} onChange={setGridOn} />
+      {grid.on && (
+        <div className="grid-edit">
+          {(['g3', 'g4'] as const).map((style) => (
+            <div key={style} className="grid-style">
+              <GridPreview style={style} lines={grid[style]} />
+              <b className="small">{style === 'g3' ? '3x3' : '4x4'}</b>
+              <div className="chips">
+                {GRID_KEYS.map((k, i) => (
+                  <button key={k} className={`btn small ${grid[style][i] ? 'on' : 'ghost'}`} aria-pressed={grid[style][i]} aria-label={`${style === 'g3' ? '3x3' : '4x4'} · ${t(k)}`} onClick={() => toggleGridLine(style, i)}>{t(k)}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button className="btn small ghost" onClick={resetGrid}>{t('gridReset')}</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 /** ADJ lever slots: the camera's five, or 6..8 (set in the camera, Customize Settings). */
 function AdjSlotsRow({ max }: { max: number }) {
   const n = useStore((s) => adjSlotsOf(s));
@@ -808,7 +850,11 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
   const flashOk = useStore((s) => !!s.info?.features.directFlash);
   const filmMode = useStore((s) => s.filmMode);
   const noMovie = useStore((s) => s.noMovie);
+  const battery = useStore((s) => s.batteryPercent);
+  const batteryOk = useStore((s) => batteryChoosable(s));
+  const gridOk = useStore((s) => gridChoosable(s));
   const rearDialOff = useStore((s) => s.rearDialOff);
+  const srSpeed = useStore((s) => s.srSpeed);
   const filmOk = useStore((s) => filmModeChoosable(s));
   const noMovieOk = useStore((s) => noMovieChoosable(s));
   const adjMax = useStore((s) => s.info?.features.maxAdjSlots ?? 5);
@@ -854,7 +900,10 @@ function FeatureSwitches({ mono, boxRef, from }: { mono: boolean; boxRef?: (el: 
       )}
       {filmOk && <FeatureRow icon={Ico.film} title={t('navFilmMode')} sub={t('filmModeSub')} on={filmMode} onChange={setFilmMode} tour="ic-f-film" />}
       {noMovieOk && <FeatureRow icon={Ico.noMovie} title={t('navNoMovie')} sub={t('noMovieSub')} on={noMovie} onChange={setNoMovie} />}
+      {batteryOk && <FeatureRow icon={Ico.battery} title={t('navBattery')} sub={t('batterySub')} on={battery} onChange={setBatteryPercent} />}
+      {gridOk && <GridRow />}
       {filmOk && <FeatureRow icon={Ico.dial} title={t('navRearDialOff')} sub={t('rearDialOffSub')} on={rearDialOff} onChange={setRearDialOff} />}
+      {filmOk && <FeatureRow icon={Ico.aperture} title={t('navSrSpeed')} sub={t('srSpeedSub')} on={srSpeed} onChange={setSrSpeed} />}
       {filmOk && filmMode && <HiddenSettings />}
       {filmOk && filmMode && <SettingsFileCard />}
     </div>
@@ -1060,16 +1109,18 @@ function RatioMove({ k, label, first, last }: { k: string; label: string; first:
 }
 type MoveAt = { first: boolean; last: boolean };
 
-/** GR III / IIIx: the camera's own 3:2 or 1:1, a fixed line that only moves. */
+/** The camera's own ratio (GR III / IIIx 3:2 or 1:1; GR IV 3:2, 4:3, 1:1, 16:9), a fixed line that only moves. */
 const FACTORY_SIZES: Record<string, [number, number]> = { '3:2': [6000, 4000], '1:1': [4000, 4000] };
+const GR4_FACTORY_SIZES: Record<string, [number, number]> = { '3:2': [6192, 4128], '4:3': [5504, 4128], '1:1': [4128, 4128], '16:9': [6192, 3480] };
 function FactoryRatioRow({ k, at, tour }: { k: string; at: MoveAt; tour?: string }) {
+  const sizes = useStore((s) => (s.info?.family === 'gr3x' ? FACTORY_SIZES : GR4_FACTORY_SIZES));
   return (
     <div className="ratio-row factory" data-tour={tour}>
       <RatioMove k={k} label={k} first={at.first} last={at.last} />
       <RatioIcon width={48} label={k} />
       <input className="input ratio-in" value={k} disabled aria-label={t('navRatio')} />
       <input className="input ratio-name" value={k} disabled aria-label={t('name')} title={t('ratioFactory')} />
-      <span className="ratio-size">{FACTORY_SIZES[k] ? size(FACTORY_SIZES[k]) : ''}</span>
+      <span className="ratio-size">{sizes[k] ? size(sizes[k]) : ''}</span>
       <span className="ratio-x-space" />
     </div>
   );
@@ -1158,6 +1209,8 @@ export function RatioPage() {
   const full = ratios.length >= max;
   const used = new Set(ratios.map((r) => r.ratio.trim()));
   const gr3x = info?.family === 'gr3x';
+  // GR III / IIIx, GR IV 1.21 / Monochrome 1.11: one list in the Aspect Ratio menu's order, the camera's own ratios included.
+  const orderable = useStore((s) => ratioOrderable(s));
   const order = useStore((s) => s.ratioOrder);
   const list = useMemo(() => ratioListNow({ ...getState(), ratios, ratioOrder: order }), [ratios, order]);
   return (
@@ -1175,14 +1228,14 @@ export function RatioPage() {
       {info && (
         <div className="ratio" data-tour-page="ratio">
           <div className="ratio-list">
-            {gr3x ? <p className="muted small">{t('gr3xRatioAdj')}</p> : (
+            {gr3x ? <p className="muted small">{t('gr3xRatioAdj')}</p> : orderable ? null : (
               <div className="ratio-factory" data-tour="ratio-factory">
                 <span className="muted small">{t('ratioFactory')}</span>
                 {(info.factoryRatios || FACTORY_RATIOS).map((f) => <span key={f} className="chip muted">{f}</span>)}
               </div>
             )}
-            {gr3x
-              // one list in the Aspect Ratio menu's order: the camera's 3:2 and 1:1 with the added ratios
+            {orderable
+              // one list in the Aspect Ratio menu's order: the camera's own ratios with the added ones
               ? list.map((k, i) => {
                 const at = { first: i === 0, last: i === list.length - 1 };
                 const r = ratios.find((x) => x.id === k);

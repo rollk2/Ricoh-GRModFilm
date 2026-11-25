@@ -578,3 +578,85 @@ Les paramètres 0, 1 et 8 n'ont pas de champ pour Monochrome Standard (confirmé
   `nomovie_probe.py`, fichiers 1.3.3 toujours vérifiés, tests GR IV (19). Firmware de test construit par le site.
 - **Validé sur le boîtier (2026-11-22)** : veille, réveil, changements de look au levier et au menu, looks d'usine et recettes,
   3 fois : plus de gel ; réglages propres des recettes conservés ; boutons Hold normaux. Livré en 1.3.4.
+
+## 15. Trier les ratios du GR IV (1.21 / Monochrome 1.11) : recherche (2026-11-24)
+
+Demande : ranger 3:2, 4:3, 1:1, 16:9 et les ratios ajoutés dans l'ordre choisi ; aucun ratio caché (décision du 2026-11-24).
+
+- **La table d'ordre** : 4 octets à 0x53DE6F30 dans le firmware officiel, `00 01 03 02` (identités : 0 = 3:2, 1 = 4:3,
+  2 = 16:9, 3 = 1:1 ; ordre du menu 3:2, 4:3, 1:1, 16:9). Recherche de toutes les paires MOVW/MOVT et de tous les mots
+  littéraux du fichier : elle n'est lue qu'aux 7 endroits que le programme modifie déjà (`ORDER_SITES`), aucun autre.
+- **Ce que fait chacun** (certitude forte, lecture du code) :
+  - liste à icônes (descripteur 0x53DCB678..0x53DCB690) : icône de la ligne n (0x531BFE5C, puis 0x53391338), « la ligne n
+    est-elle le ratio courant ? » (0x531BCDB0), choix de la ligne n (0x531BCACC, puis le réglage 0x532FDBE4), nombre de
+    lignes 4 (0x531BBC90) ;
+  - liste à textes (descripteur 0x53DCF52C..0x53DCF54C) : nom de la ligne n (0x531D2B54, puis 0x5338FA48), choix
+    (0x531D4E9C), ligne courante (0x531D6814), nombre 4 (0x531D107C) ;
+  - cycle du bouton Fn (0x5325D2A8) : cherche le ratio courant dans la table et prend le suivant.
+- Tout passe par **l'identité** : le réglage enregistré (octet 0x49F des réglages) est l'identité, jamais la position.
+  Aucune fonction ne recalcule une position « en dur ». Trier revient donc à écrire la table dans un autre ordre. La garde
+  des réglages et la remise à zéro d'un ratio absent (`crop_state.c`, masque des ratios actifs) ne dépendent pas de l'ordre.
+- **Émulateur** : le cycle Fn d'origine, avec les 24 ordres possibles des 4 ratios d'usine écrits dans sa table : 96 cas,
+  le suivant est toujours le bon (0 écart). Avec des ratios ajoutés, le programme remplace déjà la table et le cycle
+  (`installMenu`) ; il suffit d'y écrire l'ordre choisi (aujourd'hui fixé à `FACTORY_ORDER` puis les ajoutés).
+- **Plan de l'étape 2** :
+  - sans ratio ajouté : écrire l'ordre dans les 4 octets d'origine (rien d'autre ne change) ;
+  - avec des ratios ajoutés : la table de `installMenu` prend l'ordre choisi (factory et ajoutés mélangés) ;
+  - le développement RAW en boîtier garde son ordre actuel (liste séparée, `installRaw`), sauf avis contraire ;
+  - enregistrement dans le fichier : le 2e octet de fonctions est plein, il faut un 3e octet suivi de l'ordre, pour que
+    l'inspection reconstruise le fichier à l'identique ; une ancienne version de l'application dira « fichier plus récent » ;
+  - vérifications : `tools/gr4v121/aspect/boot_checks.py` attend aujourd'hui `[0, 1, 3, 2]` en tête, à généraliser ; test
+    du cycle Fn et des listes avec l'ordre choisi.
+- Hors champ : le fichier 1.20 (Monochrome 1.10), qui n'a pas nos ajouts.
+
+### 15.1 Étape 2 : le programme (2026-11-25)
+
+- Option `ratioOrder` (moteur : `BuildOptions.ratioOrder`, identités GR IV : 0 = 3:2, 1 = 4:3, 2 = 16:9, 3 = 1:1, 7.. les
+  ratios ajoutés ; programme : `ExtensionFeatures.ratioOrder`, `fw/gr4v121/aspect/build.ts`). Fichier 1.21 seulement
+  (`info.features.ratioOrder`) ; refusée sur 1.20.
+- Sans ratio ajouté : le mot 0x53DE6F30 (les 4 octets d'origine, vérifiés `00 01 03 02` avant) reçoit l'ordre ; c'est le seul
+  mot qui change dans l'image d'origine (test). Avec des ratios ajoutés : la table de `installMenu` prend l'ordre ; mêmes
+  crochets aux mêmes adresses qu'avec l'ordre habituel (test). Le développement RAW garde son ordre (`installRaw`,
+  `FACTORY_ORDER`), décision du 2026-11-25.
+- L'ordre habituel n'est pas une option : il donne exactement le même fichier qu'avant (test), donc les fichiers 1.3.4 et
+  antérieurs se relisent et se reconstruisent comme avant.
+- Enregistrement : 3e octet de fonctions après le 2e (`FEATURE3_RATIO_ORDER`, puis `n` et les identités). Relu par
+  l'inspection (`ratioOrder` dans le résumé), vérifié en reconstruisant le fichier à l'identique. Une version antérieure de
+  l'application, qui ne connaît pas cet octet, ne reconnaît pas le fichier.
+- Refus : un ordre qui ne nomme pas chaque ratio une fois (`bad-edit`).
+- Tests : `core/test/gr4-ratio-order.test.ts` (3) ; tests GR IV et ratios existants : 38 réussis.
+- Émulateur (`tools/gr4v121/aspect/boot_checks.py`, assertion généralisée, `BOOT_ORDER` pour l'ordre attendu), avec 65:24 et
+  2:1, boutons et sans vidéo : ordre habituel, mélangé `0,7,3,1,8,2` et inversé `8,2,3,1,7,0`. Les deux listes (nombre,
+  validité, noms, icônes), le cycle Fn (de chaque ratio au suivant, d'un ratio inconnu au premier), les réglages (180 cas),
+  le développement RAW (12 cas, ordre d'origine) et les autres enveloppes (440 cas) : tout conforme. Sans ratio ajouté, le
+  cycle Fn d'origine avec les 24 ordres : 96 cas, 0 écart (section 15).
+
+### 15.2 Étape 3 : l'application (2026-11-25)
+
+- Page Aspect ratio du GR IV 1.21 / Monochrome 1.11 (`info.features.ratioOrder`) : une seule liste dans l'ordre du menu,
+  3:2, 4:3, 1:1, 16:9 (lignes fixes avec leur taille pleine : 6192x4128, 5504x4128, 4128x4128, 6192x3480) et les ratios
+  ajoutés, chacun avec ses flèches, comme sur le GR III. Fichiers 1.20 et 1.11 : affichage inchangé (pas de flèches).
+- `ui/src/store.ts` : `ratioFactoryKeys` / `ratioOrderable` selon l'appareil, `ratioOrderIds` traduit l'ordre en identités
+  GR IV (3:2 0, 4:3 1, 16:9 2, 1:1 3, ajoutés 7..) ; l'ordre habituel n'envoie rien. L'ordre suit le projet (`ratioOrder`,
+  déjà enregistré). Un ordre changé suffit pour écrire un firmware ; ligne « Aspect Ratio menu: reordered » dans la
+  confirmation et dans la description d'un fichier relu.
+- Navigateur (site construit, firmware 1.21) : 16:9 monté de deux crans, 65:24 ajouté puis monté de trois : liste
+  3:2, 65:24, 16:9, 4:3, 1:1 ; firmware téléchargé relu par le moteur : vérifié, ordre `[0, 7, 2, 1, 3]`. GR III : l'ordre
+  des ratios fonctionne comme avant ; GR IV 1.11 : inchangé. Aucune erreur dans la console.
+
+### 15.3 Étape 4 : firmware de test T-RO1 (2026-11-25)
+
+- Construit par le site (comme l'utilisateur) sur le fichier 1.21 : modèle GR IV Monochrome, une recette (Tri-X 400 du pack
+  Ilford / Kodak, Pat David), sans vidéo, boutons, 65:24 ajouté ; ordre du menu 3:2, 65:24, 1:1, 16:9, 4:3.
+- Relu par le moteur : vérifié, recette noir et blanc, ordre `[0, 7, 3, 2, 1]`.
+- Émulateur sur ce fichier : listes, noms, icônes, cycle Fn conformes à l'ordre ; développement RAW (10 cas, ordre d'origine) ;
+  autres enveloppes (400 cas). Le contrôle des réglages de `boot_checks.py` ne sait pas exécuter le module des places
+  ajoutées (lecture hors mémoire simulée à 0x5443B0BC) : même résultat avec l'ordre habituel, donc limite du contrôle et non
+  effet du tri ; il passe sur les builds sans place ajoutée (180 cas, section 15.1).
+- À vérifier sur le boîtier : ordre du menu Aspect Ratio (noms, icônes), cycle Fn, taille des photos par ratio, ordre du
+  développement RAW inchangé, recette Tri-X, pas de gel après la veille ni au changement de look.
+
+### 15.4 Résultat sur le boîtier (2026-11-25)
+
+- T-RO1 sur GR IV Monochrome 1.11 : **validé par l'utilisateur** (tri des ratios conforme sur le boîtier). Intégré à
+  l'application pour la 1.3.5.

@@ -92,6 +92,12 @@ export interface FirmwareInfo {
     customButtons?: boolean;
     /** GR Mod Film 1.3: black-and-white recipes as added slots (GR IV Monochrome 1.11). */
     monoRecipes?: boolean;
+    /** GR Mod Film 1.3.5: the Aspect Ratio menu's order, factory ratios included (GR IV 1.21 / Monochrome 1.11). */
+    ratioOrder?: boolean;
+    /** GR Mod Film 1.3.5 (from GR Mod 0.9.1): the battery charge in steps of 10 % (GR IV 1.21 / Monochrome 1.11). */
+    batteryPercent?: boolean;
+    /** GR Mod Film 1.3.5 (from GR Mod 0.9.1): custom grid lines for the camera's 3x3 and 4x4 styles (GR IV 1.21 / Monochrome 1.11). */
+    customGrid?: boolean;
     /** GR III / IIIx: the most films a build can have (9; 20 on GR III 2.10, where
      * the number is chosen with BuildOptions.filmCount and Halation is set in the camera). */
     maxFilms?: number };
@@ -231,6 +237,12 @@ export interface FirmwareSummary {
   customButtons?: boolean;
   /** True when the added slots are black-and-white recipes (GR Mod Film 1.3, GR IV Monochrome 1.11). */
   monoRecipes?: boolean;
+  /** GR IV 1.21: the Aspect Ratio menu's order when it is not the usual one (identities, see BuildOptions.ratioOrder). */
+  ratioOrder?: number[];
+  /** GR IV 1.21: the battery percentage (GR Mod Film 1.3.5). */
+  batteryPercent?: boolean;
+  /** GR IV 1.21: the custom grid lines (GR Mod Film 1.3.5). */
+  customGrid?: { g3: boolean[]; g4: boolean[] };
   /** ADJ lever slots (6..8) when the file has more than the camera's five. */
   adjSlots?: number;
 }
@@ -300,6 +312,11 @@ export interface BuildOptions {
   customButtons?: boolean;
   /** GR IV Monochrome 1.11 (1.21 file): the added slots are black-and-white recipes on Monochrome Standard (their presets converted with `mono`). */
   monoRecipes?: boolean;
+  /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the battery icon shows the charge in steps of 10 %. */
+  batteryPercent?: boolean;
+  /** GR IV 1.21 / Monochrome 1.11 (GR Mod Film 1.3.5, from GR Mod 0.9.1): the lines of the camera's 3x3 and 4x4 grid styles, 8
+   * each (horizontal top, centre, bottom; vertical left, centre, right; the two diagonals). The camera's own grids are no option. */
+  customGrid?: { g3: readonly boolean[]; g4: readonly boolean[] };
   /** GR III / IIIx (round 10): with Mode Memory's Focus unticked, the AF point back to the centre at power-on. */
   afReset?: boolean; afDim?: boolean; afTime?: boolean;
   /** GR III / IIIx (round 10): an « AF Point » box in Mode Memory; unticked, the AF point back to the centre at power-on. */
@@ -322,7 +339,9 @@ export interface BuildOptions {
   hiddenSettings?: Gr3xHiddenSettings;
   /** GR III / IIIx (round 10): the rear dial's rotation ignored everywhere (its four keys and OK kept); with the Hold lines, Fn held + the front dial for the rear dial. */
   rearDialOff?: boolean;
-  /** GR III / IIIx: the Aspect Ratio menu's order, as identities (3:2 0, 1:1 3, the added ratios 4.. in their order), each once. */
+  /** The Aspect Ratio menu's order, as identities, each once. GR III / IIIx: 3:2 0, 1:1 3, the added ratios 4.. in their
+   * order. GR IV 1.21 / Monochrome 1.11: 3:2 0, 4:3 1, 16:9 2, 1:1 3, the added ratios 7.. in their order (the usual
+   * order 0, 1, 3, 2, 7.. builds as before; the in-camera RAW development keeps its own). */
   ratioOrder?: number[];
   /** GR III / IIIx (round 10): Shake Reduction's list Off, 1/4000 .. 30": SR On at that speed and slower, Off faster; the shooting screen's SR icon follows (from 0.9.5). */
   srSpeed?: boolean;
@@ -452,10 +471,10 @@ export class Engine {
   private readonly g4: Gr4Program;
 
   private fixedGr3x(softFocus: readonly SoftFocusRequest[] = [], looks?: Gr3xLookOptions, menu: readonly Gr3xMenuRatio[] = GR3X_T4_MENU, adjSoftFocus = false, dateImprint = false, pictures: readonly Gr3xPictureSpec[] = [], dateMenu: 'list' | 'submenu' = 'submenu', pictureMenu: 'list' | 'submenu' = 'submenu',
-    round: { round7?: boolean; round8?: boolean; round9?: boolean; round10?: boolean; lookLayout?: Gr3xLookLayout; filmMode?: { codes: Record<number, string> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afDim?: boolean; afTime?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; playLast?: boolean; hiddenSettings?: Gr3xHiddenSettings; hideMenu?: boolean; settingsFile?: { version: string }; rearDialOff?: boolean; srSpeed?: boolean; srIcon?: boolean; srHyst?: boolean; fnDial?: boolean; formatRewind?: boolean; rewindButton?: boolean; grain?: boolean } = {}): Promise<FirmwareBuild> {
+    round: { round7?: boolean; round8?: boolean; round9?: boolean; round10?: boolean; lookLayout?: Gr3xLookLayout; filmMode?: { codes: Record<number, string> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afDim?: boolean; afTime?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; playLast?: boolean; hiddenSettings?: Gr3xHiddenSettings; hideMenu?: boolean; settingsFile?: { version: string }; rearDialOff?: boolean; srSpeed?: boolean; srIcon?: boolean; srHyst?: boolean; fnDial?: boolean; formatRewind?: boolean; rewindButton?: boolean; grain?: boolean; srGuard?: boolean } = {}): Promise<FirmwareBuild> {
     const requests = [...softFocus].sort((a, b) => a.level - b.level);
     const round7 = round.round7 === true, round8 = round7 && round.round8 === true, round9 = round8 && round.round9 === true, round10 = round9 && round.round10 === true, lookLayout = round8 ? round.lookLayout : undefined;
-    const film = { ...(round.filmMode ? { filmMode: round.filmMode } : {}), ...(round.noMovie ? { noMovie: true } : {}), ...(round.dateHidden ? { dateHidden: true } : {}), ...(round.afReset ? { afReset: true } : {}), ...(round.afDim ? { afDim: true } : {}), ...(round.afTime ? { afTime: true, grainTag: 'keys' as const } : {}), ...(round.afPoint ? { afPoint: true } : {}), ...(round.afPoint && round.memoryU ? { memoryU: true } : {}), ...(round.filmMode && round.wbButton ? { wbButton: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton ? { macroButton: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton && round.snapDof ? { snapDof: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton && round.holdButtons ? { holdButtons: true } : {}), ...(round.filmMode && round.rollLock ? { rollLock: true } : {}), ...(round.filmMode && round.playLast ? { playLast: true } : {}), ...(round.filmMode && round.formatRewind ? { formatRewind: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton && round.rewindButton && !round.snapDof ? { rewindButton: true } : {}), ...(round.filmMode && round.hiddenSettings ? { hiddenSettings: round.hiddenSettings } : {}), ...(round.filmMode && round.afPoint && round.hideMenu && !round.hiddenSettings ? { hideMenu: true } : {}), ...(round.filmMode && round.settingsFile ? { settingsFile: { version: round.settingsFile.version } } : {}), ...(round.rearDialOff ? { rearDialOff: true } : {}), ...(round.rearDialOff && round.filmMode && round.wbButton && round.macroButton && round.holdButtons && round.fnDial ? { fnDial: true } : {}), ...(round.srSpeed ? { srSpeed: round.srIcon ? { icon: true, ...(round.srHyst ? { hysteresis: true } : {}) } : {} } : {}), ...(round.filmMode && round.grain ? { grain: true } : {}) };
+    const film = { ...(round.filmMode ? { filmMode: round.filmMode } : {}), ...(round.noMovie ? { noMovie: true } : {}), ...(round.dateHidden ? { dateHidden: true } : {}), ...(round.afReset ? { afReset: true } : {}), ...(round.afDim ? { afDim: true } : {}), ...(round.afTime ? { afTime: true, grainTag: 'keys' as const } : {}), ...(round.afPoint ? { afPoint: true } : {}), ...(round.afPoint && round.memoryU ? { memoryU: true } : {}), ...(round.filmMode && round.wbButton ? { wbButton: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton ? { macroButton: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton && round.snapDof ? { snapDof: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton && round.holdButtons ? { holdButtons: true } : {}), ...(round.filmMode && round.rollLock ? { rollLock: true } : {}), ...(round.filmMode && round.playLast ? { playLast: true } : {}), ...(round.filmMode && round.formatRewind ? { formatRewind: true } : {}), ...(round.filmMode && round.wbButton && round.macroButton && round.rewindButton && !round.snapDof ? { rewindButton: true } : {}), ...(round.filmMode && round.hiddenSettings ? { hiddenSettings: round.hiddenSettings } : {}), ...(round.filmMode && round.afPoint && round.hideMenu && !round.hiddenSettings ? { hideMenu: true } : {}), ...(round.filmMode && round.settingsFile ? { settingsFile: { version: round.settingsFile.version } } : {}), ...(round.rearDialOff ? { rearDialOff: true } : {}), ...(round.rearDialOff && round.filmMode && round.wbButton && round.macroButton && round.holdButtons && round.fnDial ? { fnDial: true } : {}), ...(round.srSpeed ? { srSpeed: round.srIcon ? { icon: true, ...(round.srHyst ? { hysteresis: true } : {}) } : {} } : {}), ...(round.filmMode && round.grain ? { grain: true } : {}), ...(round.srGuard && !round.srSpeed ? { srGuard: true } : {}) };
     const key = JSON.stringify({ requests, looks, menu, adjSoftFocus, dateImprint, dateMenu, pictureMenu, round7, round8, round9, round10, lookLayout, film, pictures: pictures.map(p => ({ id: p.id, name: p.name, jpeg: Array.from(p.jpeg) })) });
     let candidate = this.gr3xCandidates.get(key);
     if (candidate) return candidate;
@@ -578,7 +597,7 @@ export class Engine {
       factoryRatios: ['3:2', '4:3', '16:9', '1:1'],
       // The 1.12 bridge firmware goes back to 1.11 only: no bridge for 1.20.
       capabilities: { build: true, presets: true, wallpaper: true, factoryEntry: true, bridge: !bridge && g4 === Gr4Program111, menuPictures: true, lookLayout: true },
-      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true } : {}) },
+      features: { softFocus: 'adj', dateStamp: true, monoUnlock: true, brightAuto: true, directFlash: true, maxAdjSlots: 8, hdrGainMap: true, ...(g4 !== Gr4Program111 ? { exposurePreview: true } : {}), ...(g4 === (Gr4Program121 as unknown as Gr4Program) ? { noMovie: true, customButtons: true, monoRecipes: true, ratioOrder: true, batteryPercent: true, customGrid: true } : {}) },
       version: g4.FIRMWARE_VERSION,
       looks: { factory: factoryLookOrder(decoded.subarray(g4.RTOS_OFFSET), g4.aspect.ORDER_TABLE, g4.aspect.FACTORY_LOOK_IDS), extraFirst: g4.aspect.EXTRA_FIRST_STYLE, monoOnly: g4.aspect.FACTORY_LOOK_IDS.filter((n) => n >= 25) },
       sha256: await sha256Hex(raw),
@@ -647,7 +666,7 @@ export class Engine {
         const decoded = new Firmware(raw).decoded;
         const rtos = sectionsOf(decoded).find(s => s.name === 'RTOS');
         let menu: Gr3xMenuRatio[] = [...GR3X_T4_MENU];
-        let film: { filmMode?: { codes: Record<number, string> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afDim?: boolean; afTime?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; playLast?: boolean; hiddenSettings?: Gr3xHiddenSettings; hideMenu?: boolean; settingsFile?: { version: string }; rearDialOff?: boolean; srSpeed?: boolean; srIcon?: boolean; srHyst?: boolean; fnDial?: boolean; formatRewind?: boolean; rewindButton?: boolean; grain?: boolean } = {};
+        let film: { filmMode?: { codes: Record<number, string> }; noMovie?: boolean; dateHidden?: boolean; afReset?: boolean; afDim?: boolean; afTime?: boolean; afPoint?: boolean; memoryU?: boolean; wbButton?: boolean; macroButton?: boolean; snapDof?: boolean; holdButtons?: boolean; rollLock?: boolean; playLast?: boolean; hiddenSettings?: Gr3xHiddenSettings; hideMenu?: boolean; settingsFile?: { version: string }; rearDialOff?: boolean; srSpeed?: boolean; srIcon?: boolean; srHyst?: boolean; fnDial?: boolean; formatRewind?: boolean; rewindButton?: boolean; grain?: boolean; srGuard?: boolean } = {};
         const L = this.gr3!.GR3_LAYOUT;
         if (rtos && rtos.offset === L.rtosOffset && rtos.size > L.rtosLength) {
           const appended = decoded.subarray(rtos.offset + L.rtosLength, rtos.offset + rtos.size);
@@ -657,7 +676,7 @@ export class Engine {
           if (build) {
             menu = planGr3xMenu(build.ratios, build.ratioOrder); adjSoftFocus = build.adjSoftFocus; dateImprint = build.dateImprint; dateMenu = build.dateMenu; pictureMenu = build.pictureMenu; round7 = build.round7;
             round8 = build.round8; round9 = build.round9; round10 = build.round10; lookLayout = build.lookLayout;
-            film = { ...(build.filmMode ? { filmMode: build.filmMode } : {}), ...(build.noMovie ? { noMovie: true } : {}), ...(build.dateHidden ? { dateHidden: true } : {}), ...(build.afReset ? { afReset: true } : {}), ...(build.afDim ? { afDim: true } : {}), ...(build.afPoint ? { afPoint: true } : {}), ...(build.memoryU ? { memoryU: true } : {}), ...(build.wbButton ? { wbButton: true } : {}), ...(build.macroButton ? { macroButton: true } : {}), ...(build.snapDof ? { snapDof: true } : {}), ...(build.holdButtons ? { holdButtons: true } : {}), ...(build.rollLock ? { rollLock: true } : {}), ...(build.playLast ? { playLast: true } : {}), ...(build.formatRewind ? { formatRewind: true } : {}), ...(build.rewindButton ? { rewindButton: true } : {}), ...(build.hiddenSettings ? { hiddenSettings: build.hiddenSettings } : {}), ...(build.hideMenu ? { hideMenu: true } : {}), ...(build.settingsFile ? { settingsFile: { version: build.settingsFile.version } } : {}), ...(build.rearDialOff ? { rearDialOff: true } : {}), ...(build.fnDial ? { fnDial: true } : {}), ...(build.srSpeed ? { srSpeed: true } : {}), ...(build.srIcon ? { srIcon: true } : {}), ...(build.srHyst ? { srHyst: true } : {}), ...(build.grain ? { grain: true } : {}) };
+            film = { ...(build.filmMode ? { filmMode: build.filmMode } : {}), ...(build.noMovie ? { noMovie: true } : {}), ...(build.dateHidden ? { dateHidden: true } : {}), ...(build.afReset ? { afReset: true } : {}), ...(build.afDim ? { afDim: true } : {}), ...(build.afPoint ? { afPoint: true } : {}), ...(build.memoryU ? { memoryU: true } : {}), ...(build.wbButton ? { wbButton: true } : {}), ...(build.macroButton ? { macroButton: true } : {}), ...(build.snapDof ? { snapDof: true } : {}), ...(build.holdButtons ? { holdButtons: true } : {}), ...(build.rollLock ? { rollLock: true } : {}), ...(build.playLast ? { playLast: true } : {}), ...(build.formatRewind ? { formatRewind: true } : {}), ...(build.rewindButton ? { rewindButton: true } : {}), ...(build.hiddenSettings ? { hiddenSettings: build.hiddenSettings } : {}), ...(build.hideMenu ? { hideMenu: true } : {}), ...(build.settingsFile ? { settingsFile: { version: build.settingsFile.version } } : {}), ...(build.rearDialOff ? { rearDialOff: true } : {}), ...(build.fnDial ? { fnDial: true } : {}), ...(build.srSpeed ? { srSpeed: true } : {}), ...(build.srIcon ? { srIcon: true } : {}), ...(build.srHyst ? { srHyst: true } : {}), ...(build.grain ? { grain: true } : {}), ...(build.srGuard ? { srGuard: true } : {}) };
             // Power-off pictures: the names from the recipe, the JPEGs from the file's own RES section.
             if (build.pictures.length) {
               if (build.pictures.length > this.gr3!.GR3X_MAX_PICTURES) throw new FirmwareError('bad-edit', 'IIIx picture recipe');
@@ -809,6 +828,9 @@ export class Engine {
       ...(features.noMovie ? { noMovie: true } : {}),
       ...(features.customButtons ? { customButtons: true } : {}),
       ...(features.monoRecipes ? { monoRecipes: true } : {}),
+      ...((features as { batteryPercent?: boolean }).batteryPercent ? { batteryPercent: true } : {}),
+      ...((features as { customGrid?: { g3: readonly boolean[]; g4: readonly boolean[] } }).customGrid ? { customGrid: { g3: [...(features as any).customGrid.g3], g4: [...(features as any).customGrid.g4] } } : {}),
+      ...((features as { ratioOrder?: readonly number[] }).ratioOrder ? { ratioOrder: [...(features as { ratioOrder: readonly number[] }).ratioOrder] } : {}),
     });
     if (!specs) return modified(false, [], aligned);
     let ratios: BuiltRatio[] = [];
@@ -1113,7 +1135,9 @@ export class Engine {
         // 0.9.7: Hide Settings in Setup with the film mode (the camera chooses what is hidden), unless the program's list is given (earlier recipes).
         ...(options.filmMode && options.afPoint && !hiddenSettings ? { hideMenu: true } : {}),
         // 0.9.8: Save / Load Settings to / from Card with the film mode (and its Rewind Film).
-        ...(options.filmMode && options.wbButton && options.macroButton && !options.snapDof ? { settingsFile: { version: GR3X_SETTINGS_PROGRAM_VERSION } } : {}), ...(options.rearDialOff ? { rearDialOff: true } : {}), ...(options.rearDialOff && options.filmMode && options.wbButton && options.macroButton && options.holdButtons ? { fnDial: true } : {}), ...(options.srSpeed ? { srSpeed: true, srIcon: true, srHyst: true } : {}), ...(options.filmMode && options.grain ? { grain: true } : {}) };
+        ...(options.filmMode && options.wbButton && options.macroButton && !options.snapDof ? { settingsFile: { version: GR3X_SETTINGS_PROGRAM_VERSION } } : {}), ...(options.rearDialOff ? { rearDialOff: true } : {}), ...(options.rearDialOff && options.filmMode && options.wbButton && options.macroButton && options.holdButtons ? { fnDial: true } : {}), ...(options.srSpeed ? { srSpeed: true, srIcon: true, srHyst: true } : {}), ...(options.filmMode && options.grain ? { grain: true } : {}),
+        // 1.3.5: SR by speed is an option (beta); without it, the guard puts a speed an earlier build let the camera keep back to On.
+        ...(round10 && !options.srSpeed ? { srGuard: true } : {}) };
       const r = await this.fixedGr3x(softFocus, looks, menu, !!options.adjSoftFocus, !!options.dateStamp || !!options.filmMode,
         (options.shutdownPictures ?? []).map(p => ({ id: p.id, name: p.name, jpeg: p.jpeg })), 'submenu', 'submenu',
         { round7, round8, round9, round10, ...(lookLayout ? { lookLayout } : {}), ...film });
@@ -1164,6 +1188,21 @@ export class Engine {
     const monoRecipes = !!(options && options.monoRecipes);
     if (monoRecipes && !this.info.features.monoRecipes) throw new FirmwareError('bad-edit', 'black-and-white recipes need GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (monoRecipes && extraSlots.length === 0) throw new FirmwareError('bad-edit', 'black-and-white recipes without added slots');
+    // GR Mod Film 1.3.5: the Aspect Ratio menu's order (GR IV 1.21); the usual order is no option at all, so earlier files rebuild the same.
+    const usualOrder = [0, 1, 3, 2, ...ratios.map((_, k) => 7 + k)];
+    const askedOrder = options && options.ratioOrder && options.ratioOrder.length ? [...options.ratioOrder] : undefined;
+    if (askedOrder && !this.info.features.ratioOrder) throw new FirmwareError('bad-edit', 'the order of the factory ratios needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
+    if (askedOrder && (askedOrder.length !== usualOrder.length || [...askedOrder].sort((a, b) => a - b).some((v, i) => v !== [...usualOrder].sort((a, b) => a - b)[i]))) throw new FirmwareError('bad-edit', 'the ratio order must name every ratio once');
+    const ratioOrder = askedOrder && askedOrder.some((v, i) => v !== usualOrder[i]) ? askedOrder : undefined;
+    if (ratioOrder && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the ratio order cannot be combined with the clarity-table soft focus of 0.4.x');
+    const batteryPercent = !!(options && options.batteryPercent);
+    const gridAsked = options && options.customGrid ? { g3: [...options.customGrid.g3], g4: [...options.customGrid.g4] } : undefined;
+    if (gridAsked && !this.info.features.customGrid) throw new FirmwareError('bad-edit', 'custom grid lines need GR IV firmware 1.21 (GR IV Monochrome 1.11) in this program');
+    if (gridAsked && !Gr4Program121.aspect.validCustomGrid(gridAsked)) throw new FirmwareError('bad-edit', 'a grid style has 8 lines, each on or off');
+    const customGrid = gridAsked && !Gr4Program121.aspect.isCameraGrid(gridAsked) ? gridAsked : undefined;
+    if (customGrid && clarity.length > 0) throw new FirmwareError('bad-clarity', 'custom grid lines cannot be combined with the clarity-table soft focus of 0.4.x');
+    if (batteryPercent && !this.info.features.batteryPercent) throw new FirmwareError('bad-edit', 'the battery percentage needs GR IV firmware 1.21 (GR IV Monochrome 1.11) in this program');
+    if (batteryPercent && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the battery percentage cannot be combined with the clarity-table soft focus of 0.4.x');
     if (noMovie && !this.info.features.noMovie) throw new FirmwareError('bad-edit', 'no movie needs GR IV firmware 1.21 (GR IV Monochrome 1.11)');
     if (hdrGainMap && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the HDR gain map cannot be combined with the clarity-table soft focus of 0.4.x');
     if (directFlash && clarity.length > 0) throw new FirmwareError('bad-clarity', 'Direct Flash cannot be combined with the clarity-table soft focus of 0.4.x');
@@ -1171,9 +1210,9 @@ export class Engine {
     if (adjSoftFocus && clarity.length > 0) throw new FirmwareError('bad-clarity', 'soft focus on the ADJ lever and on the clarity table cannot be combined');
     if (dateStamp && clarity.length > 0) throw new FirmwareError('bad-clarity', 'the date imprint cannot be combined with the clarity-table soft focus of 0.4.x');
     if (extraSlots.length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'added slots cannot be combined with the clarity-table soft focus of 0.4.x');
-    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
+    if (edits.length === 0 && ratios.length === 0 && clarity.length === 0 && !adjSoftFocus && !dateStamp && !monoUnlock && extraSlots.length === 0 && pictures.length === 0 && !lookLayout && !directFlash && adjSlots === 5 && !hdrGainMap && !exposurePreview && !noMovie && !customButtons && !ratioOrder && !batteryPercent && !customGrid && !options.brightAuto) throw new FirmwareError('bad-edit', 'nothing to change');
     if (Object.keys(cinemaHalation).length > 0 && clarity.length > 0) throw new FirmwareError('bad-clarity', 'halation cannot be combined with the clarity-table soft focus of 0.4.x');
-    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}) };
+    const features = { ...(options.brightAuto ? { brightAuto: options.brightAuto } : {}), adjSoftFocus, guard: clarity.length === 0 && options.guard !== false, ...(Object.keys(cinemaHalation).length > 0 ? { cinemaHalation } : {}), ...(dateStamp ? { dateStamp } : {}), ...(monoUnlock ? { monoUnlock } : {}), ...(extraSlots.length > 0 ? { extraSlots } : {}), ...(pictures.length > 0 ? { shutdown: { pictures, factory: this.g4.aspect.factoryShutdownJpegs(this.decoded) } } : {}), ...(lookLayout ? { lookLayout } : {}), ...(directFlash ? { directFlash } : {}), ...(adjSlots > 5 ? { adjSlots } : {}), ...(hdrGainMap ? { hdrGainMap } : {}), ...(exposurePreview ? { exposurePreview } : {}), ...(softFocusMenu ? { softFocusMenu } : {}), ...(noMovie ? { noMovie } : {}), ...(customButtons ? { customButtons } : {}), ...(monoRecipes ? { monoRecipes } : {}), ...(ratioOrder ? { ratioOrder } : {}), ...(batteryPercent ? { batteryPercent } : {}), ...(customGrid ? { customGrid } : {}) };
     const test = {
       ...(options && options.dateStampFixed ? { dateStampFixed: options.dateStampFixed, dateStampDiag: !!options.dateStampDiag } : {}),
       ...(options && options.halationDiag ? { halationDiag: true } : {}),

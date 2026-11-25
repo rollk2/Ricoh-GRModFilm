@@ -33,3 +33,6 @@ export {
   ADJ_EXTRA_BYTE, ADJ_EXTRA_OBJECT_OFFSET, ADJ_FRAMES, ADJ_ICONS, ADJ_LIST_ID, ADJ_MENU_ID, ADJ_OBJECT, ADJ_PITCH, ADJ_SLOTS_MAX, ADJ_SLOTS_MIN, ADJ_STATE, ADJ_TEXT_ID,
   adjFrameX, adjLayoutStride, adjPitch, adjViewTable, installAdjSlots, settingName,
 } from './adjslots';
+export { BATTERY_ICON_ID, batteryIcons, drawBatteryIcon, installBatteryPercent } from './battery';
+export { CAMERA_GRID, GRID_LINE_COUNT, gridByte, gridLinesOf, installCustomGrid, isCameraGrid, validCustomGrid } from './grid';
+export type { CustomGrid, GridLines } from './grid';

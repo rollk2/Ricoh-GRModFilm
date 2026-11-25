@@ -6,8 +6,8 @@ does is kept (version 1.1 follows GR Mod 0.8.15). Not a Ricoh product, not an of
 
 | Camera | Official firmware | GR Mod features | Film mode |
 | --- | --- | --- | --- |
-| GR III / GR III HDF | 2.10 | yes | **yes** (camera-tested) |
-| GR IIIx / GR IIIx HDF | 1.60 | yes | **yes** (same program as the GR III 2.10, not camera-tested) |
+| GR III / GR III HDF | 2.10 | yes | **beta** (camera-tested) |
+| GR IIIx / GR IIIx HDF | 1.60 | yes | **beta** (same program as the GR III 2.10, not camera-tested) |
 | GR III / GR IIIx | 2.20, 2.21 / 1.70, 1.71 | yes | not yet (planned) |
 | GR IV / GR IV HDF | 1.21, 1.20, 1.11 | yes | not yet (planned) |
 | GR IV Monochrome | 1.11, 1.10 (the GR IV 1.21 and 1.20 files) | yes | not yet (planned) |
@@ -16,7 +16,25 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.3.4 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.5 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.3.5
+
+- **The film mode is in beta** (GR III / IIIx): it works and is camera-tested, but keep a copy of your official firmware
+  and report what goes wrong. It is not offered on the GR IV Monochrome.
+- **SR by shutter speed is now a beta option** (GR III / IIIx, Features page, off by default): the lens can still hum
+  on some speeds. Without it, Shake Reduction keeps the camera's own Off / On list, and a speed chosen with an earlier
+  build is put back to On when the camera starts.
+- **GR IV / GR IV Monochrome (the 1.21 file): sort the aspect ratios.** On the Aspect ratio page, 3:2, 4:3, 1:1 and 16:9
+  move with the arrows, among your added ratios; the camera's Aspect Ratio menu and the Fn button follow that order
+  (in-camera RAW development keeps its usual order). Tried on a GR IV Monochrome 1.11. A sorted file is read by
+  GR Mod Film 1.3.5 and later.
+- **GR IV / GR IV Monochrome (the 1.21 file): battery percentage** (Features page, off by default), from GR Mod 0.9.1:
+  the battery icon shows the charge in steps of 10 % instead of the three bars; below 5 % or on external power, the
+  camera's own icon.
+- **GR IV / GR IV Monochrome (the 1.21 file): custom grid lines** (Features page, off by default), from GR Mod 0.9.1:
+  choose which lines the camera's 3x3 and 4x4 grids draw (top, centre and bottom, left, centre and right, the two
+  diagonals); the camera's Grid Style 3x3 and 4x4 then draw them.
 
 ## What is new in 1.3.4
 
@@ -140,7 +158,7 @@ Version 1.3.4 (the latest is always on the [Releases](https://github.com/rollk2/
   the Aspect ratio page with the arrows; the camera's menu and the Fn cycle follow that order.
 - **Playback** (0.9.4) opens on the last picture taken, whatever the folder (before, it could show
   the roll's last frame after a photo in P).
-- **SR by shutter speed** (0.9.4, every GR III / IIIx build): Shake Reduction's list becomes Off,
+- **SR by shutter speed** (0.9.4; beta from 1.3.5, *SR by shutter speed* on the Features page): Shake Reduction's list becomes Off,
   1/4000, 1/3200 … 30". With a speed chosen, SR is on at that speed and slower, off when the shutter
   speed is faster. 1/4000 means always on (the factory On, so nothing changes until you choose
   another speed). The speed is kept per BOX like Shake Reduction (and once for P, Av, Tv, M). A
@@ -193,7 +211,7 @@ GR Mod Film is built on [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod) by Max
 None of this would exist without [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod). Maxwooow mapped
 the GR III / IIIx firmware, found the addresses, built the tools that patch, check and emulate it,
 and wrote the whole desktop program; his first release opened the way. GR Mod Film builds on top of
-his work.
+his work. The battery percentage and the custom grid lines of 1.3.5 are his and dgmaia's (GR Mod 0.9.1), brought into this program.
 
 The recipe packs of the Community page include LUTs by [abpy](https://github.com/abpy/FujifilmCameraProfiles)
 (Fujifilm film simulations, CC BY-NC-SA 4.0) and by [Pat David](https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/)

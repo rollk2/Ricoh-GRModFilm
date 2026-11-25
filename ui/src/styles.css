@@ -896,3 +896,16 @@ html.mobile-app .tour-hole { border-radius: 14px; }
 .dialog.upd .upd-notes { white-space: pre-line; margin: 2px 0 10px; line-height: 1.5; }
 .dialog.upd .upd-hint { font-size: 12.5px; margin: 0 0 6px; }
 .dialog.upd h3 .push-file { margin-left: 10px; }
+
+/* GR IV custom grid lines (GR Mod Film 1.3.5) */
+.grid-edit { display: flex; flex-direction: column; gap: 10px; padding: 4px 14px 12px 58px; }
+.grid-style { display: grid; grid-template-columns: 60px auto 1fr; align-items: center; gap: 10px; }
+.grid-preview { width: 60px; height: 40px; }
+.grid-preview rect { fill: var(--chip); stroke: var(--line2); }
+.grid-preview line { stroke: currentColor; stroke-width: 1.2; }
+.grid-style .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.grid-style .btn.on { background: var(--blue); color: #fff; border-color: transparent; }
+.grid-edit > .btn { align-self: flex-start; }
+.app.mobile .grid-edit { padding-left: 14px; }
+.app.mobile .grid-style { grid-template-columns: 60px 1fr; }
+.app.mobile .grid-style .chips { grid-column: 1 / -1; }

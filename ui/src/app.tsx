@@ -18,7 +18,7 @@ import { CropEditor, FeaturesPage, ImageControlPage, RatioPage, WallpaperPage } 
 import { Tour, replayTour, restartTours } from './tour';
 import { UpdatePill, UpdateWatcher, openWhatsNew } from './updates';
 import {
-  askForOfficial, bridgeLoaded, getState, isGr3, backupCopies, extrasOn, copyList, deleteCopies, hasNameErrors, hasRatioErrors, ratioSpecs, revealBackups, writableCopy, writeCopy, menuPictures, outputFirmware, pendingChanges, refreshVolumes, selectVolume, setAppLanguage, setModel, setPage, setShowAll, useStore, wallReady, monoRecipesOn,
+  askForOfficial, bridgeLoaded, getState, isGr3, backupCopies, extrasOn, copyList, deleteCopies, hasNameErrors, hasRatioErrors, ratioSpecs, ratioOrderIds, revealBackups, writableCopy, writeCopy, menuPictures, outputFirmware, pendingChanges, refreshVolumes, selectVolume, setAppLanguage, setModel, setPage, setShowAll, useStore, wallReady, monoRecipesOn,
 } from './store';
 import type { State } from './store';
 
@@ -103,7 +103,7 @@ function CopyActions() {
 /** Whether the page's output buttons can make a firmware file now. */
 function canOutput(s: State): boolean {
   const isIC = s.page === 'ic' || s.page === 'ratio'; const isWall = s.page === 'wall';
-  return !!s.info && s.info.models.includes(s.model) && (isIC ? s.info.capabilities.build : isWall ? (s.info.capabilities.wallpaper || s.info.capabilities.menuPictures) : s.info.capabilities.factoryEntry) && !s.busy && (isIC ? (pendingChanges(s).length + ratioSpecs(s).length > 0 || extrasOn(s) || ((s.model !== 'MONO' || monoRecipesOn(s)) && s.info.family !== 'gr3x' && s.extras.length > 0) || menuPictures(s).length > 0) && !hasNameErrors(s) && !hasRatioErrors(s) : isWall ? wallReady(s) && !hasNameErrors(s) && !hasRatioErrors(s) : true);
+  return !!s.info && s.info.models.includes(s.model) && (isIC ? s.info.capabilities.build : isWall ? (s.info.capabilities.wallpaper || s.info.capabilities.menuPictures) : s.info.capabilities.factoryEntry) && !s.busy && (isIC ? (pendingChanges(s).length + ratioSpecs(s).length > 0 || extrasOn(s) || !!ratioOrderIds(s) || ((s.model !== 'MONO' || monoRecipesOn(s)) && s.info.family !== 'gr3x' && s.extras.length > 0) || menuPictures(s).length > 0) && !hasNameErrors(s) && !hasRatioErrors(s) : isWall ? wallReady(s) && !hasNameErrors(s) && !hasRatioErrors(s) : true);
 }
 
 function OutputBar() {

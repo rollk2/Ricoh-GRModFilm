@@ -4782,3 +4782,44 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
 - `core/src/color/mono.ts` : axe neutre de la LUT (moyenne des canaux, 256 points), coloration (seuil 2 / 255) et mélange des canaux (seuil 8 / 255) signalés ;
   courbe `c[i] = 16383 × LUT(S[i] / 16383)`, `S` = courbe verte de Monochrome Standard du firmware. Certitude : élevée (méthode validée sur boîtier en M3a-6 et M3b).
 - Fichier construit par le site : vérifié par le moteur, sonde `mono_recipe_probe.py` 56 / 56. Détails : `docs/gr4-mono-recettes-etude.md` section 13.
+
+## Vérification des mots de RAM partagés, GR III 2.10 / IIIx 1.60 (2026-11-22)
+- Suite au gel du GR IV (les boutons Hold écrasaient le pointeur du module des places, `docs/gr4-mono-recettes-etude.md` 14.7) :
+  même vérification sur le GR III. Zone des variables : les 76 octets de la ronde 10 (0x55804374..0x558043BF, remis à zéro au
+  démarrage, `round10.ts`).
+- Méthode : firmware complet construit comme le site (mode pellicule et toutes ses options, boutons Hold, date, 9 films, 7 ratios,
+  sans vidéo, AF Point, Memory U, vitesses SR), puis le même sans boutons Hold ; pour chaque mot de la zone, nombre de sites du code
+  ajouté qui l'adressent ; puis, pour chaque accès, octets réellement lus ou écrits (taille et décalage).
+- Résultat : **aucun conflit dans les firmwares livrés**. Les mots des boutons Hold (0x558043A0, 0x558043BE..BF) ne sont adressés que
+  par eux ; chaque autre mot appartient à une seule fonction ; le seul octet atteint depuis deux bases (0x5580439D) l'est par le mode
+  pellicule lui-même (KEY_LAST + 7 + 6 et KEY_LAST + 13, l'étape du message). Le bouton WB n'utilise que 3 octets de 0x55804394
+  (0x55804397 reste au mode pellicule).
+- Partages connus, réservés aux builds de test, documentés dans le code : 0x55804388 (sonde de film, mesure AF T-AFT1 ; non utilisé
+  par l'image d'extinction livrée), 0x55804390 (anneau de touches de diagnostic, bouton WB), 0x55804398 (file du grain, diagnostic),
+  0x558043A0 (journaux des formes de test du mode pellicule, recherche T-DOF5), 0x558043A8 (sonde des molettes), 0x558043B6 / B7
+  (diagnostics SR). Ils ne doivent pas être combinés avec les fonctions livrées correspondantes (c'est le cas aujourd'hui).
+
+## 1.3.5 : mode pellicule en bêta, SR par vitesse en option bêta (2026-11-22)
+- Demande : le mode pellicule passe en bêta sur le GR III / IIIx (rien sur le GR IV Monochrome) ; la stabilisation selon la vitesse
+  devient une option bêta activable dans l'application, car l'objectif vibre encore à certaines vitesses malgré l'hystérésis de 2/3 IL
+  (`srHyst`, depuis la 1.0.0-RC2). La vibration n'est donc pas corrigée : l'option est coupée par défaut.
+- Application : interrupteur « SR by shutter speed (beta) » sur la page Features (GR III / IIIx complets seulement, enregistré dans le
+  projet). Sans lui, le build ne contient plus la liste de vitesses (`srSpeed` absent). Le titre « Film mode (beta) » marque le mode
+  pellicule ; il n'est proposé que sur la famille GR III / IIIx (`filmModeChoosable`).
+- Risque identifié : un boîtier passé par un build avec vitesses garde dans l'octet de Shake Reduction (`+0x4f6`, par BOX) une valeur
+  2.. (une vitesse). Le menu natif ne connaît que 0 (Off) et 1 (On). Correction : la garde des réglages (`guard.ts`, option `srClamp`)
+  ramène toute valeur supérieure à 1 à 1 (On), au chargement des réglages, à la sauvegarde et au rappel d'un mode U.
+  Code : `ldrb r2,[r0,#0x4f6]; cmp r2,#1; movhi r2,#1; strbhi r2,[r0,#0x4f6]`.
+- Rejouabilité : la recette du build enregistre le drapeau à part (`srGuard`, ronde 10 seulement, jamais avec `srSpeed`) ; les
+  fichiers 1.3.4 et antérieurs (sans drapeau) se reconstruisent à l'identique. Vérifié : un build 1.3.4 complet, un build 1.3.5 sans
+  l'option et un avec l'option sont tous reconnus et vérifiés par l'inspection.
+- Émulateur (Unicorn, fonction `fix` du build sans l'option, trouvée à 0x540F68D0, appelée par `fixAll` et par le rappel) : les 256
+  valeurs de `+0x4f6` sur des enregistrements aléatoires ; 0 et 1 inchangées, 2..255 donnent 1, aucun autre octet modifié
+  (0 écart). Le build avec l'option ne contient pas ce code. Certitude : forte pour le code ; le comportement du menu natif avec la
+  valeur 1 est celui d'origine.
+- Site (Chromium, build de production, firmware 2.10) : les deux interrupteurs apparaissent sur la page Features ; firmware
+  téléchargé option coupée : la garde contient le code et passe l'émulateur (0 écart) ; option activée : pas de garde, liste de
+  vitesses présente. Suite complète : 512 tests réussis ; 5 échecs dus à des fichiers de test privés absents du conteneur
+  (`official.decoded`, `B.bin`, `C.bin`, `q400.xmp`), sans lien avec ce changement.
+- Reste à vérifier sur le boîtier (T-SRB1) : après un build 1.3.4 avec une vitesse choisie, flasher le build 1.3.5 sans l'option :
+  Shake Reduction affiche On, la main SR est normale, pas de vibration.

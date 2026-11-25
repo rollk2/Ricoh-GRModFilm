@@ -69,6 +69,13 @@ describe('SR by shutter speed in the build recipe', () => {
     // Test forms are never recorded.
     expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srSpeed: { icon: 'diag' } }))!.srSpeed).toBeUndefined();
   });
+  it('1.3.5: a build without the (beta) list records the guard that puts a chosen speed back to On, apart from older builds', () => {
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srGuard: true }))).toMatchObject({ srGuard: true });
+    // Older builds (no flag) rebuild without it; never with the list itself, nor before round 10.
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, base))!.srGuard).toBeUndefined();
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { ...base, srGuard: true, srSpeed: { icon: true, hysteresis: true } }))!.srGuard).toBeUndefined();
+    expect(readGr3xBuildRecipe(encodeGr3xRatioRecipe(menu0, { round7: true, round8: true, round9: true, srGuard: true }))?.srGuard).toBeUndefined();
+  });
 });
 
 const input = process.env.GRMOD_GR3_FIRMWARE;
