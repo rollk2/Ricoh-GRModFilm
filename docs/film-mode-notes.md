@@ -4848,3 +4848,27 @@ rallume-t-il aussitôt ?** Si la ligne est là et que la veille marche, la deman
 vérifier que le mode pellicule sauvegarde le rouleau avant de s'endormir, voir la remarque « Sauvegarde » plus haut). Si
 la ligne manque ou si la veille ne se déclenche pas, les conditions de `0x5322a38c` (`0x53233874(…, 2)` et l'état
 `0x53548638` 2 ou 3) sont les premières pistes, à étudier dans l'émulateur.
+
+## GR III : vibration résiduelle du SR par vitesse (analyse du 2026-11-26, statique)
+
+Rappel : la SR est donnée au DSP (`DspStateService::SetStatus`, élément 8) par quatre appels de `0x5354ae2c`, dont
+`0x53497bc4` à chaque changement de vitesse de la visée (événement `0x82`). Le boîtier renvoie lui-même la SR à chaque
+changement de vitesse ; avec notre règle, chaque passage de la frontière la coupe ou la rallume, et chaque rallumage
+recentre le capteur. L'hystérésis de 2/3 IL (1.0.0-RC2) a réduit les bascules, sans les supprimer (1.3.5 : option bêta,
+coupée par défaut).
+- Vérifié cette nuit : l'appel `0x5349786c` n'est **pas** une commande. La fonction `0x534977dc` (appelée en `0x534978bc`)
+  copie l'état de prise de vue (vitesse en `+0xb4`, SR en `+0xb8`, ...) dans un grand tampon (`+0x73000`), celui des
+  métadonnées de la photo : la SR qu'on y écrit ne sert qu'à l'information enregistrée.
+- Hypothèses restantes : **H1** la vitesse de la visée varie encore de plus de 2/3 IL (mise au point par contraste,
+  scintillement, changement de cadence de la visée en basse lumière), d'où des bascules ; **H2** un des envois (envoi complet
+  `0x535785b4` aux changements d'état) lit une vitesse périmée et fait un aller-retour Off / On ; **H3** la vibration ne vient
+  pas d'une bascule (elle existerait alors aussi option coupée, ce que T-SRB1 n'a pas montré).
+- **Essai T-SRV1 (diagnostic, à construire quand l'utilisateur le voudra)** : seuil 1/60, hystérésis, et le journal existant
+  (`srSpeed.diag` : l'anneau note 60 SR Off, 61 On, 62 Off par la vitesse) imprimé sur la photo par la date ; viser en
+  pénombre jusqu'à la vibration, déclencher aussitôt. Des notes 61 / 62 en alternance : H1 ou H2 ; aucune : H3.
+- **Correction envisagée si H1 / H2 (T-SRV2)** : ne plus décider pendant la visée. La visée garde la SR du menu (On), et la
+  règle de vitesse ne s'applique qu'une fois l'exposition figée par l'appui à mi-course, puis la SR revient à On au
+  relâchement : au plus un recentrage, au moment de l'appui, et seulement quand la vitesse est plus rapide que le seuil (là
+  où la SR n'est pas utile). Prérequis : identifier l'événement de l'appui à mi-course et du relâchement (pistes : les
+  événements `0x35`, `0x89`, `0xaa` du déclencheur vus dans `AdjModeController`, à confirmer avec l'anneau de touches), et
+  vérifier que la décision lit bien la vitesse figée (`0x53548930`) à ce moment.
