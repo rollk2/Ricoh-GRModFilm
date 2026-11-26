@@ -29,7 +29,8 @@ const fail = (what: string): never => { throw new FirmwareError('unexpected-layo
 export const GR3X_SLEEP_FUNCTION = 47;
 /** Its text: the Setup line « Sleep Mode »'s title (its draw 0x53198a88, 21 languages). */
 export const GR3X_SLEEP_TEXT = 0x24d;
-/** Its icon, for now the camera's « External Display Settings » function's (31). */
+/** Its icon without the film mode's icons: the camera's « External Display Settings » function's (31). With them, a crescent
+ * moon drawn after them (film-mode-icons.ts, `sleepModeIcon`: the film icons' base + 4). */
 export const GR3X_SLEEP_ICON = 0x16e;
 /** RAM: round 10's zero-filled byte GR3X_SR_LAST, used by the SR speed's diagnostic only (never with this). */
 export const GR3X_SLEEP_FLAG = 0x558043b6;

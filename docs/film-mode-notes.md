@@ -4887,6 +4887,10 @@ La veille existe sur le GR III (Sleep Mode, réglée par délai), mais **aucune 
   demandée en visée seulement (pas en lecture, menu ou enregistrement), comme les autres fonctions du mode pellicule.
 
 ### T-SLP1 : « Sleep Mode » sur une touche (2026-11-26, implémenté, émulé, à essayer sur le boîtier)
+
+Sonde de la garde (`guard_probe.py`) : elle ignorait la remise à 1 de l'octet SR `0x4f6` (garde 1.3.5, `srGuard`) et
+échouait sur tout firmware avec cette garde, avant même la veille. Le manifeste dit maintenant `srGuard`, la sonde
+modélise la remise à 1 : 724 appels, aucun écart (2.10).
 - **Réveil** (lu dans le code) : le répartiteur des événements `0x5316d5dc` passe chaque événement au gestionnaire
   d'`AppShutDownModel` (`0x5322ae44`) **avant** les modèles qui exécutent les fonctions des touches. Le gestionnaire compte
   les événements 1 à 0x2d comme activité (`0x5323becc`) ; en veille, une activité réveille (`0x5322a970` : écran rallumé,
@@ -4894,7 +4898,9 @@ La veille existe sur le GR III (Sleep Mode, réglée par délai), mais **aucune 
   `+0` type, `+4` pointeur vers l'état (octet 0 : 2 appui, 1 relâchement ; mot `+4` : sous-état, non nul pour un maintien).
 - **Fonction 47 « Sleep Mode »** (`core/src/fw/gr3x/sleep-button.ts`, option `sleepButton`, mise d'office comme Rewind Film
   avec le mode pellicule et les touches WB / Macro) : texte de l'appareil `0x24d` (« Sleep Mode », 21 langues), icône
-  provisoire `0x16e` (celle de « Réglage affichage ext. »). Elle reprend les conditions du minuteur (`0x5322a3f0` sans le
+  dessinée par le programme, un croissant de lune sur la tuile Fn (`sleepModeIcon`, base des icônes du mode pellicule
+  + 4, soit 680 sur le 2.10 ; sans ces icônes, `0x16e` de « Réglage affichage ext. »). Vérifié dans l'émulateur : la
+  fonction 47 renvoie 680. Elle reprend les conditions du minuteur (`0x5322a3f0` sans le
   délai réglé : file d'événements, verrou, état de la visée 2 / 3, occupation, trois états de prise de vue, veille autorisée
   `+9`) puis appelle `0x5322a89c` ; elle marche donc aussi avec Sleep Mode sur Off. Disponible sur Fn, ISO, Drive, WB,
   Macro, les touches Hold et Movie (listes et exécutions de `film-roll.ts`, plafonds de `wb-button.ts` et `hold.ts` à 47).

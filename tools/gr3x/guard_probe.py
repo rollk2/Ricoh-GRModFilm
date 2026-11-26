@@ -31,7 +31,8 @@ def fallback(hidden,order):
     if 11 not in hidden:return 11,11
     first=lambda lst:next(i for i in order if i in lst and i not in hidden)
     return first(STILL_LOOKS),first(MOVIE_LOOKS)
-def guarded(rec,films,max_ratio,hidden=(),soft_r10=False,order=()):
+SR=0x4f6
+def guarded(rec,films,max_ratio,hidden=(),soft_r10=False,order=(),sr_clamp=False):
     out=bytearray(rec);still,movie=fallback(hidden,order)
     for off in LOOKS:
         v=out[off]
@@ -40,6 +41,8 @@ def guarded(rec,films,max_ratio,hidden=(),soft_r10=False,order=()):
         # Standard is hidden (the custom sets keep theirs).
         if off in (0x1c2,0x57e) and out[off] in hidden:out[off]=movie if off==0x57e else still
     if out[RATIO]>max_ratio:out[RATIO]=0
+    # 1.3.5 (`srGuard`): Shake Reduction's byte above 1 (a speed of SR by speed) goes back to 1 (On).
+    if sr_clamp and out[SR]>1:out[SR]=1
     # Round 10: soft focus on (1..3) and on no slot as 0x09: the slots that hold 0x13 (rounds 6..9) get 0x09.
     if soft_r10 and 1<=out[SOFT]<=3 and not any(out[f]==9 for f in ADJ_SLOTS):
         moved=False
@@ -105,7 +108,8 @@ def verify(data,manifest,seed=1107,rounds=400):
     hidden=tuple((manifest.get('lookLayout') or {}).get('hidden',()));order=tuple((manifest.get('lookLayout') or {}).get('order',()))
     assert not hidden or manifest.get('round8')
     r10=bool(manifest.get('round10'));soft_r10=r10 and bool(manifest.get('adjSoftFocus'))
-    want=lambda rec,f,m:guarded(rec,f,m,hidden,soft_r10,order)
+    sr_clamp=manifest.get('srGuard')==True
+    want=lambda rec,f,m:guarded(rec,f,m,hidden,soft_r10,order,sr_clamp)
     assert max_ratio==3+sum(1 for r in manifest['menu'] if r['id']>=4)
     p=GuardProbe(data,manifest);cpu=p.uc;rng=random.Random(seed+films*31+max_ratio);calls=0;fixed=0
     # The hook sites point at the guard.

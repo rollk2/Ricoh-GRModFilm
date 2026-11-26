@@ -55,6 +55,12 @@ export function cartridgeCoverage(): Float32Array {
     [rect(8, 13, 20, 14), rect(8, 28, 20, 29), rect(22, 16, 24, 17.5), rect(26, 16, 28, 17.5), rect(22, 24.5, 24, 26), rect(26, 24.5, 28, 26)]);
 }
 
+/** A crescent moon (Sleep Mode): a disc with a smaller disc cut out of its upper right. */
+export function moonCoverage(): Float32Array {
+  const disc = (cx: number, cy: number, r: number): Shape => (x, y) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+  return coverage([disc(19, 21, 11)], [disc(25, 15, 9.5)]);
+}
+
 /** The edge of a shape: coverage spread by `r` pixels (a square neighbourhood). */
 function spread(c: Float32Array, r: number): Float32Array {
   const out = new Float32Array(W * H);
@@ -108,4 +114,9 @@ export function fnTile(icon: Uint8Array): Uint8Array {
     t[i] = ring ? 128 : 53; t[i + 1] = ring ? 128 : 53; t[i + 2] = ring ? 128 : 54; t[i + 3] = 255;
   }
   return t;
+}
+
+/** Sleep Mode's Fn icon (a crescent moon) on `tile`, as Film Advance's. */
+export function sleepModeIcon(tile: Uint8Array): Uint8Array {
+  return composeIcon(tile, moonCoverage());
 }
