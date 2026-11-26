@@ -40,7 +40,8 @@ for (const f of files.filter((f) => upstream121(f.version))) describe.skipIf(!ex
       expect(word(a, f.hook)).toBe(0xe51b2450);
       expect(word(a, f.gain)).toBe(0x100);
       expect(word(b, f.gain)).toBe(0x400);
-      expect(word(b, f.zeroFill)).toBe(f.heap);
+      // GR Mod Film: on 1.20 / 1.21 the custom buttons (in every build) keep their state in the sbrk arena: the fill reaches its end.
+      expect(word(b, f.zeroFill)).toBe(f.version !== '1.11' ? 0x55839080 : f.heap);
       const w = word(b, f.hook);
       expect(w >>> 24).toBe(0xea);
       const stub = branchTarget(f.hook, w);

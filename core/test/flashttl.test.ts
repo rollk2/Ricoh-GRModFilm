@@ -62,7 +62,8 @@ for (const { version, path, SITES, NATIVES } of releases.filter((r) => upstream1
         expect(word(b, at) >>> 24).toBe(0xeb);
         expect(branchTarget(at, word(b, at)) - 0x53000000).toBeGreaterThanOrEqual(a.length);
       }
-      expect(word(b, ZERO_FILL_END)).toBe(0x55839040);
+      // GR Mod Film: the custom buttons (in every GR IV build) keep their state in the sbrk arena, so the fill reaches its end.
+      expect(word(b, ZERO_FILL_END)).toBe(e.info.features.customButtons ? 0x55839080 : 0x55839040);
       // The context: magic, the state pointer's word, the natives; word 7 (file service) is a stub returning 0.
       const ctx = findWord(b, MAGIC);
       expect(ctx - 0x53000000).toBeGreaterThanOrEqual(a.length);

@@ -5,7 +5,7 @@ export { PLANE_H, PLANE_W, SCREEN_H, SCREEN_W, alignedCrop, fullSize, gr4Sizes, 
 export type { PhotoSize, RatioGeometry, RatioProblem, Rect, ReplayRect } from './geometry';
 export { RATIO_ICON_BYTES, RATIO_ICON_H, RATIO_ICON_W, drawRatioIcon, ratioLabel } from './icon';
 export {
-  APPEND_LIMIT, BASE, BUILD_REVISION, COUNT_SITES, FIRST_CUSTOM_ID, ICON_CATALOG, MAX_CUSTOM_RATIOS, MAX_NAME_LENGTH, OFFICIAL_ICONBIN_LENGTH, OFFICIAL_RTOS_LENGTH, ORDER_SITES,
+  APPEND_LIMIT, BASE, BUILD_REVISION, COUNT_SITES, FIRST_CUSTOM_ID, ICON_CATALOG, MAX_CUSTOM_RATIOS, MAX_NAME_LENGTH, OFFICIAL_ICONBIN_LENGTH, OFFICIAL_RTOS_LENGTH, ORDER_SITES, FACTORY_ORDER_TABLE, defaultRatioOrder,
   TEXT_CATALOG, installExtensions, installRatios, planRatios, textId, validateRatioName,
 } from './build';
 export { ADJ_SOFT_FOCUS, SOFT_FOCUS_BYTE, SOFT_FOCUS_ICON_ID, SOFT_FOCUS_NAMES, SOFT_FOCUS_TEXT_ID, drawSoftFocusIcon, softFocusRows } from './softfocus';
