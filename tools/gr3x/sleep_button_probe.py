@@ -5,7 +5,8 @@
 
   - the function 47 through the buttons' real paths: GetEventCustomize's patched entry (0x5329bcc8; Fn, ISO, Drive, WB,
     Macro) and GetEventSwitchWlan's switch (0x5329a0a0; Movie, Hold): pressed (r3 = 0) it calls the model's sleep entry
-    0x5322a89c with the model 0x5320afbc(0x5320ad88()), once, and raises the flag; released, nothing; the function then
+    0x5322a89c with the model 0x5320afbc(0x5320ad88()), once, and raises the flag (0x5580438b; the format rewind's flag
+    0x558043b6 untouched); released, nothing; the function then
     runs as Off (r2 / r6 = 0), every other register kept;
   - the model's conditions, each alone: already asleep (+ 0x40), sleep not allowed (+ 9), the event queue, the lock, the
     live state 2 and 3, the busy model, the three shooting states, the live busy state: no sleep, no flag;
@@ -29,7 +30,8 @@ OK = {'queue': 0x61000000, 'queueReady': 1, 'capture': 0x61001000, 'lockModel': 
 CUSTOM, CUSTOM_NATIVE = 0x5329bcc8, 0x5329bccc
 WLAN, WLAN_NEXT = 0x5329a0a0, 0x5329a0a4
 ACTIVITY_CALL, ACTIVITY_RET = 0x5322aed4, 0x5322aed8
-FLAG = 0x558043b6
+FLAG = 0x5580438b
+FORMAT_FLAG = 0x558043b6   # the format rewind's flag (film-format.ts): never touched
 PM, APPOBJ, EV, PAY, STACK, SENT = 0x62000000, 0x62001000, 0x62002000, 0x62003000, 0x70080000, 0x70000100
 
 
@@ -90,9 +92,10 @@ def main():
 
     for path in ('custom', 'wlan'):
         # Pressed: the entry once, with the model; the flag up; the function as Off; the other registers kept.
-        c.model(); c.flag(0)
+        c.model(); c.flag(0); c.u.mem_write(FORMAT_FLAG, b'\x00')
         got, regs, fr = sleeps(path, 47)
         ok(got == [PM] and c.flag() == 1 and regs[fr] == 0, (path, 'press', got, c.flag(), hex(regs[fr])), 'sleep')
+        ok(c.u.mem_read(FORMAT_FLAG, 1)[0] == 0, (path, 'format flag'), 'format flag kept')
         kept = [k for k in range(13) if k not in (fr, 12)]
         want = {0: 0x2220, 1: 0x2221, 3: 0} if path == 'custom' else {8: 0x2228, 10: 0x222a}
         ok(all(regs[k] == v for k, v in want.items()) and all(regs[k] == 0x1000 + k for k in kept if k not in want) and c.u.reg_read(UC_ARM_REG_SP) == STACK,

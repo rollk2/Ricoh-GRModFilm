@@ -334,8 +334,8 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const fn46 = snapButton || rewindButton;
   const sleepButton = features.sleepButton === true;
   if (sleepButton && !fn46) fail('IIIx sleep button: after Snap DOF or Rewind Film (function 46)');
-  // Its flag is GR3X_SR_LAST, the SR speed's diagnostic byte.
-  if (sleepButton && features.srSpeed?.diag) fail('IIIx sleep button: without the SR speed\'s diagnostic');
+  // Its flag is the last byte of the word 0x55804388, which the AF timing and the film probe (test builds) use.
+  if (sleepButton && (features.afTime || features.filmProbe)) fail('IIIx sleep button: without the AF timing and the film probe');
   const topFunction = sleepButton ? GR3X_SLEEP_FUNCTION : fn46 ? GR3X_DOF_FUNCTION : GR3X_MACRO_FUNCTION;
   const holdButtons = features.holdButtons === true;
   const rollLock = features.rollLock === true;

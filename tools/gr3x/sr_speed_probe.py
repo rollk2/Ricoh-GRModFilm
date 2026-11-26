@@ -51,6 +51,7 @@ def verify(data,manifest):
     SET=0x6304d000
     c.mem_write(SET,bytes(0xb28));c.mem_write(0x55063f34,struct.pack('<I',SET))
     if menu:c.mem_write(SET+0x4f6,bytes([24]))  # 1/20, as T-SR1
+    notes=[]
     def run(at,srv,tv,raw=None):
         c.mem_write(REC+0x7d3,bytes([srv]));c.mem_write(REC+0x4bc,struct.pack('<f',tv))
         if raw is not None:c.mem_write(SET+0x4f6,bytes([raw]))
@@ -61,10 +62,12 @@ def verify(data,manifest):
         c.emu_start(at,LR,count=2000);c.hook_del(h)
         got=[c.reg_read(getattr(reg,'UC_ARM_REG_R%d'%i)) for i in range(12)]
         assert c.reg_read(reg.UC_ARM_REG_PC)==at+4 and c.reg_read(reg.UC_ARM_REG_SP)==STACK and got[4:12]==regs[4:12],(hex(at),[hex(x) for x in got])
+        # The journal (`diag`): every call notes a change only, 60 SR Off, 61 given On, 62 Off by the speed (the list's runs too).
+        code=60 if srv==0 else (61 if got[0] else 62)
+        if not notes or notes[-1]!=code:notes.append(code)
         return got[0]
     third=1/3
     tvs=[tv0-2,tv0-third,tv0,tv0+0.16,tv0+0.18,tv0+third,tv0+0.8,tv0+0.85,tv0+3,12,-5,0.0,-0.0,0.5]
-    notes=[]
     for at in CALLS:
         for srv in (0,1,2):
             for tv in tvs:
@@ -74,8 +77,6 @@ def verify(data,manifest):
                 want,after=rule(srv,f,tv0+1/6,st)
                 got=run(at,srv,tv);assert got==want,(hex(at),srv,tv,st,got)
                 if hyst:assert c.mem_read(STATE,1)[0]==after,(hex(at),srv,tv,st,c.mem_read(STATE,1)[0]);count('state %d->%d'%(st,after))
-                code=60 if srv==0 else (61 if want else 62)
-                if not notes or notes[-1]!=code:notes.append(code)
                 count('on' if want else ('off by speed' if srv else 'off'))
     if menu:
         c.mem_write(0x55063f34,struct.pack('<I',SET))

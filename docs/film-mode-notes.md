@@ -4888,9 +4888,6 @@ La veille existe sur le GR III (Sleep Mode, réglée par délai), mais **aucune 
 
 ### T-SLP1 : « Sleep Mode » sur une touche (2026-11-26, implémenté, émulé, à essayer sur le boîtier)
 
-Sonde de la garde (`guard_probe.py`) : elle ignorait la remise à 1 de l'octet SR `0x4f6` (garde 1.3.5, `srGuard`) et
-échouait sur tout firmware avec cette garde, avant même la veille. Le manifeste dit maintenant `srGuard`, la sonde
-modélise la remise à 1 : 724 appels, aucun écart (2.10).
 - **Réveil** (lu dans le code) : le répartiteur des événements `0x5316d5dc` passe chaque événement au gestionnaire
   d'`AppShutDownModel` (`0x5322ae44`) **avant** les modèles qui exécutent les fonctions des touches. Le gestionnaire compte
   les événements 1 à 0x2d comme activité (`0x5323becc`) ; en veille, une activité réveille (`0x5322a970` : écran rallumé,
@@ -4904,7 +4901,9 @@ modélise la remise à 1 : 724 appels, aucun écart (2.10).
   délai réglé : file d'événements, verrou, état de la visée 2 / 3, occupation, trois états de prise de vue, veille autorisée
   `+9`) puis appelle `0x5322a89c` ; elle marche donc aussi avec Sleep Mode sur Off. Disponible sur Fn, ISO, Drive, WB,
   Macro, les touches Hold et Movie (listes et exécutions de `film-roll.ts`, plafonds de `wb-button.ts` et `hold.ts` à 47).
-- **Le relâchement qui suit** : indicateur `0x558043b6` (octet de diagnostic du SR par vitesse, refusé avec ce diagnostic).
+- **Le relâchement qui suit** : indicateur `0x5580438b` (dernier octet du mot réservé `0x55804388`, utilisé seulement par
+  deux builds de test, `afTime` et `filmProbe`, refusés avec la veille). Le premier T-SLP1 mettait cet indicateur en
+  `0x558043b6`, qui est **aussi le drapeau de « Format = rembobinage »** (`film-format.ts`) : voir la correction ci-dessous.
   Au test d'activité du gestionnaire (`0x5322aed4`), indicateur levé : un relâchement n'est pas une activité et baisse
   l'indicateur, un maintien n'en est pas une, un appui en est une (réveil) et baisse l'indicateur.
 - **Vérifié** : `tools/gr3x/sleep_button_probe.py` (63 cas, GR III 2.10 et GR IIIx 1.60 : appui, relâchement, chemins
@@ -4916,3 +4915,35 @@ modélise la remise à 1 : 724 appels, aucun écart (2.10).
 - **À vérifier sur le boîtier** : la touche éteint l'écran ; son relâchement ne le rallume pas ; n'importe quelle autre
   touche (et la même, appuyée de nouveau) le rallume aussitôt ; rien ne se passe en lecture, menu ou vidéo ; le rouleau et
   les réglages sont intacts après le réveil ; la veille se fait aussi avec Sleep Mode sur Off.
+
+**Correction du 2026-11-26 (nuit), avant tout essai sur le boîtier : octet partagé avec le formatage.** Relu en préparant
+T-SRV1 : `GR3X_FORMAT_FLAG` (`0x558043b6`) est levé quand la carte est formatée, et le crochet du compteur d'écran
+(tâche de l'interface) rembobine alors tous les rouleaux en cours. La veille levait le même octet jusqu'au relâchement
+de la touche : si le compteur était redessiné entre l'appui et le relâchement, ou si le formatage levait l'octet juste
+avant un réveil, la veille pouvait **rembobiner les rouleaux** (et un formatage faire ignorer un relâchement). Le firmware
+T-SLP1 envoyé (`b1c4b048...`) a ce défaut : **ne pas le flasher**. Correction : indicateur propre en `0x5580438b`
+(zone remise à zéro au démarrage, mot `0x55804388` réservé à l'écran de fin et inutilisé hors des deux builds de test).
+Vérifié : `sleep_button_probe.py` (65 cas, nouveau cas « l'octet du formatage reste à 0 ») sur 2.10 et 1.60 ; contre-épreuve
+sur l'ancien T-SLP1 : la sonde échoue ; `format_probe.py`, `hold_probe.py`, `wb_button_probe.py`, `guard_probe.py`,
+`lock_probe.py`, `play_last_probe.py` passent sur le build corrigé (2.10 ; 1.60 : format, hold, guard) ;
+test `core/test/gr3x-sleep.test.ts` (octet distinct, refus avec `afTime` et `filmProbe`).
+
+Sonde de la garde (`guard_probe.py`) : elle ignorait la remise à 1 de l'octet SR `0x4f6` (garde 1.3.5, `srGuard`) et
+échouait sur tout firmware avec cette garde, avant même la veille. Le manifeste dit maintenant `srGuard`, la sonde
+modélise la remise à 1 : 724 appels, aucun écart (2.10).
+
+### T-SRV1 : firmware de diagnostic de la vibration du SR (2026-11-26, construit, émulé, à essayer sur le boîtier)
+
+- **Option de test `srDiag`** (moteur, comme `afTime`) : avec `srSpeed` et le mode pellicule, le journal du SR
+  (`srSpeed.diag` : l'anneau des touches note 60 SR Off, 61 On, 62 Off par la vitesse, à chaque changement) imprimé sur
+  la photo par la date (`grainTag: 'keys'`). Le reste est le build de l'utilisateur (liste des vitesses, icône,
+  hystérésis de 2/3 IL, veille). « Format = rembobinage » est retiré de ce build : le journal utilise son octet
+  `0x558043b6`. Refusé avec `afTime`. La relecture du fichier dit « inconnu », comme pour toute option de test.
+- **Vérifié** : contrôles du conteneur ; `sr_speed_probe.py` (corrigée : elle ne suivait le journal que dans sa première
+  boucle, la liste n'avait jamais été combinée au journal ; elle compte maintenant chaque appel) ; `grain_tag_probe.py`,
+  `hold_probe.py`, `wb_button_probe.py`, `play_last_probe.py`, `rewind_button_probe.py`, `sleep_button_probe.py` passent.
+  `lock_probe.py` échoue sur « toujours masqué », cas connu de la sonde qui suppose « sans vidéo » (absent de ce build).
+- **Protocole** : Shake Reduction sur 1/60 (liste), mode P ou Av, viser en pénombre jusqu'à sentir ou voir la vibration,
+  déclencher aussitôt ; recommencer 3 ou 4 fois, puis une fois en pleine lumière (contrôle). Lire la date imprimée : les 7
+  derniers codes du journal. Des 61 / 62 qui alternent : H1 ou H2 (bascules), on passe à T-SRV2 (décider à mi-course).
+  Aucune alternance pendant une vibration : H3 (autre cause).

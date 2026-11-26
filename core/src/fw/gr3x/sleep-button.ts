@@ -32,8 +32,10 @@ export const GR3X_SLEEP_TEXT = 0x24d;
 /** Its icon without the film mode's icons: the camera's « External Display Settings » function's (31). With them, a crescent
  * moon drawn after them (film-mode-icons.ts, `sleepModeIcon`: the film icons' base + 4). */
 export const GR3X_SLEEP_ICON = 0x16e;
-/** RAM: round 10's zero-filled byte GR3X_SR_LAST, used by the SR speed's diagnostic only (never with this). */
-export const GR3X_SLEEP_FLAG = 0x558043b6;
+/** RAM: the last byte of round 10's zero-filled word 0x55804388 (the End Screen's reserved word), used by two test builds
+ * only (`afTime`, `filmProbe`: never with this). Up to 2026-11-26 (T-SLP1) it was 0x558043b6, the format rewind's flag
+ * (film-format.ts) too: a sleep could have been taken for a format and rewound the rolls. */
+export const GR3X_SLEEP_FLAG = 0x5580438b;
 
 const APP = 0x5320ad88, SHUTDOWN_MODEL = 0x5320afbc, ENTER = 0x5322a89c;
 /** In the event handler: `bl 0x5323becc` (r0 the event's kind, r7 the event, r4 the model). */
