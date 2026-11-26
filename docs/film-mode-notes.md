@@ -4823,3 +4823,28 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
   (`official.decoded`, `B.bin`, `C.bin`, `q400.xmp`), sans lien avec ce changement.
 - Reste à vérifier sur le boîtier (T-SRB1) : après un build 1.3.4 avec une vitesse choisie, flasher le build 1.3.5 sans l'option :
   Shake Reduction affiche On, la main SR est normale, pas de vibration.
+
+## GR III : mode veille (recherche du 2026-11-26, firmware 2.10)
+
+Demande du 2026-11-25 (« il n'y a pas de mode veille sur le GR3, c'est quelque chose qu'on va devoir ajouter »). Recherche
+statique dans le firmware 2.10 (certitude forte, lu dans le code et les tables) : **le GR III a déjà une veille complète**,
+distincte de l'extinction automatique.
+- **Réglage** : `SetupSleep`, accesseur `0x532465ac` (mot `+0x9ac` de l'objet courant ; -1 = Off), à côté de
+  `SetupAutoPowerOff` (`0x532465a0`, `+0x9a4`) et `SetupMonitorPowerSaving` (`0x532465b8`, LCD Auto Dim). Valeurs de la
+  liste (`0x53b58f8c`) : 60, 180, 300, 600, 1800 s, Off, comme l'extinction automatique (`0x53b59130`).
+- **Logique** : `0x5322a38c` (veille possible : réglage différent de Off et état de l'appareil compatible),
+  `0x5322a3f0` (s'endormir maintenant), `0x5322a4a4` (délai en ms = réglage x 1000) ; même structure que l'extinction
+  automatique (`0x5322a4c8`, `0x5322a540`, `0x5322a5f4`). Texte du firmware : « wake up from sleep. ».
+- **Menu** : ligne 21 de l'onglet Setup (descripteur `0x53b36a54`), identifiant `0x020000b6`, dessin `0x53198a88`
+  (titre, texte `0x24d`), choix `0x531b9260` ; page 7 de Setup avec Auto Power Off (ligne 20, `0x020000b5`) et LCD Auto Dim
+  (ligne 22, `0x020000b7`). Texte anglais « Sleep Mode ». Aucune méthode de visibilité sur ces lignes, et aucune de nos
+  fonctions (réglages masqués, verrouillage du rouleau) ne touche `0x020000b6`.
+- Constat de la campagne V1 (B3) : « extinction automatique puis réveil » ne sauvegarde pas ; un réveil ne passe pas par
+  l'allumage (bogue V1 de l'avance du film après une veille).
+
+Conclusion : rien à construire avant une vérification sur le boîtier (une minute) : **Setup, page d'Auto Power Off :
+la ligne « Sleep Mode » est-elle là ? La régler sur 1 min, attendre : l'écran s'éteint-il, et un appui à mi-course le
+rallume-t-il aussitôt ?** Si la ligne est là et que la veille marche, la demande est satisfaite par le boîtier (reste à
+vérifier que le mode pellicule sauvegarde le rouleau avant de s'endormir, voir la remarque « Sauvegarde » plus haut). Si
+la ligne manque ou si la veille ne se déclenche pas, les conditions de `0x5322a38c` (`0x53233874(…, 2)` et l'état
+`0x53548638` 2 ou 3) sont les premières pistes, à étudier dans l'émulateur.
