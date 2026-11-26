@@ -160,3 +160,54 @@ main : nos releases sont faites par `release.yml` sur les étiquettes `v*`. `ios
   recettes, ordre des ratios), puis les fonctions de l'amont une par une ; GR III : non-régression rapide.
 - Application : vérifier dans le navigateur l'affichage des nouvelles capsules GR IV (fonctions de l'amont sur le
   Monochrome) et l'absence de Sensor Shift.
+
+## Étape 3 : fusion de GR Mod 0.9.4 et de `main` (2026-11-26, branche `claude/fusion-0.9`)
+
+Depuis la 0.9.1, l'amont (Maxwooow) a publié 0.9.2, 0.9.3, 0.9.4 et poussé sur `main` (66 commits, `1dd44fc`). Fusion faite,
+30 fichiers en conflit résolus.
+
+### Ce qui arrive
+- **GR IV 1.20 / 1.21** : repères de cadrage (Grid Style : cadres, nombre d'or, zones de sécurité, couleurs), distances en
+  pieds, reconnaissance du sujet pour l'AF photo, balance des blancs par look, halation pour tous les looks, protection de la
+  photo par le bouton de verrouillage du barillet en lecture.
+- **GR III / IIIx (2.10, 2.20, 2.21 / 1.60, 1.70, 1.71)** : AF plus rapide en basse lumière (`dimLightAf`, PR #69 de nils-fl,
+  19 mots du détecteur de pic et de la cadence de l'AF par contraste). Le réglage a été mesuré sur un GR IIIx ; sur le GR III
+  (28 mm) il n'a pas été essayé sur un boîtier.
+- **Application** : bibliothèque de presets, comparaison de deux recettes, export `.cube`, duplication, import de plusieurs
+  presets, annulation des suppressions, vérification de la place sur la carte, inspection d'un firmware, thème clair / sombre.
+
+### Résolutions et décisions
+- **Enregistrement GR IV** : l'amont a pris les bits libres du 4e octet où l'étape 2 rangeait nos fonctions (cadrage, pieds,
+  sujet, octet suivant) et ajouté un 5e octet (balance par look, halation partout, verrouillage). Nos fonctions passent dans
+  ce 5e octet : 8 sans vidéo, 16 boutons, 32 recettes noir et blanc, 64 ordre des ratios (suivi de `n` et des identités).
+  Aucun fichier au format de l'étape 2 n'a été livré.
+- **Recettes noir et blanc et module natif `SP_EXT`** : la balance par look et l'halation partout utilisent une autre
+  compilation du module des réglages des recettes ajoutées (`slotparams-ext-native.ts`). Notre module noir et blanc n'est pas
+  compilé avec elles : la combinaison est refusée (message clair). Le module de base de l'amont n'a pas changé, nos modules
+  noir et blanc 1.20 et 1.21 sont régénérés à l'identique avec les sources fusionnées (`slot_params.c` : `MONO_LOOK` et
+  `SP_EXT` cohabitent).
+- **AF en basse lumière** : notre option expérimentale `afDim` (jamais exposée dans l'application) écrit exactement les mêmes
+  19 mots que `dimLightAf` (comparés un à un). L'option officielle est gardée (capsule de l'application, aussi avec le mode
+  pellicule) ; les deux ensemble sont refusées.
+- **Sensor Shift** reste non proposé (fonction Fn 46 = notre Macro Mode, voir l'étape 2).
+- Ports : notre sonde `sleep_button_probe.py` exclue des copies 2.20 / 2.21 ; tables d'adresses 1.21 réunies (nos 61 adresses
+  en plus de celles de l'amont) ; `gr4-120.patch` réenregistré. Tests de l'interface de l'amont : `onWeb` ajouté à leurs
+  simulations du module `host`, modèle HDF fixé pour les tests d'annulation (GR Mod Film ouvre sur le GR III).
+
+### Vérifications
+- Types : cœur et application sans erreur. Application : 142 tests. `npm run check` : tout est à jour (ports gr3-p2, gr3-p3,
+  gr4-120, gr4-121, tables d'adresses).
+- GR IV 1.20 et 1.21 : nos fonctions avec chacune des nouveautés, puis toutes ensemble (couleur et noir et blanc) :
+  construites, vérifiées, relues ; recettes noir et blanc + balance par look refusées comme prévu. Pas de collision RAM (la
+  reconnaissance du sujet prend 512 octets après la réserve sbrk en déplaçant le début du tas).
+- Sondes 1.21 (fichiers fusionnés, y compris avec toutes les nouveautés) : boutons Hold 48, mots RAM, lignes Hold 260, ADJ Red
+  Filter, sans vidéo, recettes noir et blanc 102.
+- GR III 2.10 et GR IIIx 1.60 : mode pellicule + Sleep + AF en basse lumière construits et relus ; sondes Sleep 63, Hold, WB,
+  verrouillage du rouleau (avec « sans vidéo », qu'elle suppose), dernière photo.
+- Empreintes de référence : GR IV 1.11 et GR III 2.20 / 2.21 / IIIx 1.70 / 1.71 identiques à l'amont ; 1.20 / 1.21 et 2.10 /
+  1.60 réenregistrées (notre programme).
+
+### Reste
+- Essais boîtier (Monochrome et GR III), dont l'AF en basse lumière sur le GR III (28 mm).
+- Les sondes GR IV traduites pour le 1.20 (étape 2) étaient dans un dossier de travail perdu avec l'ancien conteneur : à
+  refaire si l'on veut rejouer les sondes sur le 1.20 (les constructions 1.20 sont vérifiées et relues).
