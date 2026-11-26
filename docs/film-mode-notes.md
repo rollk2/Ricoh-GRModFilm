@@ -4872,3 +4872,16 @@ coupée par défaut).
   où la SR n'est pas utile). Prérequis : identifier l'événement de l'appui à mi-course et du relâchement (pistes : les
   événements `0x35`, `0x89`, `0xaa` du déclencheur vus dans `AdjModeController`, à confirmer avec l'anneau de touches), et
   vérifier que la décision lit bien la vitesse figée (`0x53548930`) à ce moment.
+
+### Précision de l'utilisateur (2026-11-26) et chemin d'une veille à la demande
+La veille existe sur le GR III (Sleep Mode, réglée par délai), mais **aucune fonction de touche ne l'appelle** (le GR IV a
+« Enable Sleep Mode », fonction Fn 36). Recherche statique (certitude forte pour le chemin, à confirmer en émulateur) :
+- Objet de gestion d'énergie : classe `AppShutDownModel` (table de méthodes vers `0x53b4ded8`, gestionnaire des minuteurs
+  `0x5322aaf4`), obtenu par **`0x5320afbc(0x5320ad88())`** (comme en `0x531dccb8`, qui y fixe un délai d'extinction propre par
+  `0x53229918(objet, 0xb4)`).
+- À l'expiration du délai de veille, le gestionnaire appelle **`0x5322a89c(objet)`** : `+0x40 = 1` (en veille), écran coupé par
+  `0x5322a850` si `+0x41` est nul, événement `0x19a` publié (`0x532288b0`), minuteur relancé. L'extinction automatique publie
+  `0x195`. Le gestionnaire ne relance pas la veille si `+0x40` vaut déjà 1.
+- Une fonction de touche « Sleep » : objet = `0x5320afbc(0x5320ad88())` ; si `+0x40` est nul, `0x5322a89c(objet)`. Le réveil reste
+  celui de l'appareil (un appui). À vérifier : le contexte (tâche) des fonctions Fn est celui du gestionnaire ; la veille
+  demandée en visée seulement (pas en lecture, menu ou enregistrement), comme les autres fonctions du mode pellicule.
