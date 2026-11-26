@@ -4927,6 +4927,8 @@ Vérifié : `sleep_button_probe.py` (65 cas, nouveau cas « l'octet du formatage
 sur l'ancien T-SLP1 : la sonde échoue ; `format_probe.py`, `hold_probe.py`, `wb_button_probe.py`, `guard_probe.py`,
 `lock_probe.py`, `play_last_probe.py` passent sur le build corrigé (2.10 ; 1.60 : format, hold, guard) ;
 test `core/test/gr3x-sleep.test.ts` (octet distinct, refus avec `afTime` et `filmProbe`).
+Fichier d'essai **T-SLP2** (mêmes options que T-SLP1 : mode pellicule, WB, Macro, Hold, date, afReset, afDim,
+AF Point, Apply to U, verrou, dernière photo, grain) : `fwdc239b.bin` SHA-256 `7a07b0e215f6397708c40cd0ea5caf134abc047a374aee2f30402af0cd1527e9`.
 
 Sonde de la garde (`guard_probe.py`) : elle ignorait la remise à 1 de l'octet SR `0x4f6` (garde 1.3.5, `srGuard`) et
 échouait sur tout firmware avec cette garde, avant même la veille. Le manifeste dit maintenant `srGuard`, la sonde
@@ -4947,3 +4949,6 @@ modélise la remise à 1 : 724 appels, aucun écart (2.10).
   déclencher aussitôt ; recommencer 3 ou 4 fois, puis une fois en pleine lumière (contrôle). Lire la date imprimée : les 7
   derniers codes du journal. Des 61 / 62 qui alternent : H1 ou H2 (bascules), on passe à T-SRV2 (décider à mi-course).
   Aucune alternance pendant une vibration : H3 (autre cause).
+- Fichier d'essai (options de T-SLP2 plus `srSpeed` et `srDiag`) : `fwdc239b.bin` SHA-256
+  `479506fe663979b16865bc59e318f50c2ae2aacc5ba9c59e4f81237d0093a67c`. Sondes passées sur ce fichier : veille, maintien, WB,
+  garde, dernière photo, Rewind Film, étiquette de grain, SR.
