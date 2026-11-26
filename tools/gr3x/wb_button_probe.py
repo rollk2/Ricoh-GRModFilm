@@ -93,7 +93,8 @@ def verify(data,manifest):
             count('wb open')
     # --- 2. GetEventCustomize's entry and GetEventSwitchWlan's switch with 44 (and 45: Macro Mode).
     macro=manifest.get('macroButton')==True;snap=manifest.get('snapDof')==True or manifest.get('rewindButton')==True;hold=manifest.get('holdButtons')==True
-    MAX=46 if snap else 45 if macro else 44
+    # T-SLP1: Sleep Mode (47, sleep_button_probe.py runs it) after Snap DOF / Rewind Film.
+    MAX=47 if manifest.get('sleepButton')==True else 46 if snap else 45 if macro else 44
     # With Snap DOF (46, snap_dof_probe.py runs it): 47 is the first function read as Off.
     OFF1=MAX+1
     def macro_stub(st):st[MACRO_BODY]=lambda c:p.log.append(('macro',r(c,0),r(c,1),r(c,2))) or 0;return st

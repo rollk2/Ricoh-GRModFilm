@@ -291,7 +291,8 @@ Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre 
   (écran coupé, réveil instantané par un appui). À étudier : ce que fait l'extinction automatique d'origine (Auto Power
   Off), et s'il existe dans le firmware un état d'économie que l'on puisse appeler au lieu d'éteindre.
   **Recherche du 2026-11-26** (`docs/film-mode-notes.md`, « GR III : mode veille ») : le firmware 2.10 a déjà une veille
-  complète et une ligne « Sleep Mode » dans Setup (page d'Auto Power Off). À vérifier d'abord sur le boîtier.
+  complète et une ligne « Sleep Mode » dans Setup. Précision de l'utilisateur : la veille existe, mais aucune touche ne
+  l'appelle. **Fait (T-SLP1, à essayer)** : fonction de touche « Sleep Mode » (47), réveil par n'importe quelle touche.
 - **Fonctions de GR Mod 0.9.x** (amont, 2026-11-24, `docs/amont-0.9-etude.md`) : batterie en %, grilles, Matte Brightness,
   Shadow Correction apprise, grain, Flash TTL, utiles au Monochrome. Fusion à planifier : code réorganisé et mot de RAM
   0x55839018 partagé avec nos boutons Hold.

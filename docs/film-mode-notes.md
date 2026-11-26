@@ -4885,3 +4885,28 @@ La veille existe sur le GR III (Sleep Mode, réglée par délai), mais **aucune 
 - Une fonction de touche « Sleep » : objet = `0x5320afbc(0x5320ad88())` ; si `+0x40` est nul, `0x5322a89c(objet)`. Le réveil reste
   celui de l'appareil (un appui). À vérifier : le contexte (tâche) des fonctions Fn est celui du gestionnaire ; la veille
   demandée en visée seulement (pas en lecture, menu ou enregistrement), comme les autres fonctions du mode pellicule.
+
+### T-SLP1 : « Sleep Mode » sur une touche (2026-11-26, implémenté, émulé, à essayer sur le boîtier)
+- **Réveil** (lu dans le code) : le répartiteur des événements `0x5316d5dc` passe chaque événement au gestionnaire
+  d'`AppShutDownModel` (`0x5322ae44`) **avant** les modèles qui exécutent les fonctions des touches. Le gestionnaire compte
+  les événements 1 à 0x2d comme activité (`0x5323becc`) ; en veille, une activité réveille (`0x5322a970` : écran rallumé,
+  événement `0x19b`, `+0x40 = 0`). Toutes les touches réveillent donc, comme pour la veille d'origine. Événement brut :
+  `+0` type, `+4` pointeur vers l'état (octet 0 : 2 appui, 1 relâchement ; mot `+4` : sous-état, non nul pour un maintien).
+- **Fonction 47 « Sleep Mode »** (`core/src/fw/gr3x/sleep-button.ts`, option `sleepButton`, mise d'office comme Rewind Film
+  avec le mode pellicule et les touches WB / Macro) : texte de l'appareil `0x24d` (« Sleep Mode », 21 langues), icône
+  provisoire `0x16e` (celle de « Réglage affichage ext. »). Elle reprend les conditions du minuteur (`0x5322a3f0` sans le
+  délai réglé : file d'événements, verrou, état de la visée 2 / 3, occupation, trois états de prise de vue, veille autorisée
+  `+9`) puis appelle `0x5322a89c` ; elle marche donc aussi avec Sleep Mode sur Off. Disponible sur Fn, ISO, Drive, WB,
+  Macro, les touches Hold et Movie (listes et exécutions de `film-roll.ts`, plafonds de `wb-button.ts` et `hold.ts` à 47).
+- **Le relâchement qui suit** : indicateur `0x558043b6` (octet de diagnostic du SR par vitesse, refusé avec ce diagnostic).
+  Au test d'activité du gestionnaire (`0x5322aed4`), indicateur levé : un relâchement n'est pas une activité et baisse
+  l'indicateur, un maintien n'en est pas une, un appui en est une (réveil) et baisse l'indicateur.
+- **Vérifié** : `tools/gr3x/sleep_button_probe.py` (63 cas, GR III 2.10 et GR IIIx 1.60 : appui, relâchement, chemins
+  GetEventCustomize et GetEventSwitchWlan, chaque condition seule, autres fonctions, test d'activité, registres) ;
+  contre-épreuve sur un build sans la fonction : la sonde échoue. Sondes rejouées sur les deux appareils : `hold_probe.py`,
+  `wb_button_probe.py` (mises à jour : 47 n'est plus « au-dessus de la dernière »), `lock_probe.py`, `dial_probe.py`,
+  `play_last_probe.py`. `guard_probe.py` échoue aussi sur un build sans la fonction (défaut antérieur de la sonde, non lié).
+  Builds GR III et IIIx complets : contrôles internes, relecture vérifiée.
+- **À vérifier sur le boîtier** : la touche éteint l'écran ; son relâchement ne le rallume pas ; n'importe quelle autre
+  touche (et la même, appuyée de nouveau) le rallume aussitôt ; rien ne se passe en lecture, menu ou vidéo ; le rouleau et
+  les réglages sont intacts après le réveil ; la veille se fait aussi avec Sleep Mode sur Off.

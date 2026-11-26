@@ -556,13 +556,15 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     /** Macro Mode (45): runs the Macro button's own handler as a short press (`press`: (this, events)). */
     macro?: { function: number; text: number; icon: number; press: number };
     /** Snap Focus Distance (46, wb-button.ts): the next distance (`press`), with the Macro button. */
-    snap?: { function: number; text: number; icon: number; press: number; first?: boolean } }, lock = false, hiddenFns: readonly number[] = [],
+    snap?: { function: number; text: number; icon: number; press: number; first?: boolean };
+    /** Sleep Mode (47, sleep-button.ts): the camera's sleep at once (`enter`: every register kept), after Snap DOF / Rewind Film. */
+    sleep?: { function: number; text: number; icon: number; enter: number } }, lock = false, hiddenFns: readonly number[] = [],
   /** T-HSET2: functions that run Off while their Hide Settings box is ticked ([function, bit] of 0x905). */
   dynFns: readonly (readonly [number, number])[] = []) {
   // clamp (T13-FN7): a function above the last one (43 saved by an earlier build) reads as Off.
   // wb (WB button, wb-button.ts): White Balance is 44, so 43 and above 44 read as Off.
-  if (wb && (retake || !clamp || wb.function !== GR3X_FILM_ADVANCE + 2 || (wb.macro && wb.macro.function !== wb.function + 1) || (wb.snap && (!wb.macro || wb.snap.function !== wb.macro.function + 1)))) throw new FirmwareError('unexpected-layout', 'IIIx film advance: White Balance needs the release form');
-  const top = wb?.snap ? wb.snap.function : wb?.macro ? wb.macro.function : wb?.function;
+  if (wb && (retake || !clamp || wb.function !== GR3X_FILM_ADVANCE + 2 || (wb.macro && wb.macro.function !== wb.function + 1) || (wb.snap && (!wb.macro || wb.snap.function !== wb.macro.function + 1)) || (wb.sleep && (!wb.snap || wb.sleep.function !== wb.snap.function + 1)))) throw new FirmwareError('unexpected-layout', 'IIIx film advance: White Balance needs the release form');
+  const top = wb?.sleep ? wb.sleep.function : wb?.snap ? wb.snap.function : wb?.macro ? wb.macro.function : wb?.function;
   const high = (r: string) => wb ? `cmp ${r},#${top};movhi ${r},#0;cmp ${r},#${GR3X_FILM_ADVANCE + 1};moveq ${r},#0;` : clamp ? `cmp ${r},#${GR3X_FILM_ADVANCE + 1};movhs ${r},#0;` : '';
   const fail = (what: string) => { throw new FirmwareError('unexpected-layout', `IIIx film advance: ${what}`); };
   const free = (at: number) => { if (p.sites.some(s => s.address === at)) throw new FirmwareError('unexpected-instruction', `IIIx film advance: ${at.toString(16)} already patched`); };
@@ -574,7 +576,7 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     free(at); if (p.u32(at) !== w) fail(`instruction at ${at.toString(16)}`);
   }
   const entries: Record<string, number> = {};
-  const added = retake ? [GR3X_FILM_ADVANCE, GR3X_FILM_RETAKE] : wb ? (wb.snap?.first ? [GR3X_FILM_ADVANCE, wb.snap.function, wb.function, ...(wb.macro ? [wb.macro.function] : [])] : [GR3X_FILM_ADVANCE, wb.function, ...(wb.macro ? [wb.macro.function] : []), ...(wb.snap ? [wb.snap.function] : [])]) : [GR3X_FILM_ADVANCE];
+  const added = retake ? [GR3X_FILM_ADVANCE, GR3X_FILM_RETAKE] : wb ? (wb.snap?.first ? [GR3X_FILM_ADVANCE, wb.snap.function, wb.function, ...(wb.macro ? [wb.macro.function] : []), ...(wb.sleep ? [wb.sleep.function] : [])] : [GR3X_FILM_ADVANCE, wb.function, ...(wb.macro ? [wb.macro.function] : []), ...(wb.snap ? [wb.snap.function] : []), ...(wb.sleep ? [wb.sleep.function] : [])]) : [GR3X_FILM_ADVANCE];
   const table = p.append(Uint8Array.from([...official, ...added]));
   entries.filmFnTable = table;
   for (const at of [GR3X_FN_LOOP_LOW, GR3X_FN_LOOP_LOW + 4, GR3X_FN_LOOP_END]) free(at);
@@ -594,9 +596,9 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     p.patch(end, end_word, end_word + added.length, `film advance: the Wireless list has ${count + added.length} entries`);
   });
   const retakeText = retake ? `cmp r1,#${GR3X_FILM_RETAKE};movweq r0,#${GR3X_RETAKE_TEXT};bxeq lr;` : '';
-  const M = wb?.macro, N = wb?.snap;
-  const wbText = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.text};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.text};bxeq lr;` : ''}${N ? `cmp r1,#${N.function};movweq r0,#${N.text};bxeq lr;` : ''}` : '';
-  const wbIcon = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.icon};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.icon};bxeq lr;` : ''}${N ? `cmp r1,#${N.function};movweq r0,#${N.icon};bxeq lr;` : ''}` : '';
+  const M = wb?.macro, N = wb?.snap, Z = wb?.sleep;
+  const wbText = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.text};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.text};bxeq lr;` : ''}${N ? `cmp r1,#${N.function};movweq r0,#${N.text};bxeq lr;` : ''}${Z ? `cmp r1,#${Z.function};movweq r0,#${Z.text};bxeq lr;` : ''}` : '';
+  const wbIcon = wb ? `cmp r1,#${wb.function};movweq r0,#${wb.icon};bxeq lr;${M ? `cmp r1,#${M.function};movweq r0,#${M.icon};bxeq lr;` : ''}${N ? `cmp r1,#${N.function};movweq r0,#${N.icon};bxeq lr;` : ''}${Z ? `cmp r1,#${Z.function};movweq r0,#${Z.icon};bxeq lr;` : ''}` : '';
   entries.filmFnText = p.code(`${high('r1')}cmp r1,#${GR3X_FILM_ADVANCE};movweq r0,#${text};bxeq lr;${retakeText}${wbText}cmp r1,#0;b #${GR3X_FN_TEXT + 4};`);
   p.patch(GR3X_FN_TEXT, 0xe3510000, branchWord(GR3X_FN_TEXT, entries.filmFnText), 'film advance: its text');
   const retakeIcon = retake ? `cmp r1,#${GR3X_FILM_RETAKE};movweq r0,#${icon};bxeq lr;` : '';
@@ -629,7 +631,10 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
   const wbWlan = wb ? `cmp r6,#${wb.function};bne ${M ? 'mw' : 'go'};push {r0,r1,r2,r3,ip,lr};mov r0,r8;bl #${wb.open};pop {r0,r1,r2,r3,ip,lr};mov r6,#0;${macroWlan}` : '';
   // hidden-settings.ts: a hidden setting's function, still on a button, runs Off.
   const gone = (r: string) => hiddenFns.map(f => `cmp ${r},#${f};moveq ${r},#0;`).join('') + gr3xHideBitsOff(r, 'r0', dynFns, `hg${r}`);
-  entries.filmFnCustom = p.code(`${gone('r2')}${lock ? lockFunction('r2', 'lk') : ''}${high('r2')}cmp r2,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'native'};${advance('kept')}mov r2,#0;${retake ? `b native;other:${retakeCustom}` : wb ? `b native;wb:${wbCustom}` : ''}native:mov ip,sp;b #${GR3X_FN_CUSTOM + 4};`);
+  // Sleep Mode (47), pressed (r3 = 0): the camera's sleep, then as Off.
+  const sleepCustom = Z ? `cmp r2,#${Z.function};bne nosl;cmp r3,#0;bne sloff;push {lr};bl #${Z.enter};pop {lr};sloff:mov r2,#0;b native;nosl:` : '';
+  const sleepWlan = Z ? `cmp r6,#${Z.function};bne nosw;push {lr};bl #${Z.enter};pop {lr};mov r6,#0;b go;nosw:` : '';
+  entries.filmFnCustom = p.code(`${gone('r2')}${lock ? lockFunction('r2', 'lk') : ''}${sleepCustom}${high('r2')}cmp r2,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'native'};${advance('kept')}mov r2,#0;${retake ? `b native;other:${retakeCustom}` : wb ? `b native;wb:${wbCustom}` : ''}native:mov ip,sp;b #${GR3X_FN_CUSTOM + 4};`);
   p.patch(GR3X_FN_CUSTOM, 0xe1a0c00d, branchWord(GR3X_FN_CUSTOM, entries.filmFnCustom), 'film advance: Fn, ISO and Drive buttons');
   // 'cancel' (T13-FN6): the capture machine's Retake, when the flag is up, takes the sequence for its
   // first frame (+ 4 = 1), so it ends empty (state 0) as when the first frame is retaken; the flag
@@ -641,7 +646,7 @@ export function installGr3xFilmAdvanceFn(p: Gr3xFnProgram, text: number, retake:
     p.patch(GR3X_MACHINE_RETAKE, 0xe1a0c00d, branchWord(GR3X_MACHINE_RETAKE, entries.filmCancelMachine), 'film retake: the whole frame is cancelled');
   }
   // In GetEventSwitchWlan's body: ip kept around the lock.
-  entries.filmFnWlan = p.code(`${gone('r6')}${lock ? `push {ip};${lockFunction('r6', 'lk')}pop {ip};` : ''}${high('r6')}cmp r6,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'go'};${advance('kept')}mov r6,#0;${retake ? `b go;other:${retakeWlan}` : wb ? `b go;wb:${wbWlan}` : ''}go:cmp r6,#0x29;b #${GR3X_FN_WLAN + 4};`);
+  entries.filmFnWlan = p.code(`${gone('r6')}${lock ? `push {ip};${lockFunction('r6', 'lk')}pop {ip};` : ''}${sleepWlan}${high('r6')}cmp r6,#${GR3X_FILM_ADVANCE};bne ${retake ? 'other' : wb ? 'wb' : 'go'};${advance('kept')}mov r6,#0;${retake ? `b go;other:${retakeWlan}` : wb ? `b go;wb:${wbWlan}` : ''}go:cmp r6,#0x29;b #${GR3X_FN_WLAN + 4};`);
   p.patch(GR3X_FN_WLAN, 0xe3560029, branchWord(GR3X_FN_WLAN, entries.filmFnWlan), 'film advance: Movie/Wireless buttons');
   return entries;
 }

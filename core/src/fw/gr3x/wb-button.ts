@@ -168,13 +168,15 @@ export function installGr3xMacroPress(p: Gr3xWbProgram) {
  * `fnLines`).
  */
 export function installGr3xWbButton(p: Gr3xWbProgram, lineText: number, customize: number, macroText?: number, snap = false,
-  hold?: readonly { text: number; setting: number }[]) {
+  hold?: readonly { text: number; setting: number }[],
+  /** The highest function (sleep-button.ts: 47); by default the last of the WB / Macro / Snap DOF ones. */
+  top?: number) {
   const free = (at: number) => { if (p.sites.some(s => s.address === at)) fail(`${at.toString(16)} already patched`); };
   const expect = (at: number, w: number, what: string) => { free(at); if (p.u32(at) >>> 0 !== w >>> 0) fail(what); };
   const macro = macroText !== undefined;
   if (snap && !macro) fail('Snap DOF with the Macro button');
   if (hold && (!macro || hold.length !== GR3X_HOLD_LINE_IDS.length)) fail('Hold lines with the Macro button, one per key');
-  const max = snap ? GR3X_DOF_FUNCTION : macro ? GR3X_MACRO_FUNCTION : GR3X_WB_FUNCTION;
+  const max = top ?? (snap ? GR3X_DOF_FUNCTION : macro ? GR3X_MACRO_FUNCTION : GR3X_WB_FUNCTION);
   // The stored byte r (0 or above max: the line's own function, branch to `label`) → the function.
   const choose = (r: string, own: number, label: string) => `cmp ${r},#0;beq ${label};cmp ${r},#${max};bhi ${label};cmp ${r},#${own};moveq ${r},#0;`;
   const record = (label: string) => `movw ip,#${lo(RECORD_POINTER)};movt ip,#${hi(RECORD_POINTER)};ldr ip,[ip];cmp ip,#0x40000000;blo ${label};cmp ip,#0xc0000000;bhs ${label};tst ip,#3;bne ${label};`;
