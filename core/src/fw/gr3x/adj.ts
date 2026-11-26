@@ -55,6 +55,7 @@ import { GR3X_SETTINGS_ID, GR3X_SETTINGS_LOAD_ID, GR3X_SETTINGS_LOAD_TEXTS, GR3X
 import { GR3X_HSET_AFTER, GR3X_HSET_ID, GR3X_HSET_NAMES, GR3X_MEMORY_ID, gr3xHideMenuRead, installGr3xHideMenu } from './hide-menu';
 import { gr3xHideMenuPlan, installGr3xHideAdjLists, gr3xHiddenPlan, installGr3xHiddenAdjLists, installGr3xHiddenValues, type Gr3xHiddenSettings } from './hidden-settings';
 import { GR3X_FILM_ADVANCE_NAMES, GR3X_FILM_ROLL_MODE_NAMES, installGr3xFilmAdvanceFn, installGr3xFilmRoll, installGr3xRetakeProbe, installGr3xFilmMessage, GR3X_FILM_NEW_ROLL_NAMES, GR3X_MESSAGE_CLEAR, GR3X_CANCEL_CLEAR, GR3X_REVIEW_ARM_CLEAR, GR3X_ADVANCE_ONCE_CLEAR, GR3X_FILM_REWIND_NAMES, GR3X_FILM_REWIND_QUESTIONS, installGr3xFilmRewind, GR3X_FILM_REWIND_ID, GR3X_FOLDER_DIALOG_ID, GR3X_REWIND_MODE, GR3X_MENU_IDS, installGr3xMenuRebuild, installGr3xHideMovieTab, installGr3xBlockMovie, installGr3xHideLines, installGr3xFilmFileNames, installGr3xAfReset, installGr3xAfPointMemory, GR3X_AF_POINT_NAMES, GR3X_MEMORY_U_NAMES, GR3X_HIDDEN_LINES, GR3X_FILM_TAB_NAMES, GR3X_MOVIE_ENTRY_IMAGE, GR3X_MOVIE_TAB, GR3X_FILM_ADVANCE_ICON, GR3X_FN_STILL_MOVIE, GR3X_FN_FRAMERATE, GR3X_SIDE_BUTTON_TEXTS, GR3X_SIDE_BUTTON_NAMES, GR3X_ROLL_LOCKED_LINES, installGr3xRollLockAdj } from './film-roll';
+import { gr3xDimLightAfOffered, installGr3xDimLightAf } from './dimaf';
 import { adr, byRelease } from './target';
 
 export const GR3X_ADJ = {
@@ -223,6 +224,8 @@ export interface Gr3xAdjFeatures {
   /** Round 8: the Image Control order and hidden looks (look-layout.ts; the camera's order with
    * nothing hidden is the same as none). */
   lookLayout?: Gr3xLookLayout;
+  /** Dim-light AF: nineteen words of the contrast AF (dimaf.ts). GR III / IIIx. */
+  dimLightAf?: boolean;
 }
 /** How the image-control layer builds on this one (not recorded: it follows from the films). */
 export interface Gr3xAdjLayer {
@@ -368,6 +371,10 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   const geometry = await buildGr3xExperiment(raw, ratioMenu);
   const menu = geometry.menu, count = menu.length, spelled = count === 9 ? 'nine' : String(count);
   const { decoded, profile } = await openGr3xOfficial(raw);
+  const dimLightAf = features.dimLightAf === true;
+  // GR Mod Film's experimental afDim (af-dim.ts) writes the same nineteen words (convergence step 3, docs/fusion-0.9.md).
+  if (dimLightAf && features.afDim) fail('IIIx dim-light AF: afDim and dimLightAf are the same setting, one or the other');
+  if (dimLightAf && !gr3xDimLightAfOffered(profile)) fail('IIIx dim-light AF: GR III / IIIx only');
   const p = GR3X_PROFILE, m = GR3X_ADJ;
   const rtos = decoded.subarray(p.rtosOffset, p.rtosOffset + p.rtosLength);
   const iconSection = sectionsOf(decoded).find(s => s.name === 'ICONBIN');
@@ -725,6 +732,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
   // T-HSET3: ADJ Mode Setting's lists follow Hide Settings' boxes.
   const hsAdjEntries = hsPlan ? installGr3xHideAdjLists({ code, patch, u32: word, sites }, hsPlan.adj) : {};
   const fullRawEntries = installGr3xFullFrameRaw(program);
+  if (dimLightAf) installGr3xDimLightAf(program);
   const endScreen = pictureSub ? installGr3xEndScreen({ code, append, patch, word }, { ...endIds,
     choices: pictures.map(x => x.id!), resources: pictures.map((_, k) => GR3X_JPEG_TABLE_COUNT + k), ...(date8 ? { modeByte: true } : {}),
     ...(round10 ? { r10: { sites, u32: word } } : {}) }) : undefined;
@@ -798,7 +806,7 @@ export async function buildGr3xAdjResearch(raw: Uint8Array, ratioMenu: readonly 
     adjSoftFocus: softFocus,
     dateImprint: dateImprint ? { ...dateIds, form: dateForm, ...(round7 ? { iconOff: 296, iconOn: 297 } : {}), ...(lookNames ? { names: lookNames } : {}) } : undefined,
     round7,
-    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afDim ? { afDim: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rewindButton ? { rewindButton: true } : {}), ...(sleepButton ? { sleepButton: true } : {}), ...(features.fnDial ? { fnDial: features.fnDial } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.playProbe ? { playProbe: features.playProbe } : {}), ...(features.playLast ? { playLast: features.playLast } : {}), ...(features.srSpeed ? { srSpeed: { ...features.srSpeed } } : {}), ...(features.formatRewind ? { formatRewind: features.formatRewind } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
+    ...(round8 ? { round8 } : {}), ...(round9 ? { round9 } : {}), ...(round10 ? { round10 } : {}), ...(dimLightAf ? { dimLightAf } : {}), ...(filmProbe ? { filmProbe: features.filmProbe } : {}), ...(filmRoll ? { filmRoll: features.filmRoll } : {}), ...(features.filmMode ? { filmCodes } : {}), ...(dateHidden ? { dateHidden } : {}), ...(features.afReset ? { afReset: true } : {}), ...(features.afDim ? { afDim: true } : {}), ...(features.afPoint ? { afPoint: true } : {}), ...(memoryU ? { memoryU: true } : {}), ...(wbButton ? { wbButton: true } : {}), ...(macroButton ? { macroButton: true } : {}), ...(snapButton ? { snapDof: true } : {}), ...(holdButtons ? { holdButtons: true } : {}), ...(rewindButton ? { rewindButton: true } : {}), ...(sleepButton ? { sleepButton: true } : {}), ...(features.fnDial ? { fnDial: features.fnDial } : {}), ...(rollLock ? { rollLock: true } : {}), ...(features.playProbe ? { playProbe: features.playProbe } : {}), ...(features.playLast ? { playLast: features.playLast } : {}), ...(features.srSpeed ? { srSpeed: { ...features.srSpeed } } : {}), ...(features.formatRewind ? { formatRewind: features.formatRewind } : {}), ...(hiddenPlan ? { hiddenSettings: { ...features.hiddenSettings } } : {}), ...(features.grainTest ? { grainTest: [...features.grainTest] } : {}), ...(features.grain ? { grain: true } : {}), ...(features.grainSoftware ? { grainSoftware: true } : features.grain ? { grainNative: true } : {}), ...(features.grainTag ? { grainTag: features.grainTag } : {}), ...(features.dialProbe ? { dialProbe: features.dialProbe } : {}), ...(features.rearDialOff ? { rearDialOff: true } : {}),
     ...(round8 && !layer.looksFollow && features.lookLayout && !isGr3xFactoryLayout(features.lookLayout, 0) ? { lookLayout: { order: [...features.lookLayout.order], hidden: [...features.lookLayout.hidden] } } : {}),
     pictures: pictureCount ? (pictureSub ? { form: 'submenu' as const, count: pictureCount, ...endIds, names: pictures.map((_, k) => endIds.factoryText + 1 + k),
       factoryIcons: [...endIds.factoryIcons], icons: [...endIds.icons], choices: pictures.map(x => x.id!) }

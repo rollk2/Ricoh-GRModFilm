@@ -28,7 +28,8 @@
  * its lighter colour ('light'); bit 2, the battery percentage (`battery.ts`); bit 3, custom grid
  * lines (`grid.ts`), followed by two bytes, the 3x3 and the 4x4 style's lines (line i in bit i);
  * bit 4, pre-flash (TTL) metering for a GF-2 class flash (`flttl.ts`); bit 5, movie AF driven by the
- * phase data (`videoaf.ts`); bit 6, the learned auto white balance (`awb2.ts`).
+ * phase data (`videoaf.ts`); bit 6, the learned auto white balance (`awb2.ts`). Fourth byte (after the third and the
+ * grid's two bytes, when not zero): bit 6, subject recognition for photo AF (`subjectaf.ts`).
  * A build without them reads as before; earlier programs do not take a record with
  * this byte set.
  *
@@ -43,6 +44,7 @@ import { MAX_CUSTOM_RATIOS, OFFICIAL_ICONBIN_LENGTH, OFFICIAL_RTOS_LENGTH } from
 import type { AspectResult, BuildRevision, ExtensionFeatures, RatioSpec } from './build';
 import { MAX_EXTRA_SLOTS } from './slots';
 import { gridByte, gridLinesOf, isCameraGrid } from './grid';
+import { decodeFramingGuides, encodeFramingGuides, framingValues } from './framing';
 import { ADJ_SLOTS_MAX } from './adjslots';
 import { RES_ANCHOR, SHUTDOWN_MAX_PICTURES, shutdownFiles } from './shutdown';
 import { readRes, resRecords } from './res';
@@ -120,17 +122,31 @@ const FEATURE4_CONSTANT_LIGHT = 1;
 const FEATURE4_SENSOR_SHIFT = 2;
 const FEATURE4_MOVIE_4K = 4;
 const FEATURE4_MOVIE_SR = 8;
+/** Fourth feature byte: bit 4, framing guides (`framing.ts`); after the fourth byte, u16 length and the guides' bytes. */
+const FEATURE4_FRAMING = 16;
+/** Fourth feature byte: bit 5, distances in feet (`units.ts`). */
+const FEATURE4_DISTANCE_FEET = 32;
+/** Fourth feature byte: bit 6, subject recognition for photo AF (`subjectaf.ts`). */
+const FEATURE4_SUBJECT_AF = 64;
+/** Fourth feature byte: bit 7, a fifth feature byte follows (after the framing guides' bytes). */
+const FEATURE4_MORE = 128;
+/** Fifth feature byte: bit 0, white balance per look (`slots.ts`, the slot-parameters module with SP_WB; needs added slots). */
+const FEATURE5_WB_PER_LOOK = 1;
+/** Fifth feature byte: bit 1, halation for every look (`halation-all.ts`; needs added slots). */
+const FEATURE5_HALATION_ALL = 2;
+/** Fifth feature byte: bit 2, the mode dial's lock button protects the picture in single-picture playback (`lockprotect.ts`). */
+const FEATURE5_LOCK_PROTECT = 4;
 /**
- * Fourth feature byte, GR Mod Film's bits (convergence step 2, docs/fusion-0.9.md): bit 4 no movie (`nomovie.ts`), bit 5 the
- * buttons' functions (Fn lists, Hold lines, Macro Button, ADJ Red Filter), bit 6 the added slots are black-and-white recipes
- * (`slots.ts` `mono`), bit 7 the Aspect Ratio menu order, then `u8 n` and its n identities after the fourth byte. GR Mod Film
+ * Fifth feature byte, GR Mod Film's bits (convergence step 3, docs/fusion-0.9.md): bit 3 no movie (`nomovie.ts`), bit 4 the
+ * buttons' functions (Fn lists, Hold lines, Macro Button, ADJ Red Filter), bit 5 the added slots are black-and-white recipes
+ * (`slots.ts` `mono`), bit 6 the Aspect Ratio menu order, then `u8 n` and its n identities after the fifth byte. GR Mod Film
  * 1.2 .. 1.3.5 wrote the first three in the second byte (bits 5..7, which GR Mod 0.9 gave to its own additions since) and
  * the order in a third byte of its own: their files are recognised by their frozen program (`fw/gr4v121film`).
  */
-const FEATURE4_NO_MOVIE = 16;
-const FEATURE4_CUSTOM_BUTTONS = 32;
-const FEATURE4_MONO_RECIPES = 64;
-const FEATURE4_RATIO_ORDER = 128;
+const FEATURE5_NO_MOVIE = 8;
+const FEATURE5_CUSTOM_BUTTONS = 16;
+const FEATURE5_MONO_RECIPES = 32;
+const FEATURE5_RATIO_ORDER = 64;
 
 /**
  * `u8 count, then per ratio: u8 length + ratio text, u8 length + name`, (revision 3: `u8 features`),
@@ -163,9 +179,13 @@ function encodeRecord(specs: readonly RatioSpec[], revision: BuildRevision, feat
   if (tone !== 'dark' && !features.ratioShade) fail('internal', 'a shade tone needs the live-view shade');
   if (features.ratioShade && specs.length === 0) fail('internal', 'the live-view shade needs an added ratio');
   const f3 = (features.ratioShade ? FEATURE3_RATIO_SHADE : 0) | (tone === 'light' ? FEATURE3_SHADE_LIGHT : 0) | (features.batteryPercent ? FEATURE3_BATTERY : 0) | (features.customGrid ? FEATURE3_CUSTOM_GRID : 0) | (features.flashTtl ? FEATURE3_FLASH_TTL : 0) | (features.videoAf ? FEATURE3_VIDEO_AF : 0) | (features.awbLearn ? FEATURE3_AWB_LEARN : 0) | (features.movieExposure ? FEATURE3_MOVIE_EXPOSURE : 0);
-  const f4 = (features.constantLight ? FEATURE4_CONSTANT_LIGHT : 0) | (features.sensorShift ? FEATURE4_SENSOR_SHIFT : 0) | (features.movie4k ? FEATURE4_MOVIE_4K : 0) | (features.movieSr ? FEATURE4_MOVIE_SR : 0)
-    | (features.noMovie ? FEATURE4_NO_MOVIE : 0) | (features.customButtons ? FEATURE4_CUSTOM_BUTTONS : 0) | (features.monoRecipes ? FEATURE4_MONO_RECIPES : 0)
-    | (features.ratioOrder ? FEATURE4_RATIO_ORDER : 0);
+  const f4own = (features.constantLight ? FEATURE4_CONSTANT_LIGHT : 0) | (features.sensorShift ? FEATURE4_SENSOR_SHIFT : 0) | (features.movie4k ? FEATURE4_MOVIE_4K : 0) | (features.movieSr ? FEATURE4_MOVIE_SR : 0) | (features.framing ? FEATURE4_FRAMING : 0) | (features.distanceFeet ? FEATURE4_DISTANCE_FEET : 0) | (features.subjectAf ? FEATURE4_SUBJECT_AF : 0);
+  if (features.wbPerLook && slots === 0) fail('internal', 'white balance per look needs added slots');
+  if (features.halationAll && slots === 0) fail('internal', 'halation for every look needs added slots');
+  const f5 = (features.wbPerLook ? FEATURE5_WB_PER_LOOK : 0) | (features.halationAll ? FEATURE5_HALATION_ALL : 0) | (features.lockProtect ? FEATURE5_LOCK_PROTECT : 0)
+    | (features.noMovie ? FEATURE5_NO_MOVIE : 0) | (features.customButtons ? FEATURE5_CUSTOM_BUTTONS : 0) | (features.monoRecipes ? FEATURE5_MONO_RECIPES : 0)
+    | (features.ratioOrder ? FEATURE5_RATIO_ORDER : 0);
+  const f4 = f4own | (f5 ? FEATURE4_MORE : 0);
   const order = features.ratioOrder;
   if (order && (revision < 3 || order.length < 4 || order.length > 255 || order.some((v) => !(Number.isInteger(v) && v >= 0 && v < 256)))) fail('internal', 'ratio order cannot be recorded');
   if (features.brightAuto || features.hdrGainMap || (features.adjSlots && features.adjSlots > 5) || features.exposurePreview || features.softFocusMenu || features.shadowLearn || features.filmGrain || f3 || f4) {
@@ -178,6 +198,11 @@ function encodeRecord(specs: readonly RatioSpec[], revision: BuildRevision, feat
     if (f3 || f4) bytes.push(f3);
     if (features.customGrid) bytes.push(gridByte(features.customGrid.g3), gridByte(features.customGrid.g4));
     if (f4) bytes.push(f4);
+    if (features.framing) {
+      const g = encodeFramingGuides(features.framing);
+      bytes.push(g.length & 0xff, g.length >>> 8, ...g);
+    }
+    if (f5) bytes.push(f5);
     if (order) bytes.push(order.length, ...order);
   }
   while (bytes.length % 4) bytes.push(0);
@@ -310,25 +335,48 @@ function parseRecord(rtos: Uint8Array): ParsedRecord | null {
         const f4 = p < rec.length ? rec[p] : 0;
         if (f4 !== 0) {
           p++;
-          if ((f4 & ~(FEATURE4_CONSTANT_LIGHT | FEATURE4_SENSOR_SHIFT | FEATURE4_MOVIE_4K | FEATURE4_MOVIE_SR | FEATURE4_NO_MOVIE | FEATURE4_CUSTOM_BUTTONS | FEATURE4_MONO_RECIPES | FEATURE4_RATIO_ORDER)) !== 0) return null;
-          if (f4 & FEATURE4_NO_MOVIE) features.noMovie = true;
-          if (f4 & FEATURE4_CUSTOM_BUTTONS) features.customButtons = true;
-          if (f4 & FEATURE4_MONO_RECIPES) features.monoRecipes = true;
-          if (f4 & FEATURE4_RATIO_ORDER) {
-            if (p >= rec.length) return null;
-            const n = rec[p++];
-            if (!(n >= 4) || p + n > rec.length) return null;
-            features.ratioOrder = [...rec.subarray(p, p + n)];
-            p += n;
-          }
+          if ((f4 & ~(FEATURE4_CONSTANT_LIGHT | FEATURE4_SENSOR_SHIFT | FEATURE4_MOVIE_4K | FEATURE4_MOVIE_SR | FEATURE4_FRAMING | FEATURE4_DISTANCE_FEET | FEATURE4_SUBJECT_AF | FEATURE4_MORE)) !== 0) return null;
           if (f4 & FEATURE4_CONSTANT_LIGHT) features.constantLight = true;
           if (f4 & FEATURE4_SENSOR_SHIFT) features.sensorShift = true;
           if (f4 & FEATURE4_MOVIE_4K) features.movie4k = true;
           if (f4 & FEATURE4_MOVIE_SR) features.movieSr = true;
+          if (f4 & FEATURE4_DISTANCE_FEET) features.distanceFeet = true;
+          if (f4 & FEATURE4_SUBJECT_AF) features.subjectAf = true;
+          if (f4 & FEATURE4_FRAMING) {
+            if (p + 2 > rec.length || features.customGrid) return null;
+            const n = rec[p] | (rec[p + 1] << 8);
+            if (p + 2 + n > rec.length) return null;
+            const g = decodeFramingGuides(rec.slice(p + 2, p + 2 + n));
+            if (!g || framingValues(g).length === 0) return null;
+            features.framing = g;
+            p += 2 + n;
+          }
+          if (f4 & FEATURE4_MORE) {
+            if (p >= rec.length) return null;
+            const f5 = rec[p++];
+            if (f5 === 0 || (f5 & ~(FEATURE5_WB_PER_LOOK | FEATURE5_HALATION_ALL | FEATURE5_LOCK_PROTECT | FEATURE5_NO_MOVIE | FEATURE5_CUSTOM_BUTTONS | FEATURE5_MONO_RECIPES | FEATURE5_RATIO_ORDER)) !== 0) return null;
+            if (f5 & FEATURE5_NO_MOVIE) features.noMovie = true;
+            if (f5 & FEATURE5_CUSTOM_BUTTONS) features.customButtons = true;
+            if (f5 & FEATURE5_MONO_RECIPES) features.monoRecipes = true;
+            if (f5 & FEATURE5_RATIO_ORDER) {
+              if (p >= rec.length) return null;
+              const n = rec[p++];
+              if (!(n >= 4) || p + n > rec.length) return null;
+              features.ratioOrder = [...rec.subarray(p, p + n)];
+              p += n;
+            }
+            if ((f5 & FEATURE5_HALATION_ALL) && extraSlots === 0) return null;
+            if (f5 & FEATURE5_HALATION_ALL) features.halationAll = true;
+            if (f5 & FEATURE5_LOCK_PROTECT) features.lockProtect = true;
+            if (f5 & FEATURE5_WB_PER_LOOK) {
+              if (extraSlots === 0) return null;
+              features.wbPerLook = true;
+            }
+          }
         } else if (f3 === 0) return null;
       }
     }
-    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.exposurePreview && !features.brightAuto && !features.batteryPercent && !features.customGrid && !features.shadowLearn && !features.filmGrain && !features.flashTtl && !features.videoAf && !features.awbLearn && !features.movieExposure && !features.sensorShift && !features.movie4k && !features.movieSr && !features.constantLight && !features.noMovie && !features.customButtons && !features.ratioOrder) return null;
+    if (count === 0 && !features.adjSoftFocus && !features.dateStamp && !features.monoUnlock && !features.guard && extraSlots === 0 && shutdownPictures === 0 && !features.lookLayout && !features.directFlash && !features.hdrGainMap && !features.adjSlots && !features.exposurePreview && !features.brightAuto && !features.batteryPercent && !features.customGrid && !features.framing && !features.shadowLearn && !features.filmGrain && !features.flashTtl && !features.videoAf && !features.awbLearn && !features.movieExposure && !features.sensorShift && !features.movie4k && !features.movieSr && !features.constantLight && !features.distanceFeet && !features.wbPerLook && !features.halationAll && !features.subjectAf && !features.lockProtect && !features.noMovie && !features.customButtons && !features.ratioOrder) return null;
   }
   for (; p < rec.length; p++) if (rec[p] !== 0) return null;
   return { specs: out, features, extraSlots, shutdownPictures };

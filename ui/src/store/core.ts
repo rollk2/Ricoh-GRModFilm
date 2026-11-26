@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { CAMERA_GRID, card, GR3X_FILM_IDS, GRID_LINE_COUNT, LANGS } from '@grmod/core';
-import type { CameraModel, CustomGrid, FirmwareInfo, FirmwareSummary, LangCode, PresetResult, RatioPreview, ShadeTone, SlotId } from '@grmod/core';
+import { CAMERA_GRID, card, defaultFramingGuides, GR3X_FILM_IDS, GRID_LINE_COUNT, LANGS } from '@grmod/core';
+import type { CameraModel, CustomGrid, FirmwareInfo, FramingGuides, FirmwareSummary, LangCode, PresetResult, RatioPreview, ShadeTone, SlotId } from '@grmod/core';
 
 /** How dark the live-view shade is: black at 50 % or grey at 25 % (core's ShadeTone). */
 export type { ShadeTone };
@@ -9,7 +9,9 @@ import { HostError } from '../host';
 import type { ParkedEntry, Volume } from '../host';
 import { t, uiLangPref } from '../i18n';
 import type { Crop } from '../pixels';
+import type { InspectView } from './inspect';
 import { SUPPORTED_LINES } from '../releases.gen';
+import type { LibraryEntry } from './library';
 
 /** `extras`: the additions (switches, the custom grid); 0.8.16 and earlier had a page of its own for the grid (`grid`). */
 export type Page = 'ic' | 'ratio' | 'extras' | 'wall' | 'community' | 'copies';
@@ -111,16 +113,24 @@ export interface State {
   battery: boolean;
   /** GR IV: custom grid lines (`gridLines`) instead of the camera's own grids. */
   customGrid: boolean;
-  /** Which lines the camera's 3x3 and 4x4 grids draw with `customGrid` on (core: CustomGrid). */
+  /** Which lines the camera's 3x3 and 4x4 grids draw with `customGrid` on (core: CustomGrid); GR IV 1.11. */
   gridLines: CustomGrid;
+  /** GR IV 1.20 / 1.21: the framing guides drawn with `customGrid` on, in place of `gridLines` (core: FramingGuides). */
+  framing: FramingGuides;
   /** The learned Auto for Shadow Correction (GR IV 1.11 / 1.20 / 1.21; off by default). */
   shadowLearn: boolean;
   /** GR IV 1.20 / 1.21: GR Mod's film grain in place of the camera's Grain Effect (off by default). */
   filmGrain: boolean;
   /** GR IV 1.20 / 1.21: pre-flash (TTL) metering for a GF-2 class flash in the two red-eye flash modes (off by default). */
   flashTtl: boolean;
+  /** Subject recognition for photo AF (GR IV 1.20 / 1.21). */
+  subjectAf: boolean;
+  /** GR IV 1.20 / 1.21: the mode dial's lock button protects the picture in single-picture playback (off by default). */
+  lockProtect: boolean;
   /** GR IV 1.20 / 1.21: movie AF driven by the phase data (off by default). */
   videoAf: boolean;
+  /** GR IIIx 1.60: the dim-light AF (off by default). */
+  dimLightAf: boolean;
   /** GR IV 1.20 / 1.21: the learned auto white balance for the three Auto modes (off by default). */
   awbLearn: boolean;
   /** GR IV 1.20 / 1.21: movies in the exposure mode of the mode dial, shutter speed, aperture and ISO adjustable (off by default). */
@@ -133,12 +143,25 @@ export interface State {
   movie4k: boolean;
   /** Shake reduction for movies by sensor shift (GR IV 1.20 / 1.21): Movie SR offers Off / Sensor Shift / Electronic. */
   movieSr: boolean;
+  /** Distances in feet (GR IV 1.20 / 1.21): Snap Focus Distance and the manual focus scale; metres by default. */
+  distanceFeet: boolean;
+  /** White balance per look (GR IV 1.20 / 1.21, with added slots): every look keeps its own still white balance. */
+  wbPerLook: boolean;
+  /**
+   * Halation for every look (GR IV 1.20 / 1.21, with added slots): every look of the camera has the Halation row and
+   * the effect; off, none has. `haloPreview` and `haloColour` are what the photo preview shows (chosen in the camera).
+   */
+  halationAll: boolean; haloPreview: 0 | 1 | 2 | 3; haloColour: 'red' | 'white';
   /** ADJ lever slots in the build: 5 (the camera's) to 8 (GR IV). */
   adjSlots: number;
   /** GR IV, experimental: .cube presets of added slots get hue sectors of their own (core color/hue.ts). */
   /** GR III / IIIx: how many films the build has (1..info.features.maxFilms). */
   filmCount: number;
   previewMode: PreviewMode; photoRev: number; activeSlot: SlotKey;
+  /** What the left side of the photo preview shows: `orig` (the photo as it is, the default) or another slot's key. View state, saved with previewMode. */
+  compareWith: string;
+  /** The preset library's entries of both camera families (read on first use, see loadLibrary) and the dialog on top of a slot (saving that slot's preset, or choosing an entry for it). */
+  library: LibraryEntry[]; libraryPicker?: { slot: SlotKey; mode: 'save' | 'apply' };
   /** Added Image Control slots, in the camera's order (none by default). */
   extras: ExtraSlot[];
   /** Image Control menu order (`f11`..`f30`, or an added slot's key) and hidden keys. Empty = factory order, nothing hidden. */
@@ -149,6 +172,8 @@ export interface State {
   lookHidden3: string[];
   volumes: Volume[]; showAll: boolean; volumeId?: string; role?: card.CardRole;
   copySource: CopySource; parked: ParkedEntry[]; backups: ParkedEntry[]; copySel: string[]; copyInfo: Record<string, CopyInfo>; builds: BuildRecord[];
+  /** The "Inspect a firmware file" dialog (store/inspect.ts). */
+  inspectView?: InspectView;
   busy?: string; toasts: Toast[]; confirm?: Confirm; cropId?: string; onlineOpen: boolean;
   tour?: TourState; toursSeen: TourId[];
   /** Android: a firmware file on its way to the camera over Wi-Fi (camera.tsx shows the dialog while it is set). */
@@ -167,7 +192,7 @@ export const emptySlot = (): SlotState => ({ names: {}, icon: { mode: 'keep', te
 export const emptySlots = (): Record<SlotId, SlotState> => Object.fromEntries(SLOT_IDS.map(id => [id, emptySlot()])) as Record<SlotId, SlotState>;
 export let state: State = {
   ready: false, page: 'ic', extrasView: 'list', fwBusy: false, model: 'GR3', lang: cameraLang(), langAuto: uiLangPref() === '',
-  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, filmMode: false, noMovie: false, rearDialOff: false, srSpeed: false, hiddenSettings: {}, ratioBackdrop: 'photo', brightAuto: false, soft: false, dateStamp: false, monoUnlock: false, directFlash: false, hdr: false, exposurePreview: false, filmGrain: false, shadowLearn: false, ratioShade: false, ratioShadeTone: 'dark', shadePreview: '75', battery: false, customGrid: false, gridLines: cameraGrid(), flashTtl: false, videoAf: false, awbLearn: false, movieExposure: false, sensorShift: false, movie4k: false, movieSr: false, constantLight: false, adjSlots: 5, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', volumes: [],
+  slots: emptySlots(), extras: [], lookOrder: [], lookHidden: [], lookOrder3: [], lookHidden3: [], wall: [], ratios: [], ratioOrder: [], settingsFile: null, filmMode: false, noMovie: false, rearDialOff: false, srSpeed: false, hiddenSettings: {}, ratioBackdrop: 'photo', brightAuto: false, soft: false, dateStamp: false, monoUnlock: false, directFlash: false, hdr: false, exposurePreview: false, filmGrain: false, shadowLearn: false, ratioShade: false, ratioShadeTone: 'dark', shadePreview: '75', battery: false, customGrid: false, gridLines: cameraGrid(), framing: defaultFramingGuides(), flashTtl: false, subjectAf: false, lockProtect: false, videoAf: false, dimLightAf: false, awbLearn: false, movieExposure: false, sensorShift: false, movie4k: false, movieSr: false, distanceFeet: false, wbPerLook: false, halationAll: false, haloPreview: 0, haloColour: 'red', constantLight: false, adjSlots: 5, filmCount: 0, previewMode: 'photo', photoRev: 0, activeSlot: 'CY', compareWith: 'orig', library: [], volumes: [],
   copySource: 'card', parked: [], backups: [], copySel: [], copyInfo: {}, builds: [], showAll: false, toasts: [], onlineOpen: false, toursSeen: [],
 };
 const listeners = new Set<() => void>();
@@ -199,10 +224,12 @@ export function setWall(id: string, patch: Partial<WallItem>): void {
 
 // ------------------------------------------------------------------ toasts / confirm
 let toastSeq = 0;
-export function toast(text: string, kind: Toast['kind'] = 'info', action?: Toast['action']): void {
+/** Shows a toast; the id is returned so that its owner can dismiss it early. */
+export function toast(text: string, kind: Toast['kind'] = 'info', action?: Toast['action']): number {
   const id = ++toastSeq;
   set((s) => ({ toasts: [...s.toasts.slice(-2), { id, text, kind, action }] }));
   setTimeout(() => dismissToast(id), kind === 'error' ? 9000 : action ? 12000 : 4500);
+  return id;
 }
 export function dismissToast(id: number): void { set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })); }
 export function ask(title: string, lines: string[], ok: string, warn?: string, reset = false): Promise<boolean> {
@@ -261,3 +288,10 @@ export function systemCameraLang(): LangCode {
   return 'en' as LangCode;
 }
 /** The app language (and with it the camera language): kept, the work saved with it, then the page reloads in it. */
+/**
+ * Halation for every look is offered (GR IV 1.20 / 1.21; not the Monochrome, which builds no added slots): one switch
+ * under the preview instead of each slot's own row.
+ */
+export function halationAllOffered(s: State = state): boolean {
+  return !!s.info?.features.halationAll && s.info.family !== 'gr3x' && s.model !== 'MONO';
+}

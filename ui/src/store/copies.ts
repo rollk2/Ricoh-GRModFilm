@@ -1,3 +1,4 @@
+import { framingValues } from '@grmod/core';
 import { card } from '@grmod/core';
 import type { FirmwareSummary } from '@grmod/core';
 import { engine, EngineError } from '../engine';
@@ -7,7 +8,7 @@ import { t } from '../i18n';
 import { CopySource, State, ask, askOfficial, fail, newFirmwareWarning, set, state, toast } from './core';
 import { gridText, softText } from './features';
 import { toneLabel } from './ratios';
-import { SlotChange, doneToast, firmwareFilename, firmwareToCard, refreshVolumes } from './output';
+import { SlotChange, doneToast, firmwareFilename, firmwareToCard, preflightCard, refreshVolumes } from './output';
 
 // ------------------------------------------------------------------ copies moved aside on the card, and their backups
 const BUILDS_KEY = 'builds.json';
@@ -166,16 +167,23 @@ export function describeCopy(summary: FirmwareSummary, s: State = state): string
   if (summary.shadowLearn) lines.push(t('shadowLine'));
   if (summary.filmGrain) lines.push(t('grainLine'));
   if (summary.flashTtl) lines.push(t('flashTtlLine'));
+  if (summary.subjectAf) lines.push(t('subjectAfLine'));
+  if (summary.lockProtect) lines.push(t('lockProtectLine'));
   if (summary.videoAf) lines.push(t('videoAfLine'));
+  if (summary.dimLightAf) lines.push(t('dimAfLine'));
   if (summary.awbLearn) lines.push(t('awbLine'));
   if (summary.movieExposure) lines.push(t('movieExpLine'));
   if (summary.constantLight) lines.push(t('lampLine'));
   if (summary.sensorShift) lines.push(t('shiftLine'));
   if (summary.movie4k) lines.push(t('movie4kLine'));
   if (summary.movieSr) lines.push(t('movieSrLine'));
+  if (summary.distanceFeet) lines.push(t('unitsLine'));
+  if (summary.wbPerLook) lines.push(t('wbLookLine'));
+  if (summary.halationAll) lines.push(t('halationAllLine'));
   if (summary.adjSlots) lines.push(t('adjSlotsLine', { n: summary.adjSlots }));
   if (summary.batteryPercent) lines.push(t('batteryLine'));
   if (summary.customGrid) lines.push(t('gridLine', { a: gridText(summary.customGrid, 'g3'), b: gridText(summary.customGrid, 'g4') }));
+  if (summary.framing) lines.push(t('framingLine', { n: framingValues(summary.framing).length }));
   if (summary.extraSlots?.length) lines.push(t('extraLine', { n: summary.extraSlots.length, l: summary.extraSlots.map((x) => x.name).join(' / ') }));
   if (summary.lookLayout) lines.push(t('lookOrderLine', { n: summary.lookLayout.hidden.length }));
   if (summary.ratioOrder) lines.push(t('ratioOrderLine'));
@@ -196,6 +204,7 @@ export async function writeCopy(): Promise<void> {
   const fresh = newFirmwareWarning(sourceInfo) ?? undefined;
   if (!(await (official ? askOfficial(describeCopy(pick.summary), fresh) : ask(t('confirmTitle'), describeCopy(pick.summary), t('confirmOk'), fresh)))) return;
   if (state.info !== sourceInfo || state.model !== sourceModel || state.fwBusy) return;
+  if (!(await preflightCard(v, pick.entry.size))) return; // the card must hold the copy before it is read
   try {
     set({ busy: t('opening') });
     const file = source === 'card' ? await host.parkedRead(v.id, pick.entry.path) : await host.backupRead(pick.entry.path);
@@ -205,7 +214,7 @@ export async function writeCopy(): Promise<void> {
     set({ busy: t('writing') });
     const moved = await firmwareToCard(v, file);
     set({ busy: undefined });
-    doneToast(v.root, v, moved, firmwareFilename());
+    if (moved !== null) doneToast(v.root, v, moved, firmwareFilename());
   } catch (e) { set({ busy: undefined }); fail(e); }
   await refreshCopies();
   void refreshVolumes();

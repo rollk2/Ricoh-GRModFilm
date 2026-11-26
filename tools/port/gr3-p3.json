@@ -31,7 +31,8 @@
     "settings_layout_probe.py",
     "snap_dof_probe.py",
     "sr_speed_probe.py",
-    "wb_button_probe.py"
+    "wb_button_probe.py",
+    "sleep_button_probe.py"
   ],
   "rename": [
     [

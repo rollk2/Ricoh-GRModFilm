@@ -131,6 +131,17 @@ html:lang(ja) .prop-label { width: 72px; }
 .seg { display: inline-flex; background: var(--chip); border-radius: 6px; padding: 2px; }
 .seg button { border: 0; background: none; height: 24px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; color: var(--muted); }
 .seg button.on { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); font-weight: 500; }
+/* a text option is as wide as its chosen (bolder) text either way: choosing does not move the row (Latin letters widen) */
+.seg-t { display: inline-flex; flex-direction: column; align-items: center; }
+.seg-t::after { content: attr(data-t); font-weight: 500; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; user-select: none; }
+/* the pill that marks the chosen value and slides to it (components.tsx Segmented); with it in place the button itself is bare */
+.seg { position: relative; }
+.seg > button { position: relative; z-index: 1; transition: color 0.2s ease; }
+.seg-pill { position: absolute; left: 0; top: 0; width: 0; height: 0; border-radius: 4px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); pointer-events: none; opacity: 0;
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), width 380ms cubic-bezier(0.22, 1, 0.36, 1); }
+.seg-pill.still { transition: none; }
+.seg.piled > .seg-pill { opacity: 1; }
+.seg.piled > button.on { background: none; box-shadow: none; }
 .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; }
 .check.small { font-size: 12.5px; }
 .check input { accent-color: var(--blue); margin: 0; }
@@ -333,17 +344,100 @@ html:lang(ja) .prop-label { width: 72px; }
 .grid-edit-body { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
 .grid-edit-preview { width: 180px; height: auto; flex: none; border-radius: 4px; display: block; }
 .grid-edit-hit { cursor: pointer; }
+/* the lines of the preview (pages/grid.tsx, GR IV 1.11): drawn when on, the dashed mark of their place when off; no movement */
+.gl-mark { stroke: rgba(255, 255, 255, 0.5); }
+.gl-line { opacity: 0; }
+.gl.on .gl-line { opacity: 1; }
+.gl.on .gl-mark { opacity: 0; }
+.gl.hot .gl-mark { stroke: rgba(255, 255, 255, 0.95); }
+.gl.hot .gl-line { stroke: rgba(0, 0, 0, 0.72); }
 .grid-edit-lines { display: grid; gap: 6px; min-width: 0; }
 .grid-edit-group { display: grid; gap: 3px; }
+/* nothing in the custom grid's editing controls moves (the way into the page and back does, pages/grid.tsx) */
+.grid-edit, .grid-edit * { transition: none !important; }
 .grid-edit .btn.small[aria-pressed='true'] { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
 .grid-edit .btn.small[aria-pressed='false'] { border-style: dashed; color: var(--muted); }
 .grid-edit p { margin: 0; }
 /* Custom grid page: the switch, then the editor, dimmed while the switch is off. */
-.grid-page { display: flex; flex-direction: column; gap: 14px; max-width: 900px; min-height: 0; overflow-y: auto; padding-right: 3px; }
+/* the room of the scroll bar is kept while there is nothing to scroll: a card opening past the bottom does not push the page sideways */
+.grid-page { display: flex; flex-direction: column; gap: 14px; max-width: 900px; min-height: 0; overflow-y: auto; padding-right: 3px; scrollbar-gutter: stable; }
 .grid-page > .capsule { flex: none; max-width: 640px; }
 .grid-page .grid-edit { padding: 0; }
 .grid-page .grid-edit-preview { width: min(100%, 520px); }
 .grid-page.off .grid-edit { opacity: 0.45; pointer-events: none; }
+/* framing guides (pages/framing.tsx): tools above, the picture and the palette left, the elements right */
+.grid-page:has(.fr) { max-width: 1180px; }
+.fr { gap: 12px; }
+.fr-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fr-tools .grow { flex: 1; }
+.fr-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
+.fr-view { display: flex; flex-direction: column; gap: 12px; min-width: 0; position: sticky; top: 0; }
+.grid-page .fr-preview { width: 100%; border-radius: 6px; background: #000; }
+.fr-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fr-list { display: flex; flex-direction: column; gap: 6px; }
+.fr-el { border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.fr-el.open { border-color: var(--line2); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05); }
+.fr-el-head { display: flex; align-items: center; gap: 4px; padding: 0 6px 0 0; }
+.fr-el-head .btn.mini { background: none; color: var(--faint); backdrop-filter: none; }
+.fr-el-head .btn.mini:hover:not(:disabled) { background: var(--hover); color: var(--red); }
+.fr-el-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 4px 0 12px; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.fr-el-toggle b { font-weight: 600; white-space: nowrap; }
+.fr-el-toggle .ellipsis { flex: 1; min-width: 0; }
+.fr-el-chev { display: grid; place-items: center; color: var(--faint); }
+.fr-el-chev svg { width: 14px; height: 14px; }
+.fr-el-swatch { flex: none; width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line2); background-clip: padding-box; }
+.fr-el-body { display: grid; gap: 9px; padding: 4px 12px 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.fr-field { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 26px; }
+.fr-label { font-size: 12.5px; color: var(--muted); }
+.fr-control { min-width: 0; display: flex; align-items: center; }
+.fr-control .seg { flex-wrap: wrap; }
+.fr-range { display: flex; align-items: center; gap: 10px; width: 100%; }
+.fr-range input[type='range'] { flex: 1; min-width: 0; accent-color: var(--blue); height: 18px; margin: 0; }
+.fr-num { flex: none; display: flex; align-items: baseline; gap: 2px; width: 62px; height: 24px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 6px; background: var(--bg); }
+.fr-num input { width: 100%; min-width: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 12.5px; text-align: right; padding: 0; outline: none; height: 22px; font-variant-numeric: tabular-nums; }
+.fr-num i { font-style: normal; font-size: 11.5px; color: var(--faint); }
+.fr-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.fr-swatch { width: 22px; height: 22px; padding: 2px; border: 1px solid var(--line2); border-radius: 7px; background: var(--bg); cursor: pointer; }
+.fr-swatch i { display: block; width: 100%; height: 100%; border-radius: 4px; }
+.fr-swatch.on { border-color: var(--blue); box-shadow: 0 0 0 1.5px var(--blue); }
+.fr-swatch.none { position: relative; background: var(--bg); }
+.fr-swatch.none::after { content: ''; position: absolute; left: 3px; right: 3px; top: 50%; border-top: 1.5px solid var(--red); transform: rotate(-45deg); }
+.fr-ratios { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.fr-ratio-input { width: 76px; height: 24px; padding: 0 7px; border: 1px solid var(--line2); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; }
+.fr-ratio-input.bad { border-color: var(--red); color: var(--red); }
+.fr .btn.small[aria-pressed='true'] { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+.fr .btn.small svg { width: 13px; height: 13px; }
+.fr-add { display: grid; gap: 6px; padding: 10px 12px; border: 1px dashed var(--line2); border-radius: 12px; }
+.fr-reset { justify-self: start; align-self: flex-start; }
+.fr-note { margin: 0; }
+.fr-note.bad { color: var(--red); }
+.fr-colours { display: grid; gap: 7px; width: 100%; }
+.fr-colour-edit { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 7px 10px; }
+.fr-colour-edit .fr-colour-input { grid-column: 1 / -1; }
+.fr-colour-input { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fr-colour-input input { width: 42px; height: 26px; padding: 0; border: 1px solid var(--line2); border-radius: 6px; background: none; cursor: pointer; }
+.fr-swatch.custom i { background: conic-gradient(#ff3b30, #ffcc00, #34c759, #5ac8fa, #007aff, #af52de, #ff3b30); }
+/* templates under the picture: a small picture of each and its name */
+.fr-templates { display: grid; gap: 8px; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.fr-templates-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fr-template-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+/* phone: one row that scrolls sideways */
+.app.mobile .fr-template-list { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 100px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px 2px; }
+.app.mobile .fr-template-list::-webkit-scrollbar { display: none; }
+.fr-template { display: grid; gap: 4px; min-width: 0; padding: 4px 4px 5px; border: 1px solid var(--line2); border-radius: 9px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; text-align: center; cursor: pointer; }
+.fr-template:hover { border-color: var(--blue); }
+.fr-template:active { background: var(--hover); }
+.fr-template svg { width: 100%; height: auto; display: block; border-radius: 4px; }
+/* a name on two lines at most (English ones are longer) */
+.fr-template span { line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+/* the element cards: the only movement on this page (their height in pages/framing.tsx, the arrow here) */
+.grid-edit .fr-el-chev svg { transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1) !important; }
+.fr-el.open .fr-el-chev svg { transform: rotate(180deg); }
+.grid-edit .fr-el { transition: border-color 0.2s, box-shadow 0.2s !important; }
+.fr > p { margin: 0; }
+@media (max-width: 1000px) { .fr-body { grid-template-columns: minmax(0, 1fr); } .fr-view { position: static; } }
+.app.mobile .fr-body { grid-template-columns: minmax(0, 1fr); }
+.app.mobile .fr-view { position: static; }
 .soft-switch .soft-ico { width: 32px; height: 32px; flex: none; }
 .soft-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .soft-text b { font-weight: 600; }
@@ -374,8 +468,11 @@ html:lang(ja) .prop-label { width: 72px; }
 /* A capsule with settings of its own: a row that opens them. */
 .capsule-open { margin-top: auto; display: flex; align-items: center; gap: 6px; width: 100%; height: 34px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 17px; background: var(--bg); color: var(--text); font-weight: 500; font-size: 13.5px; cursor: pointer; transition: background 0.1s, border-color 0.1s; }
 .capsule-open:hover { background: var(--hover); }
-.capsule-open .capsule-chev { margin-left: auto; font-size: 18px; line-height: 1; color: var(--muted); }
+.capsule-open .capsule-chev { margin-left: auto; font-size: 18px; line-height: 1; color: var(--muted); transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms ease; }
+.capsule-open:hover .capsule-chev { transform: translateX(3px); color: var(--text); }
+.capsule-open:active { transform: scale(0.985); }
 .grid-thumbs { display: flex; gap: 8px; }
+.grid-thumbs { transition: opacity 240ms ease; }
 .grid-thumbs.off { opacity: 0.5; }
 .grid-thumb { flex: 1; min-width: 0; max-width: 96px; height: auto; border-radius: 6px; display: block; }
 /* The custom grid's editor, opened from its capsule: back to the list in the header. */
@@ -386,6 +483,15 @@ html:lang(ja) .prop-label { width: 72px; }
 .page-head .crumb-up:hover { color: var(--text); }
 .page-head .crumb-sep { color: var(--faint); font-weight: 400; }
 .page-head .m-crumb { display: none; }
+/* a page's content comes in when the page is shown; a page's head changes with a short move (the way into a
+   sub-page from the right, the way back from the left). The grid editor and the list it returns to move their
+   own parts instead (pages/grid.tsx). */
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes crumb-in { from { opacity: 0; transform: translateX(12px); } }
+.app:not(.mobile) .stage > .page > :not(.page-head):not(.overlay):not(.grid-page) { animation: page-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.page-head > * { animation: page-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.page-head.sub > * { animation-name: crumb-in; animation-duration: 340ms; }
+.page-head.sub > .back-btn { animation-name: fade; animation-duration: 240ms; }
 .switch { flex: none; position: relative; width: 34px; height: 20px; padding: 0; border: 0; border-radius: 10px; background: var(--line2); cursor: pointer; transition: background 0.18s; }
 .switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: transform 0.18s cubic-bezier(0.22, 0.8, 0.24, 1); }
 .switch.on { background: var(--blue); }
@@ -550,7 +656,6 @@ button.fw-rel:disabled { cursor: default; }
 /* halation of an added slot */
 .halo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .halo .chips { align-items: center; }
-.halo-note { line-height: 1.35; }
 
 .gr3x-notice { margin: 0 24px 12px; padding: 14px 16px; border: 1px solid #a78348; border-radius: 10px; background: #a7834812; }
 .gr3x-notice p { margin: 6px 0 12px; line-height: 1.5; }
@@ -584,7 +689,7 @@ button.fw-rel:disabled { cursor: default; }
 .seg.ic-tabs button:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .ic-tabs-pill { position: absolute; top: 2px; left: 2px; height: 26px; border-radius: 4px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1), width 480ms cubic-bezier(0.22, 1, 0.36, 1); pointer-events: none; }
 .ic-tabs-pill.still { transition: none; }
-.ic-views { --views-gap: 52px; flex: 1; min-height: 0; display: flex; margin: 0 -26px; padding: 0 26px; overflow: hidden; overflow: clip; }
+.ic-views { --views-gap: 52px; flex: 1; min-height: 0; display: flex; margin: 0 -26px; padding: 0 26px; overflow: hidden; overflow: clip; overflow-clip-margin: 3px; }
 .ic-track { flex: 1; min-width: 0; display: flex; gap: var(--views-gap); transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1); }
 .ic-track.at-order { transform: translate3d(calc(-100% - var(--views-gap)), 0, 0); }
 .ic-track.moving { will-change: transform; }
@@ -644,6 +749,18 @@ html.look-grabbing, html.look-grabbing * { cursor: grabbing !important; }
 .community-share textarea.input { height: auto; padding: 6px 8px; resize: vertical; font: inherit; }
 .community-share .community-own { flex-direction: row; align-items: flex-start; gap: 8px; }
 .community-share .community-own input { margin-top: 3px; }
+
+/* The "Inspect a firmware file" dialog and its side-by-side view (inspect.tsx). */
+.dialog.inspect { width: 520px; max-height: calc(100% - 48px); overflow: auto; }
+.dialog.inspect.wide { width: 760px; }
+.dialog.inspect.drop-over { outline: 2px dashed var(--line); }
+.inspect-slot { display: flex; align-items: center; gap: 8px; }
+.compare-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 18px; table-layout: fixed; }
+.compare-table th, .compare-table td { text-align: left; padding: 4px 8px; vertical-align: top; overflow-wrap: anywhere; font-weight: normal; }
+.compare-table thead th { font-weight: 600; max-width: 0; white-space: nowrap; border-bottom: 1px solid var(--line2); }
+.compare-table tbody th { color: var(--muted); width: 24%; }
+.compare-table tr.diff { background: var(--amber-bg); }
+.compare-table tr.diff td { color: var(--text); font-weight: 600; }
 
 /* ---------------------------------------------------------------- Android: phone layout (app.tsx MobileApp)
    The same pages and parts as on the desktop, stacked for a narrow, tall, touch screen: a title bar, the page
@@ -757,7 +874,8 @@ html.ios .m-lens.held { -webkit-backdrop-filter: saturate(1.45) brightness(1.06)
 .app.mobile .cards, .app.mobile .ratio-list { overflow: visible; padding-right: 0; min-height: auto; }
 .app.mobile .ic > .pane, .app.mobile .ratio > .pane { order: -1; flex: none; }
 .app.mobile .ic > .pane { container-type: inline-size; }
-.app.mobile .ic > .pane .pane-body { flex: none; height: calc(100cqw / 1.5 + 4px); }
+/* the photo keeps its size: what goes under it (the halation row) adds to the height instead of taking from the photo */
+.app.mobile .ic > .pane .pane-body { flex: none; height: calc(100cqw / 1.5 + 4px + var(--below, 0px)); }
 /* the phone has no hover to read the rest: the descriptions of the switches are shown whole */
 .app.mobile .soft-switch .soft-text .ellipsis { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .app.mobile .ratio-body { flex: none; height: auto; container-type: inline-size; }
@@ -979,3 +1097,45 @@ html.mobile-app .tour-hole { border-radius: 14px; }
 .app.mobile .grid-edit { padding-left: 14px; }
 .app.mobile .grid-style { grid-template-columns: 60px 1fr; }
 .app.mobile .grid-style .chips { grid-column: 1 / -1; }
+/* compare two slots (pages/preview.tsx) */
+.compare-with { flex: none; }
+/* as tall as the tabs and the Photo / Swatch switch beside it: a taller box would stick out of the head, whose top edge the views clip */
+.compare-with .sel.box .sel-btn { height: 28px; }
+.compare-with-lead { margin-right: 6px; white-space: nowrap; }
+/* on a phone the tabs need the width: the value only (the sheet that opens is titled "Compare with", and the photo labels its left side) */
+.app.mobile .compare-with { max-width: 128px; }
+.app.mobile .compare-with-lead { display: none; }
+/* the preset library (library.tsx) */
+.preset-actions:empty { display: none; }
+.lib-dialog { width: 460px; }
+.lib-save { display: grid; gap: 6px; }
+.lib-save .dialog-actions { margin-top: 10px; }
+.lib-list { margin: 0 0 14px; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 320px; overflow: auto; }
+.lib-list li { display: flex; align-items: center; gap: 4px; }
+.lib-pick { flex: 1; min-width: 0; display: grid; gap: 1px; text-align: left; padding: 6px 10px; border: 0; border-radius: 6px; background: var(--chip); color: inherit; font: inherit; cursor: pointer; }
+.lib-pick:hover, .lib-pick:focus-visible { background: var(--hover); }
+.lib-tools { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; flex-wrap: wrap; }
+.lib-tools .input { flex: 1; min-width: 140px; }
+.lib-rename { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lib-rename .input { flex: 1; min-width: 120px; }
+.lib-rename .bad { color: var(--red); }
+.lib-name { font-size: 13.5px; }
+
+/* halation for every look: the switch under the photo (pages/preview.tsx) */
+.halo-bar { justify-content: flex-start; }
+.halo-cap { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; max-width: 100%; padding: 5px 10px 5px 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); transition: border-color 0.15s, background 0.15s; }
+.halo-cap.on { border-color: color-mix(in srgb, var(--blue) 45%, var(--line2)); background: color-mix(in srgb, var(--blue-bg) 45%, var(--side)); }
+.halo-cap .soft-ico { width: 28px; height: 28px; flex: none; border-radius: 9px; }
+.halo-cap.on .soft-ico { color: var(--blue); background: var(--blue-bg); }
+.halo-cap-head { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+.halo-cap-head b { font-weight: 600; white-space: nowrap; }
+.halo-cap-head .switch { flex: none; }
+.halo-cap-sub { min-width: 0; }
+.halo-cap-row { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: 4px; }
+/* on a phone: a card as wide as the page, the switch at the right of its top row, the line or the choices under it */
+.app.mobile .halo-cap { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; padding: 10px 12px; border-radius: 16px; }
+.app.mobile .halo-cap-head { display: flex; }
+.app.mobile .halo-cap-head .switch { margin-left: auto; }
+.app.mobile .halo-cap-sub { line-height: 1.45; }
+.app.mobile .halo-cap-row { margin-left: 0; }
+.halo-warn { color: var(--amber); }

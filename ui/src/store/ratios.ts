@@ -7,6 +7,7 @@ import type { Key } from '../i18n';
 import { RatioItem, ShadeTone, State, emptySlot, filmCountChoosable, isGr3, set, state, toast } from './core';
 import { presetKey, scheduleSave } from './families';
 import { normalizeOrder } from './looks';
+import { recordDeleted } from './undo';
 
 // ------------------------------------------------------------------ added aspect ratios
 const RATIO_PROBLEMS: Record<NonNullable<RatioPreview['problem']>, Key> = {
@@ -116,8 +117,16 @@ export function setRatio(id: string, patch: { ratio?: string; name?: string }): 
   if (patch.ratio !== undefined) ratiosChanged(); else scheduleSave();
 }
 export function removeRatio(id: string): void {
+  const index = state.ratios.findIndex((r) => r.id === id), item = state.ratios[index], active = state.activeRatio === id;
   set((s) => { const ratios = s.ratios.filter((r) => r.id !== id); return { ratios, activeRatio: s.activeRatio === id ? ratios[0]?.id : s.activeRatio }; });
   ratiosChanged(true);
+  if (!item) return;
+  recordDeleted(t('undoRatio'), () => {
+    if (state.ratios.length >= maxRatios()) return false;
+    set((s) => { const ratios = s.ratios.slice(); ratios.splice(Math.min(index, ratios.length), 0, item); return { ratios, ...(active ? { activeRatio: id } : {}) }; });
+    ratiosChanged(true);
+    return true;
+  }, () => undefined);
 }
 /** GR III / IIIx: how many films (1..maxFilms); the active slot stays among them. */
 export function setFilmCount(n: number): void {

@@ -5,6 +5,10 @@ import { State, set, state } from './core';
 import { scheduleSave } from './families';
 import { filmExtrasOn } from './film';
 import { hasLookLayout } from './looks';
+import { framingProblem, framingValues } from '@grmod/core';
+
+/** The framing guides have a preset of their own (store/framing.ts framingOf, without importing it here). */
+const framingValuesOn = (s: State): boolean => framingProblem(s.framing) === null && framingValues(s.framing).length > 0;
 
 // ------------------------------------------------------------------ soft focus
 /**
@@ -68,7 +72,7 @@ export function setGridLine(style: 'g3' | 'g4', index: number, on: boolean): voi
 }
 /** The grid lines a build gets: none when the switch is off, the firmware cannot have them, or they are the camera's own. */
 export function customGridOf(s: State = state): CustomGrid | undefined {
-  return s.customGrid && s.info?.features.customGrid && !isCameraGrid(s.gridLines) ? s.gridLines : undefined;
+  return s.customGrid && s.info?.features.customGrid && !s.info.features.framing && !isCameraGrid(s.gridLines) ? s.gridLines : undefined;
 }
 /** How many lines a style of a custom grid draws, for the summaries. */
 export function gridText(g: CustomGrid, style: 'g3' | 'g4'): string {
@@ -101,16 +105,39 @@ export function setFlashPlus(on: boolean): void {
   set({ directFlash: on && !!f?.directFlash, flashTtl: on && !!f?.flashTtl }); scheduleSave();
 }
 export function flashPlusOn(s: State = state): boolean { return directFlashOn(s) || flashTtlOn(s); }
+/** Subject recognition for photo AF (GR IV 1.20 / 1.21). */
+export function setSubjectAf(subjectAf: boolean): void {
+  if (subjectAf && !state.info?.features.subjectAf) return;
+  set({ subjectAf }); scheduleSave();
+}
+export function subjectAfOn(s: State = state): boolean { return !!s.subjectAf && !!s.info?.features.subjectAf; }
+/** The mode dial's lock button protects the picture in single-picture playback (GR IV 1.20 / 1.21). */
+export function setLockProtect(lockProtect: boolean): void {
+  if (lockProtect && !state.info?.features.lockProtect) return;
+  set({ lockProtect }); scheduleSave();
+}
+export function lockProtectOn(s: State = state): boolean { return !!s.lockProtect && !!s.info?.features.lockProtect; }
 export function setVideoAf(videoAf: boolean): void {
   if (videoAf && !state.info?.features.videoAf) return;
   set({ videoAf }); scheduleSave();
 }
 export function videoAfOn(s: State = state): boolean { return !!s.videoAf && !!s.info?.features.videoAf; }
+export function setDimLightAf(dimLightAf: boolean): void {
+  if (dimLightAf && !state.info?.features.dimLightAf) return;
+  set({ dimLightAf }); scheduleSave();
+}
+export function dimLightAfOn(s: State = state): boolean { return !!s.dimLightAf && !!s.info?.features.dimLightAf; }
 export function setAwbLearn(awbLearn: boolean): void {
   if (awbLearn && !state.info?.features.awbLearn) return;
   set({ awbLearn }); scheduleSave();
 }
 export function awbLearnOn(s: State = state): boolean { return !!s.awbLearn && !!s.info?.features.awbLearn; }
+export function setWbPerLook(wbPerLook: boolean): void {
+  if (wbPerLook && !state.info?.features.wbPerLook) return;
+  set({ wbPerLook }); scheduleSave();
+}
+/** White balance per look: offered on GR IV 1.20 / 1.21, built only with at least one added look (output.ts). */
+export function wbPerLookOn(s: State = state): boolean { return !!s.wbPerLook && !!s.info?.features.wbPerLook; }
 export function setMovieExposure(movieExposure: boolean): void {
   if (movieExposure && !state.info?.features.movieExposure) return;
   set({ movieExposure }); scheduleSave();
@@ -136,6 +163,12 @@ export function setMovieSr(movieSr: boolean): void {
   set({ movieSr }); scheduleSave();
 }
 export function movieSrOn(s: State = state): boolean { return !!s.movieSr && !!s.info?.features.movieSr; }
+/** Distances in feet (Snap Focus Distance, the manual focus scale) instead of metres. */
+export function setDistanceFeet(distanceFeet: boolean): void {
+  if (distanceFeet && !state.info?.features.distanceFeet) return;
+  set({ distanceFeet }); scheduleSave();
+}
+export function distanceFeetOn(s: State = state): boolean { return !!s.distanceFeet && !!s.info?.features.distanceFeet; }
 /** ADJ lever slots (5..8): the camera's five unless the firmware can have more. */
 export function setAdjSlots(adjSlots: number): void {
   if (!(Number.isInteger(adjSlots) && adjSlots >= 5 && adjSlots <= (state.info?.features.maxAdjSlots ?? 5))) return;
@@ -144,7 +177,7 @@ export function setAdjSlots(adjSlots: number): void {
 /** The ADJ lever slots the build gets (5: none added). */
 export function adjSlotsOf(s: State = state): number { const max = s.info?.features.maxAdjSlots ?? 5; return s.adjSlots > 5 && s.adjSlots <= max ? s.adjSlots : 5; }
 /** Any addition that is not a slot or a ratio. */
-export function extrasOn(s: State = state): boolean { return !!brightAutoOf(s) || exposurePreviewOn(s) || filmGrainOn(s) || flashTtlOn(s) || videoAfOn(s) || awbLearnOn(s) || movieExposureOn(s) || sensorShiftOn(s) || movie4kOn(s) || movieSrOn(s) || constantLightOn(s) || softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || adjSlotsOf(s) > 5 || hdrOn(s) || batteryOn(s) || !!customGridOf(s) || shadowLearnOn(s) || filmExtrasOn(s); }
+export function extrasOn(s: State = state): boolean { return !!brightAutoOf(s) || exposurePreviewOn(s) || filmGrainOn(s) || flashTtlOn(s) || subjectAfOn(s) || lockProtectOn(s) || videoAfOn(s) || dimLightAfOn(s) || awbLearnOn(s) || wbPerLookOn(s) || movieExposureOn(s) || sensorShiftOn(s) || movie4kOn(s) || movieSrOn(s) || distanceFeetOn(s) || constantLightOn(s) || softOn(s) || !!s.dateStamp || monoUnlockOn(s) || hasLookLayout(s) || directFlashOn(s) || adjSlotsOf(s) > 5 || hdrOn(s) || batteryOn(s) || (!!customGridOf(s) || (!!s.customGrid && !!s.info?.features.framing && framingValuesOn(s))) || shadowLearnOn(s) || filmExtrasOn(s); }
 const MINUS = '\u2212';
 const strengthLabel = (st: SoftFocusStrength | 'custom'): string => t(st === 'weak' ? 'softWeak' : st === 'medium' ? 'softMedium' : st === 'strong' ? 'softStrong' : 'softCustom');
 /** "−2 weak / −3 medium" (−1 first), for confirmations and the copies page. */

@@ -5,10 +5,11 @@ import { host } from '../host';
 import { t } from '../i18n';
 import type { Key } from '../i18n';
 import { ensureIconFont, imageIcon, loadBitmap, textIcon } from '../pixels';
-import { HalationState, IconState, SlotKey, State, availableSlots, fail, isExtra, isGr3, monoRecipesOn, patchSlot, set, setSlot, slotOf, state, toast } from './core';
+import { HalationState, IconState, SlotKey, State, availableSlots, halationAllOffered, fail, isExtra, isGr3, monoRecipesOn, patchSlot, set, setSlot, slotOf, state, toast } from './core';
 import { presetKey, scheduleSave } from './families';
 import { normalizeLookOrder } from './looks';
 import { setActiveSlot } from './photo';
+import { recordDeleted } from './undo';
 
 // ------------------------------------------------------------------ presets
 const PRESET_ERRORS: Record<string, Key> = {
@@ -16,19 +17,27 @@ const PRESET_ERRORS: Record<string, Key> = {
   'not-cube': 'errNotXmp', 'bad-cube': 'errBadCube', 'gr3x-cube-only': 'gr3xCubeOnly', 'mono-cube-only': 'monoCubeOnly',
 };
 /** The newest conversion of each slot: an older one that finishes later is dropped. */
-const presetRuns = new Map<SlotKey, number>();
+export const presetRuns = new Map<SlotKey, number>();
 let presetRun = 0;
+/** A new conversion run number (the preset library makes a running conversion stale with it). */
+export function nextPresetRun(): number { return ++presetRun; }
+/**
+ * The fitting options a slot's conversion runs with: GR IV added slots also try hue sectors (the
+ * conversion keeps them only when they come out closer). Shared by runPreset and the preset library's
+ * compatibility check, so the two cannot disagree.
+ */
+export function fitOptions(id: SlotKey): { hue?: boolean } {
+  return isExtra(id) && state.info?.family !== 'gr3x' ? { hue: true } : {};
+}
 export async function runPreset(id: SlotKey, fileName: string, kind: 'xmp' | 'cube', text: string): Promise<void> {
   patchSlot(id, { preset: { fileName, kind, text, busy: !!state.info?.capabilities.presets } });
   if (!state.info?.capabilities.presets) return;
   const run = ++presetRun;
   presetRuns.set(id, run);
-  // GR IV added slots also try hue sectors; the conversion keeps them only when they come out closer.
-  const hue = isExtra(id) && state.info.family !== 'gr3x';
   // GR Mod Film, GR IV Monochrome: an added slot is a black-and-white recipe (the .cube's tone curve on Monochrome Standard).
   const mono = isExtra(id) && monoRecipesOn();
   try {
-    const result = await engine.convert(kind, text, mono ? { mono: true } : hue ? { hue: true } : {});
+    const result = await engine.convert(kind, text, mono ? { mono: true } : fitOptions(id));
     if (presetRuns.get(id) !== run || slotOf(id)?.preset?.text !== text) return; // replaced, removed or converted again meanwhile
     patchSlot(id, { preset: { fileName, kind, text, busy: false, result } });
   } catch (e) {
@@ -83,12 +92,17 @@ export function validHalation(v: unknown): HalationState | null {
   const h = v as Partial<HalationState>;
   return { on: h.on === true, preview: h.preview === 1 || h.preview === 2 || h.preview === 3 ? h.preview : 0, ...(h.colour === 'white' ? { colour: 'white' as const } : {}) };
 }
-/** A slot's halation: every added slot has it (the camera switches it); a Cinema slot when it is switched on (with a preset). */
+/** A slot's halation: every added slot has it (the camera switches it); a Cinema slot when it is switched on (with a preset). With halation for every look: the one switch and the preview's level and colour. */
 export function halationOf(k: SlotKey, s: State = state): HalationState {
+  if (halationAllOffered(s)) return { on: s.halationAll, preview: s.haloPreview, colour: s.haloColour };
   // GR III / IIIx: every film has it, as GR IV's added slots.
   if (s.info?.family === 'gr3x' && !isExtra(k)) return { ...(s.slots[k as SlotId]?.halation ?? { preview: 0 }), on: true };
   if (isExtra(k)) return { ...(s.extras.find((x) => x.key === k)?.halation ?? { preview: 0 }), on: true };
   return s.slots[k as SlotId]?.halation ?? { on: false, preview: 0 };
+}
+/** Halation for every look: the switch, and the level and colour the preview shows. */
+export function setHalationAll(patch: Partial<Pick<State, 'halationAll' | 'haloPreview' | 'haloColour'>>): void {
+  set(patch); scheduleSave();
 }
 /** Change a slot's halation (on / off for a Cinema slot, strength, the level the preview shows). */
 export function setHalation(key: SlotKey, patch: Partial<HalationState>): void {
@@ -105,16 +119,30 @@ export function addExtraSlot(): void {
   void renderIcon(key);
   scheduleSave();
 }
-export function removeExtraSlot(key: string): void {
+/** Take an added slot away; with `undoable` (the default) the toast's Undo brings it back. Setting the count lower removes without it. */
+export function removeExtraSlot(key: string, undoable = true): void {
+  const was = state, index = was.extras.findIndex((x) => x.key === key), item = was.extras[index];
+  const orderAt = normalizeLookOrder(was.lookOrder, was.extras).indexOf(key), hidden = was.lookHidden.includes(key), active = was.activeSlot === key;
   set((s) => ({ extras: s.extras.filter((x) => x.key !== key), activeSlot: s.activeSlot === key ? 'CY' : s.activeSlot, lookOrder: normalizeLookOrder(s.lookOrder, s.extras.filter((x) => x.key !== key)), lookHidden: s.lookHidden.filter((k) => k !== key) }));
-  if (host.available) void host.storeDel(presetKey(key)).catch(() => undefined);
+  const file = presetKey(key); // fixed now: the delete may run after a switch to the other family, whose files are named differently
+  const del = (): void => { if (host.available) void host.storeDel(file).catch(() => undefined); };
   scheduleSave();
+  if (!undoable || !item) { del(); return; }
+  recordDeleted(t('undoExtra'), () => {
+    if (state.extras.length >= MAX_EXTRA_SLOTS) return false;
+    set((s) => {
+      const extras = s.extras.slice(); extras.splice(Math.min(index, extras.length), 0, item);
+      const order = normalizeLookOrder(s.lookOrder, extras).filter((k) => k !== key); order.splice(orderAt < 0 ? order.length : Math.min(orderAt, order.length), 0, key);
+      return { extras, lookOrder: order, lookHidden: hidden ? [...s.lookHidden, key] : s.lookHidden, ...(active ? { activeSlot: key } : {}) };
+    });
+    return true;
+  }, del);
 }
 /** Set how many slots are added: the last ones are taken away, new empty ones appended. */
 export function setExtraCount(n: number): void {
   const want = Math.max(0, Math.min(MAX_EXTRA_SLOTS, Math.round(n)));
   while (state.extras.length < want) addExtraSlot();
-  while (state.extras.length > want) removeExtraSlot(state.extras[state.extras.length - 1].key);
+  while (state.extras.length > want) removeExtraSlot(state.extras[state.extras.length - 1].key, false);
 }
 export function setExtraName(key: string, name: string): void {
   set((s) => ({ extras: s.extras.map((x) => (x.key === key ? { ...x, name } : x)) }));

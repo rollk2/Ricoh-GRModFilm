@@ -13,6 +13,8 @@ import { loadPreviewPhoto } from './photo';
 import { refreshVolumes } from './output';
 import { loadBuilds } from './copies';
 import { FILM_CODE } from './film';
+import { savedFraming } from './framing';
+import { isThemePref, setThemePref, themePref } from '../theme';
 
 // ------------------------------------------------------------------ camera families
 /**
@@ -22,7 +24,7 @@ import { FILM_CODE } from './film';
  * there too); GR III / IIIx's is `project-gr3.json`, its presets `gr3-preset-…` (its films reuse
  * the ids CY and CG). Switching to the other camera keeps this one's work and brings back that one's.
  */
-type Family = 'gr4' | 'gr3';
+export type Family = 'gr4' | 'gr3';
 export const familyOf = (m: CameraModel): Family => (isGr3(m) ? 'gr3' : 'gr4');
 const GR3_PROJECT = 'project-gr3.json';
 /** The official file each camera takes (GR IV, GR III, GR IIIx: one file for all of each one's models),
@@ -70,9 +72,8 @@ function familyData(s: State): FamilyDoc {
     lookOrder: s.lookOrder, lookHidden: s.lookHidden, lookOrder3: s.lookOrder3, lookHidden3: s.lookHidden3,
     wall: s.wall.map((w) => ({ id: w.id, name: w.name, kind: 'image', width: w.width, height: w.height, crop: w.crop, ...(w.menuName !== undefined ? { menuName: w.menuName } : {}), ...(w.menuId ? { menuId: w.menuId } : {}) })),
     ratios: s.ratios.map((r) => ({ id: r.id, ratio: r.ratio, name: r.name })),
-    ratioOrder: s.ratioOrder,
-    filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, srSpeed: s.srSpeed, hiddenSettings: s.hiddenSettings,
-    brightAuto: s.brightAuto, soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, hdr: s.hdr, exposurePreview: s.exposurePreview, flashTtl: s.flashTtl, videoAf: s.videoAf, awbLearn: s.awbLearn, movieExposure: s.movieExposure, sensorShift: s.sensorShift, movie4k: s.movie4k, movieSr: s.movieSr, constantLight: s.constantLight, filmGrain: s.filmGrain, shadowLearn: s.shadowLearn, ratioShade: s.ratioShade, ratioShadeTone: s.ratioShadeTone, battery: s.battery, customGrid: s.customGrid, gridLines: s.gridLines, adjSlots: s.adjSlots, filmCount: s.filmCount,
+    brightAuto: s.brightAuto, soft: s.soft, dateStamp: s.dateStamp, monoUnlock: s.monoUnlock, directFlash: s.directFlash, hdr: s.hdr, exposurePreview: s.exposurePreview, flashTtl: s.flashTtl, subjectAf: s.subjectAf, lockProtect: s.lockProtect, videoAf: s.videoAf, dimLightAf: s.dimLightAf, awbLearn: s.awbLearn, wbPerLook: s.wbPerLook, halationAll: s.halationAll, haloPreview: s.haloPreview, haloColour: s.haloColour, movieExposure: s.movieExposure, sensorShift: s.sensorShift, movie4k: s.movie4k, movieSr: s.movieSr, distanceFeet: s.distanceFeet, constantLight: s.constantLight, filmGrain: s.filmGrain, shadowLearn: s.shadowLearn, ratioShade: s.ratioShade, ratioShadeTone: s.ratioShadeTone, battery: s.battery, customGrid: s.customGrid, gridLines: s.gridLines, framing: s.framing, adjSlots: s.adjSlots, filmCount: s.filmCount,
+    ratioOrder: s.ratioOrder, filmMode: s.filmMode, noMovie: s.noMovie, rearDialOff: s.rearDialOff, srSpeed: s.srSpeed, hiddenSettings: s.hiddenSettings,
   };
 }
 
@@ -106,7 +107,7 @@ function parseFamily(doc: FamilyDoc | null): Partial<State> {
     lookOrder3: gr3SavedKeys(doc?.lookOrder3), lookHidden3: gr3SavedKeys(doc?.lookHidden3).filter((k) => k !== 'g11'),
     brightAuto: doc?.brightAuto === 'balanced' ? 'balanced' : doc?.brightAuto === true || doc?.brightAuto === 'bright' ? 'bright' : false,
     soft: doc?.soft === true || (!!doc?.softFocus && typeof doc.softFocus === 'object' && Object.keys(doc.softFocus).length > 0),
-    dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true, hdr: doc?.hdr === true, exposurePreview: doc?.exposurePreview === true, filmGrain: doc?.filmGrain === true, shadowLearn: doc?.shadowLearn === true, ratioShade: doc?.ratioShade === true, ratioShadeTone: doc?.ratioShadeTone === 'light' ? 'light' : 'dark', battery: doc?.battery === true || doc?.batteryPercent === true, customGrid: doc?.customGrid === true || doc?.grid?.on === true, gridLines: savedGridLines(doc?.gridLines ?? doc?.grid), flashTtl: doc?.flashTtl === true, videoAf: doc?.videoAf === true, awbLearn: doc?.awbLearn === true, movieExposure: doc?.movieExposure === true, sensorShift: doc?.sensorShift === true, movie4k: doc?.movie4k === true, movieSr: doc?.movieSr === true, constantLight: doc?.constantLight === true, adjSlots: typeof doc?.adjSlots === 'number' && Number.isInteger(doc.adjSlots) && doc.adjSlots >= 5 && doc.adjSlots <= 8 ? doc.adjSlots : 5,
+    dateStamp: doc?.dateStamp === true, monoUnlock: doc?.monoUnlock === true, directFlash: doc?.directFlash === true, hdr: doc?.hdr === true, exposurePreview: doc?.exposurePreview === true, filmGrain: doc?.filmGrain === true, shadowLearn: doc?.shadowLearn === true, ratioShade: doc?.ratioShade === true, ratioShadeTone: doc?.ratioShadeTone === 'light' ? 'light' : 'dark', battery: doc?.battery === true, customGrid: doc?.customGrid === true, gridLines: savedGridLines(doc?.gridLines), framing: savedFraming(doc?.framing, savedGridLines(doc?.gridLines)), flashTtl: doc?.flashTtl === true, subjectAf: doc?.subjectAf === true, lockProtect: doc?.lockProtect === true, videoAf: doc?.videoAf === true, dimLightAf: doc?.dimLightAf === true, awbLearn: doc?.awbLearn === true, wbPerLook: doc?.wbPerLook === true, halationAll: typeof doc?.halationAll === 'boolean' ? doc.halationAll : !!doc && Array.isArray(doc.extras) && doc.extras.length > 0, haloPreview: doc?.haloPreview === 1 || doc?.haloPreview === 2 || doc?.haloPreview === 3 ? doc.haloPreview : 0, haloColour: doc?.haloColour === 'white' ? 'white' : 'red', movieExposure: doc?.movieExposure === true, sensorShift: doc?.sensorShift === true, movie4k: doc?.movie4k === true, movieSr: doc?.movieSr === true, distanceFeet: doc?.distanceFeet === true, constantLight: doc?.constantLight === true, adjSlots: typeof doc?.adjSlots === 'number' && Number.isInteger(doc.adjSlots) && doc.adjSlots >= 5 && doc.adjSlots <= 8 ? doc.adjSlots : 5,
     filmCount: Number.isInteger(doc?.filmCount) && doc!.filmCount >= 0 && doc!.filmCount <= GR3X_FILM_IDS.length ? doc!.filmCount : doc && doc.filmCount === undefined && doc.slots ? 9 : 0,
   };
 }
@@ -194,7 +195,7 @@ export async function saveProject(): Promise<void> {
   familyDocs[familyOf(s.model)] = currentFamilyDoc();
   const doc = {
     ...(familyDocs.gr4 ?? {}),
-    v: 1, page: s.page, model: s.model, lang: s.lang, langAuto: s.langAuto, uiLang: uiLangPref(), fwName: s.fwName, showAll: s.showAll, previewMode: s.previewMode, ratioBackdrop: s.ratioBackdrop,
+    v: 1, page: s.page, model: s.model, lang: s.lang, langAuto: s.langAuto, uiLang: uiLangPref(), theme: themePref(), fwName: s.fwName, showAll: s.showAll, previewMode: s.previewMode, compareWith: s.compareWith, ratioBackdrop: s.ratioBackdrop,
     tours: s.toursSeen, toursV: 2,
   };
   try {
@@ -223,13 +224,15 @@ export async function init(): Promise<void> {
       set({ ...parseFamily(work), model,
         page: doc.page === 'wall' || doc.page === 'copies' || doc.page === 'ratio' || doc.page === 'extras' || doc.page === 'community' || doc.page === 'ic' ? doc.page : doc.page === 'script' ? 'wall' : doc.page === 'grid' || doc.page === 'feat' ? 'extras' : 'ic',
         ...langOf(doc), fwName: doc.fwName, showAll: !!doc.showAll,
-        previewMode: doc.previewMode === 'swatch' ? 'swatch' : 'photo', ratioBackdrop: doc.ratioBackdrop === 'gray' ? 'gray' : 'photo',
+        previewMode: doc.previewMode === 'swatch' ? 'swatch' : 'photo', compareWith: typeof doc.compareWith === 'string' && doc.compareWith ? doc.compareWith : 'orig', ratioBackdrop: doc.ratioBackdrop === 'gray' ? 'gray' : 'photo',
         // GR Mod 0.8 changed the power-off page: its tour (which now says where the pictures are chosen) shows once more
         toursSeen: TOUR_IDS.filter((id) => Array.isArray(doc.tours) && doc.tours.includes(id) && (id !== 'wall' || doc.toursV >= 2)) });
       // The kept file of the camera that was open (a 0.8.x data folder: its one file moves to its camera's place).
       const fwRaw = await keptFirmware(fwGroupOf(model), doc.fwName);
       if (fwRaw) await openFirmware(fwRaw, LEGACY_FW_GROUP_NAME[fwGroupOf(model)], false);
       await loadFamilyFiles(work, fam, familyGen);
+      // The appearance the work was saved with (the page's storage may be gone with its port); start-up only, an import keeps the current one.
+      if (isThemePref(doc.theme) && doc.theme !== themePref()) setThemePref(doc.theme);
     } else {
       const fwRaw = await keptFirmware(fwGroupOf(state.model));
       if (fwRaw) await openFirmware(fwRaw, LEGACY_FW_GROUP_NAME[fwGroupOf(state.model)], false);
