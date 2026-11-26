@@ -4,7 +4,7 @@ import { DropZone, FileButton, Ico, Segmented, Switch } from '../components';
 import { FirmwareHero } from '../firmware';
 import { t } from '../i18n';
 import {
-  useStore, loadFirmwareFile, gridOffered, setSoft, setDateStamp, setMonoUnlock, setFlashPlus, flashPlusOn, setAdjSlots, adjSlotsOf, setHdr, setExposurePreview, setFilmGrain, setShadowLearn, setBattery, setSubjectAf, setLockProtect, setVideoAf, setDimLightAf, setMovieExposure, setAwbLearn, setWbPerLook, setConstantLight, setSensorShift, setMovie4k, setMovieSr, setDistanceFeet, setBrightAuto, setCustomGrid, setExtrasView, setFilmMode, setNoMovie, setRearDialOff, setSrSpeed, filmModeChoosable, noMovieChoosable, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile,
+  useStore, loadFirmwareFile, gridOffered, setSoft, setDateStamp, setMonoUnlock, setFlashPlus, flashPlusOn, setAdjSlots, adjSlotsOf, setHdr, setExposurePreview, setFilmGrain, setShadowLearn, setBattery, setSubjectAf, setLockProtect, setVideoAf, setDimLightAf, setMovieExposure, setAwbLearn, setWbPerLook, setConstantLight, setSensorShift, setMovie4k, setMovieSr, setDistanceFeet, setBrightAuto, setCustomGrid, setExtrasView, setFilmMode, setNoMovie, setRearDialOff, setSrSpeed, filmModeChoosable, noMovieChoosable, noMovieOn, settingsFileFor, loadSettingsFile, clearSettingsFile, writeSettingsFile,
 } from '../store';
 import { isFirmware } from './files';
 import { GridDetail, GridThumb, closeGrid, openGrid, useGridArrival } from './grid';
@@ -137,6 +137,8 @@ function ExtrasList() {
   const noMovieOk = useStore((s) => noMovieChoosable(s));
   const filmMode = useStore((s) => s.filmMode);
   const noMovie = useStore((s) => s.noMovie);
+  // « No movie »: the video functions are not offered (nor built, store/output.ts).
+  const video = useStore((s) => !noMovieOn(s));
   const rearDialOff = useStore((s) => s.rearDialOff);
   const srSpeed = useStore((s) => s.srSpeed);
   // the level names without their "Auto brightness · " prefix, first letter up
@@ -165,11 +167,11 @@ function ExtrasList() {
           options={[{ value: 'camera', label: t('grainCamera') }, { value: 'mod', label: t('grainMod') }]} />
       )}
       {safOk && <FeatureCapsule icon={Ico.subject} title={t('navSubjectAf')} sub={t('subjectAfSub')} on={saf} onChange={setSubjectAf} tour="ex-f-saf" />}
-      {vafOk && <FeatureCapsule icon={Ico.movie} title={t('navVideoAf')} sub={t('videoAfSub')} on={vaf} onChange={setVideoAf} tour="ex-f-vaf" />}
+      {vafOk && video && <FeatureCapsule icon={Ico.movie} title={t('navVideoAf')} sub={t('videoAfSub')} on={vaf} onChange={setVideoAf} tour="ex-f-vaf" />}
       {dimAfOk && <FeatureCapsule icon={Ico.af} title={t('navDimAf')} on={dimAf} onChange={setDimLightAf} tour="ex-f-dimaf" />}
-      {mexpOk && <FeatureCapsule icon={Ico.movieExp} title={t('navMovieExp')} sub={t('movieExpSub')} on={mexp} onChange={setMovieExposure} tour="ex-f-mexp" />}
-      {m4kOk && <FeatureCapsule icon={Ico.movie4k} title={t('navMovie4k')} sub={t('movie4kSub')} on={m4k} onChange={setMovie4k} tour="ex-f-4k" />}
-      {msrOk && <FeatureCapsule icon={Ico.movieSr} title={t('navMovieSr')} sub={t('movieSrSub')} on={msr} onChange={setMovieSr} tour="ex-f-msr" />}
+      {mexpOk && video && <FeatureCapsule icon={Ico.movieExp} title={t('navMovieExp')} sub={t('movieExpSub')} on={mexp} onChange={setMovieExposure} tour="ex-f-mexp" />}
+      {m4kOk && video && <FeatureCapsule icon={Ico.movie4k} title={t('navMovie4k')} sub={t('movie4kSub')} on={m4k} onChange={setMovie4k} tour="ex-f-4k" />}
+      {msrOk && video && <FeatureCapsule icon={Ico.movieSr} title={t('navMovieSr')} sub={t('movieSrSub')} on={msr} onChange={setMovieSr} tour="ex-f-msr" />}
       {awbOk && <FeatureCapsule icon={Ico.wb} title={t('navAwb')} sub={t('awbSub')} on={awb} onChange={setAwbLearn} tour="ex-f-awb" />}
       {lampOk && <FeatureCapsule icon={Ico.lamp} title={t('navLamp')} sub={t('lampSub')} on={lamp} onChange={setConstantLight} tour="ex-f-lamp" />}
       {shiftOk && <FeatureCapsule icon={Ico.shift} title={t('navShift')} sub={t('shiftSub')} on={shift} onChange={setSensorShift} tour="ex-f-shift" />}

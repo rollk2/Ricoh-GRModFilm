@@ -160,6 +160,9 @@ main : nos releases sont faites par `release.yml` sur les étiquettes `v*`. `ios
   recettes, ordre des ratios), puis les fonctions de l'amont une par une ; GR III : non-régression rapide.
 - Application : vérifier dans le navigateur l'affichage des nouvelles capsules GR IV (fonctions de l'amont sur le
   Monochrome) et l'absence de Sensor Shift.
+- Fait (2026-11-26) : avec « sans vidéo », les capsules Video AF, exposition vidéo, 4K et SR vidéo sont masquées et
+  ces options ne partent pas dans le build (`ui/src/store/output.ts`) ; elles reviennent quand « sans vidéo » est coupé.
+  Test : `store-gr3.test.mjs`, « GR IV with No movie ».
 
 ## Étape 3 : fusion de GR Mod 0.9.4 et de `main` (2026-11-26, branche `claude/fusion-0.9`)
 

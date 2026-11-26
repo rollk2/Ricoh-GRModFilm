@@ -13,6 +13,7 @@ import * as names120 from '../src/fw/gr4v120/names';
 // @ts-ignore the 1.21 overlay: the same module on 1.21's addresses (core/overlays.mjs)
 import * as names121 from '../src/fw/gr4v121/names';
 import { testRatios } from './fw-helpers/test-firmware';
+import { SENSOR_SHIFT } from './fw-helpers/fusion';
 
 const files = [['1.20', process.env.GRMOD_GR4_120_FIRMWARE], ['1.21', process.env.GRMOD_GR4_121_FIRMWARE]].filter(([, f]) => !!f && existsSync(f)) as [string, string][];
 const file111 = new URL('../testdata/private/official.bin', import.meta.url);
@@ -89,12 +90,12 @@ describe.each(files)('distances in feet: GR IV %s', (release, path) => {
     const eng = await Engine.open(official);
     const all = { adjSoftFocus: true, softFocusMenu: true, dateStamp: true, monoUnlock: true, directFlash: true, hdrGainMap: true, adjSlots: 8,
       exposurePreview: true, ratioShade: true, batteryPercent: true, videoAf: true, awbLearn: true, constantLight: true, movieExposure: true,
-      sensorShift: true, movie4k: true, movieSr: true, flashTtl: true, filmGrain: true, shadowLearn: true } as const;
+      ...(SENSOR_SHIFT ? { sensorShift: true } : {}), movie4k: true, movieSr: true, flashTtl: true, filmGrain: true, shadowLearn: true } as const;
     const b = await eng.buildFirmware([], testRatios(eng), [], { ...all, distanceFeet: true });
     expect(Object.values(b.checks).every((v) => v === true)).toBe(true);
     const s = await eng.inspect(b.file);
     expect(s.verified).toBe(true);
-    expect(readExtensionFeatures(rtosOf(b.file))).toMatchObject({ distanceFeet: true, movieSr: true, sensorShift: true, constantLight: true, adjSlots: 8 });
+    expect(readExtensionFeatures(rtosOf(b.file))).toMatchObject({ distanceFeet: true, movieSr: true, ...(SENSOR_SHIFT ? { sensorShift: true } : {}), constantLight: true, adjSlots: 8 });
   });
 
   it('every character of the values is in the camera\'s own texts of that language', () => {

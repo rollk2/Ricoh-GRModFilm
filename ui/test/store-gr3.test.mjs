@@ -162,6 +162,23 @@ describe('GR IIIx UI family isolation', () => {
     expect(store.getState().slots.CY.preset).toBeUndefined();
     expect(store.getState().slots.CY.names).toEqual({ en: 'GR III film' });
   });
+  it('GR IV with « No movie »: the video functions are not built, and come back once it is off', async () => {
+    const video = { videoAf: true, movieExposure: true, movie4k: true, movieSr: true };
+    const gr4 = { ...info(), family: 'gr4', version: '1.21', models: ['HDF'], filename: 'fwdc248b.bin', slots: [{ id: 'CY' }], features: { ...info().features, noMovie: true, ...video } };
+    mocks.engine.open.mockResolvedValue(gr4);
+    await store.adoptFirmware('fwdc248b.bin', '1.21', new Uint8Array([1]));
+    store.setVideoAf(true); store.setMovieExposure(true); store.setMovie4k(true); store.setMovieSr(true); store.setNoMovie(true);
+    expect(store.noMovieOn()).toBe(true);
+    await store.outputFirmware({ kind: 'folder' });
+    const options = mocks.engine.build.mock.calls.at(-1)[3];
+    expect(options.noMovie).toBe(true);
+    for (const k of Object.keys(video)) expect(options[k]).toBeUndefined();
+    store.setNoMovie(false);
+    await store.outputFirmware({ kind: 'folder' });
+    const again = mocks.engine.build.mock.calls.at(-1)[3];
+    expect(again.noMovie).toBeUndefined();
+    expect(again).toMatchObject(video);
+  });
   it('saves GR IV and GR III work in their own files and brings both back after a restart', async () => {
     await store.init();
     mocks.host.available = true;

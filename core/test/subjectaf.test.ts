@@ -16,6 +16,7 @@ import * as code120 from '../src/fw/gr4v120/aspect/subjectaf-code';
 import * as code121 from '../src/fw/gr4v121/aspect/subjectaf-code';
 import { SUBJECTAF_MODEL, SUBJECTAF_MODEL_LENGTH, SUBJECTAF_MODEL_SHA256 } from '../src/fw/gr4v120/aspect/subjectaf-model-code';
 import { createHash } from 'node:crypto';
+import { SENSOR_SHIFT } from './fw-helpers/fusion';
 
 const P = fileURLToPath(new URL('../testdata/private/', import.meta.url));
 const file120 = process.env.GRMOD_GR4_120_FIRMWARE || P + 'official120.bin';
@@ -56,7 +57,7 @@ for (const { version, path, HOOKS, FACE, HEAP, code } of releases) describe.skip
   const recipes: [string, (e: Engine) => BuildOptions][] = [
     ['alone', () => ({})],
     ['with the other additions and power-off pictures', (e) => ({ dateStamp: true, directFlash: true, hdrGainMap: true, adjSlots: 8, adjSoftFocus: true, exposurePreview: true, brightAuto: 'balanced',
-      shadowLearn: true, filmGrain: true, flashTtl: true, batteryPercent: true, videoAf: true, awbLearn: true, constantLight: true, sensorShift: true, movie4k: true, movieSr: true, movieExposure: true, distanceFeet: true,
+      shadowLearn: true, filmGrain: true, flashTtl: true, batteryPercent: true, videoAf: true, awbLearn: true, constantLight: true, ...(SENSOR_SHIFT ? { sensorShift: true } : {}), movie4k: true, movieSr: true, movieExposure: true, distanceFeet: true,
       shutdownPictures: [{ id: 0x2001, name: 'Test', jpeg: e.encodeMenuPicture(rgb(90)) }] } as BuildOptions)],
   ];
   for (const [name, options] of recipes) {
@@ -118,7 +119,7 @@ for (const { version, path, HOOKS, FACE, HEAP, code } of releases) describe.skip
       expect(summary.verified).toBe(true);
       expect(summary.subjectAf).toBe(true);
       if (plain) expect(summary).toMatchObject({ dateStamp: true, directFlash: true, hdrGainMap: true, adjSlots: 8, brightAuto: 'balanced', exposurePreview: true, shadowLearn: true, filmGrain: true, flashTtl: true,
-        batteryPercent: true, videoAf: true, awbLearn: true, constantLight: true, sensorShift: true, movie4k: true, movieSr: true, movieExposure: true, distanceFeet: true });
+        batteryPercent: true, videoAf: true, awbLearn: true, constantLight: true, ...(SENSOR_SHIFT ? { sensorShift: true } : {}), movie4k: true, movieSr: true, movieExposure: true, distanceFeet: true });
     }, 240000);
   }
   it('omitted and false build the same bytes, and read back without it', async () => {
