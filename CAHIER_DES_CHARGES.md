@@ -173,6 +173,12 @@ Décisions des 2026-11-10 et 2026-11-11.
 10. Dust removal et carte des poussières (décision du 2026-11-10) : **un menu** qui affiche la carte des poussières (point 11), puis lance un dust removal. Le nettoyage manuel natif passe par `0x532ae708(modèle, 1)`, comme le menu du boîtier, sans jamais modifier la fréquence ni l'amplitude de l'ultrason. Le nettoyage à la rentrée de l'objectif existe déjà (option native « à l'extinction »).
 11. Carte des poussières, sur le modèle du Dust Alert des reflex Pentax : photographier une surface claire à f/16 et afficher les taches détectées, avant le dust removal du point 10 et pour vérifier son effet. Demande l'analyse d'une image dans le boîtier (avec le décodeur JPEG de la V2).
 25. Gain map HDR dans les JPEG (Ultra HDR, norme ISO 21496-1, décision du 2026-11-11). Le JPEG garde l'image normale et embarque une carte de gain : sur un écran HDR (téléphones et Mac récents, Chrome), les hautes lumières brillent au-delà du blanc normal ; ailleurs, le JPEG s'affiche comme d'habitude. Source : Maxwooow, GR Mod 0.8.9 et 0.8.10 (GR IV 1.11 et 1.20 : carte calculée depuis la photo finie, gain plafonné à 1,2 diaphragme). Sur GR III : interrupteur par film ou par BOX, désactivé par défaut. Étudier l'interaction avec l'halation (la lueur pourrait profiter de la marge HDR) et avec le développement dans l'appareil (entrée 9 : la carte devrait être calculée au tirage, après le grain et la date).
+29. **Films noir et blanc « sur Monotone » (GR III / IIIx, décision du 2026-11-28, à rappeler à l'utilisateur)** : comme sur le
+    Monochrome, un film noir et blanc passerait par le noir et blanc du boîtier (Monotone) avec la courbe de tons de la LUT
+    par-dessus, au lieu de la conversion couleur de la 1.3.6. Prendre le film pour Monotone là où le boîtier décide selon le look
+    (`films-r10.ts` : étape de développement `0x536db7f8`, test noir et blanc `0x536dc4bc`, etc.), mesurer dans l'émulateur
+    sur une gamme de gris, puis essais sur boîtier (le Monochrome en a demandé plusieurs, M3a à M3a-6). À garder en option à
+    côté de la conversion de la 1.3.6, qui conserve le mélange de canaux propre à chaque film.
 
 ### Après la v1 stabilisée (ambitieux, à étudier)
 12. Améliorer l'autofocus en basse lumière.
