@@ -41,6 +41,31 @@ beforeEach(async () => {
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('GR IIIx UI family isolation', () => {
+  it('1.3.6: imports a GR IV Monochrome pack as GR III films (colour conversion), and still refuses a GR IV pack', async () => {
+    const { makeRecipePack } = await import('../../ui/src/packs');
+    const current = info(); current.capabilities.presets = true;
+    const ids = ['CY', 'CG', 'F3', 'F4'];
+    current.allowed = Object.fromEntries(LANGS.map(l => [l, 'Film 1234APXTriX-0']));
+    current.slots = ids.map((id, i) => ({ id, defaultName: `Film ${i + 1}`, names: Object.fromEntries(LANGS.map(l => [l, { text: `Film ${i + 1}`, capacity: 24 }])) }));
+    mocks.engine.open.mockResolvedValue(current);
+    mocks.engine.convert = vi.fn(async () => ({ matrixQ13: new Int16Array(9), curves: [] }));
+    await store.adoptFirmware('fwdc243b.bin', '1.60', new Uint8Array([1]));
+    const icon = { mode: 'text', text: 'BW', style: 'plain' };
+    const mono = makeRecipePack('gr4mono', [
+      { names: { en: 'APX 100' }, icon, preset: { fileName: 'apx.cube', kind: 'cube', text: 'LUT_3D_SIZE 2 apx' } },
+      { names: { en: 'Tri-X 400' }, icon, preset: { fileName: 'trix.cube', kind: 'cube', text: 'LUT_3D_SIZE 2 trix' } }]);
+    await store.importRecipes(mono);
+    await vi.advanceTimersByTimeAsync(1);
+    const slots = store.getState().slots;
+    expect(slots.CY).toMatchObject({ names: { en: 'APX 100' }, preset: { fileName: 'apx.cube', kind: 'cube' } });
+    expect(slots.CG).toMatchObject({ names: { en: 'Tri-X 400' }, preset: { fileName: 'trix.cube' } });
+    // The films' own conversion (not the Monochrome's): no `mono` option.
+    expect(mocks.engine.convert.mock.calls.map(c => [c[0], c[1], c[2]])).toEqual([['cube', 'LUT_3D_SIZE 2 apx', {}], ['cube', 'LUT_3D_SIZE 2 trix', {}]]);
+    const gr4 = makeRecipePack('gr4', [{ names: { en: 'Colour' }, icon, preset: { fileName: 'c.cube', kind: 'cube', text: 'LUT_3D_SIZE 2 c' } }]);
+    await store.importRecipes(gr4);
+    expect(store.getState().toasts.at(-1)).toMatchObject({ kind: 'error' });
+    expect(store.getState().slots.CY.names.en).toBe('APX 100');
+  });
   it('selects IIIx when opening its firmware; the page and the (empty) ratio list stay as they are', async () => {
     expect(await store.adoptFirmware('arbitrary.bin', '1.60', new Uint8Array([1]))).toBe(true);
     expect(store.getState()).toMatchObject({ model: 'GR3X_HDF', page: 'ic', fwName: 'fwdc243b.bin', ratios: [] });

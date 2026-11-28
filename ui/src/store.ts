@@ -1955,6 +1955,9 @@ export async function importRecipes(text?: string): Promise<void> {
   }
   let pack;
   try { pack = readRecipePack(text); } catch (e) { toast(packProblem(e), 'error'); return; }
+  // 1.3.6: a GR IV Monochrome pack on the GR III / IIIx: its black-and-white LUTs become films (the colour sensor keeps each
+  // film's own channel mix: the GR III's conversion fits a black-and-white LUT as one row of weights and its tone curves).
+  if (pack.family === 'gr4mono' && packFamily() === 'gr3') pack = { ...pack, family: 'gr3', recipes: pack.recipes.filter((r) => r.preset?.kind === 'cube') };
   if (pack.family !== packFamily()) { toast(t('packOtherCamera'), 'error'); return; }
   if (pack.family === 'gr4mono' && !monoRecipesOn()) { toast(t('packOtherCamera'), 'error'); return; }
   // GR IV: the recipes marked as added looks (all of a Monochrome pack) go to the added slots, the others to the Cinema slots.

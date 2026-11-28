@@ -295,6 +295,9 @@ Décisions du 2026-11-11. Tout ce code est sous GPL comme GR Mod : le reprendre 
   0x55839018 partagé avec nos boutons Hold.
 
 ### Fait ou abandonné
+- **Films noir et blanc sur le GR III / IIIx (1.3.6, 2026-11-28, bêta sans essai boîtier)** : les 24 films de Pat David en deux
+  paquets GR III de la page Community (un code par film), et l'import d'un paquet du Monochrome sur le GR III. Chemin de la
+  conversion des films (mélange propre à chaque film), pas de Monotone : voir `docs/film-mode-notes.md`, « 1.3.6 ».
 - **Prochain chantier (décidé le 2026-11-09) : rouleau chargé, réglages verrouillés.** En U1 à U3, Film Roll Mode sur On et rouleau entamé (compteur différent de 0, pas rembobiné), ces lignes de Still Image Settings disparaissent du menu (elles reviennent après le rembobinage, et en P, Av, Tv, M) :
   - Image Control (`0x02000012`), Aspect Ratio (`0x02000073`), Crop (`0x02000074`), Drive Mode (`0x0200000e`) ;
   - File Format (`0x02000072`), JPEG Recorded Pixels (`0x02000075`), Color Space (`0x02000076`).

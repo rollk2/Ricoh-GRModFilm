@@ -4823,3 +4823,20 @@ comparer le firmware A (référence) et B (AF plus rapide). Tout est consigné i
   (`official.decoded`, `B.bin`, `C.bin`, `q400.xmp`), sans lien avec ce changement.
 - Reste à vérifier sur le boîtier (T-SRB1) : après un build 1.3.4 avec une vitesse choisie, flasher le build 1.3.5 sans l'option :
   Shake Reduction affiche On, la main SR est normale, pas de vibration.
+
+## 1.3.6 : films noir et blanc sur le GR III / IIIx (2026-11-28)
+
+Demande de l'utilisateur : sur le GR III, « le même principe » que les recettes noir et blanc du Monochrome, avec l'import
+des ratios et des recettes. Constat (certitude forte, mesuré) : la conversion des films GR III (`convertGr3xCube`) reconnaît
+déjà un `.cube` noir et blanc (`isTonedMonochrome`) et le range comme tel (`fitTonedMonochrome` : une seule ligne de poids
+pour R, G et B, une courbe par canal ; le boîtier le voit comme noir et blanc pour l'impression de la date). Mesure sur les
+24 films de Pat David : tous reconnus, écart moyen 0,68 à 1,50 ΔE, p95 1,7 à 4,1 ; Rollei IR400 3,4 (poids bleu très négatif,
+borné). Le capteur couleur garde le mélange propre à chaque film (Ortho 25 : poids 0,01 / 0,40 / 0,60 ; Acros 100 :
+0,09 / 0,86 / 0,04), ce que le Monochrome ne peut pas faire. Passer par Monotone (étudié, puis écarté avec l'accord de
+l'utilisateur) imposerait un seul mélange à tous les films et une ingénierie inverse invérifiable sans boîtier.
+- Application : un paquet du Monochrome s'importe sur le GR III / IIIx, ses recettes deviennent des films (conversion des
+  films, sans l'option `mono`). Test `core/test/gr3x-ui.test.mjs`.
+- Collection : `bw-films-agfa-fuji-polaroid-rollei-gr3` et `bw-films-ilford-kodak-gr3` (famille `gr3`, mêmes LUT, noms et
+  icônes, un code de film par film). Test `core/test/bw-packs-gr3.test.ts` (codes uniques, noir et blanc, écart).
+- Ratios : les paquets `.grfratios` s'importent déjà sur toutes les familles (inchangé).
+- Pas de changement du firmware. Publication 1.3.6 en bêta, sans essai sur boîtier (décision de l'utilisateur).
