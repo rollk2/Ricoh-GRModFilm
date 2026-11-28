@@ -98,7 +98,12 @@ jobs:
           append_body: true
           body: |
 
-            ### Downloads
+            ### Use it in your browser (recommended)
+
+            **[Open GR Mod Film](https://rollk2.github.io/Ricoh-GRModFilm/)**: nothing to install, always the latest version; the firmware is built on
+            your computer, nothing is sent anywhere. Best in Chrome or Edge (the firmware is written straight to the card).
+
+            ### Downloads, to work offline
 
             - Windows: `GRModFilm-${{ steps.version.outputs.version }}.exe`
             - macOS (Intel and Apple silicon): unzip `GRModFilm-${{ steps.version.outputs.version }}-mac.zip` and move `GR Mod Film.app` to Applications.
