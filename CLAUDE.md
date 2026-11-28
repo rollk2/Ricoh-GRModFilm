@@ -27,6 +27,9 @@ Expliquer la démarche, les termes nouveaux et ce qui est fait, sans noyer.
 5. Tout changement doit être vérifié par les tests et l'émulateur avant que l'utilisateur flashe.
    Dire clairement quand un build est prêt à être testé sur le boîtier, et ce qu'il faut vérifier.
 6. Répondre en français. Ne jamais utiliser de tiret cadratin ni de tiret demi-cadratin.
+7. **Le site web est la solution mise en avant** (décision du 2026-11-28) : https://rollk2.github.io/Ricoh-GRModFilm/ en
+   premier dans le README, les releases et toute communication. Les fichiers du programme restent toujours
+   téléchargeables (Releases) pour ceux qui veulent travailler en local, présentés comme l'alternative.
 
 ## Environnement
 

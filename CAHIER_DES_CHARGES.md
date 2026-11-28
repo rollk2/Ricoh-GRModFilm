@@ -8,6 +8,9 @@ Cibles : GR III firmware 2.10, GR IIIx firmware 1.60. Selon l'auteur de GR Mod, 
 Retrouver la discipline de l'argentique sur un GR : on charge une pellicule (un film et un format), puis on ne peut plus y toucher jusqu'à la fin du rouleau. Chaque vue s'arme en avançant le film. Sans avance, les déclenchements se superposent sur la même vue.
 
 ## Principes de conception
+- **Distribution (décision du 2026-11-28)** : le site web (https://rollk2.github.io/Ricoh-GRModFilm/, publié à chaque fusion
+  dans `main`) est la solution promue à long terme ; le programme local reste téléchargeable sur la page Releases, en
+  alternative pour travailler hors ligne. README et texte des releases présentent le site en premier.
 
 - Réutiliser au maximum les fonctions natives du GR plutôt que de créer de nouvelles interfaces.
 - Le choix du film et du format se fait avec les menus normaux, puis s'enregistre dans une BOX avec Save Settings (natif).

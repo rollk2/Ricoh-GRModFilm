@@ -4,6 +4,13 @@ GR Mod Film is a fork of [GR Mod](https://github.com/Maxwooow/Ricoh-GRMod) by Ma
 **film mode** to the Ricoh GR III (firmware 2.10) and GR IIIx (firmware 1.60). Everything GR Mod
 does is kept (version 1.1 follows GR Mod 0.8.15). Not a Ricoh product, not an official GR Mod release.
 
+## **[Open GR Mod Film in your browser](https://rollk2.github.io/Ricoh-GRModFilm/)**
+
+The recommended way: nothing to install, always the latest version, and the firmware is built on your computer (nothing
+is sent anywhere). Works best in Chrome or Edge, which write the firmware straight to the card. Prefer to work offline?
+The program for Windows, macOS and Linux stays available on the
+[Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page (see [Use it offline](#use-it-offline-the-program)).
+
 | Camera | Official firmware | GR Mod features | Film mode |
 | --- | --- | --- | --- |
 | GR III / GR III HDF | 2.10 | yes | **beta** (camera-tested) |
@@ -16,7 +23,7 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.3.6 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.6.
 
 ## What is new in 1.3.6
 
@@ -184,7 +191,7 @@ Version 1.3.6 (the latest is always on the [Releases](https://github.com/rollk2/
 In the program: switch **Film mode** (and **No movie**, **Rear dial off** if wanted) on the GR III / IIIx page, and
 give each GR Mod film a 4-character **Film code** (A-Z, 0-9; the folder takes the first three).
 
-## Use it in the browser
+## Use it in the browser (recommended)
 
 **[Open GR Mod Film](https://rollk2.github.io/Ricoh-GRModFilm/)**: nothing to install. The firmware is
 built on your computer, in the browser; nothing is sent anywhere.
@@ -201,11 +208,12 @@ apart. To move or share it, use the packs: on the Image Control page, the ⋯ me
 page, a **ratio pack** (`.grfratios`). An import asks whether to replace everything or add to what is there.
 
 What the site cannot do (the browser does not allow it): download Ricoh's file itself, list the cards,
-move the files already on the card aside, keep firmware copies. The program below does these.
+move the files already on the card aside, keep firmware copies. The program below does these, for those who
+prefer to work offline.
 
-## Install
+## Use it offline (the program)
 
-Download the program for your computer from this repository's
+The site above is the recommended way. To work offline, download the program for your computer from this repository's
 [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases) page. GR Mod Film keeps its own data
 folder, so it can live beside GR Mod. It does not update itself: new versions are published on the
 Releases page. Building a firmware and installing it on the camera work as in GR Mod (below). As
