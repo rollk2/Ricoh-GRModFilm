@@ -16,7 +16,20 @@ GR Mod features on the GR IV, the GR IV Monochrome and the newer GR III / IIIx f
 camera-tested by Maxwooow; GR Mod Film adds nothing to them yet. A camera updated to a newer Ricoh
 firmware cannot go back to an older one: keep a GR III on 2.10 for the film mode.
 
-Version 1.3.5 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+Version 1.3.6 (the latest is always on the [Releases](https://github.com/rollk2/Ricoh-GRModFilm/releases/latest) page).
+
+## What is new in 1.3.6
+
+- **Black-and-white films on the GR III / IIIx.** Two new packs on the Community page, *Black & white films* for the
+  GR III / IIIx (24 films: Agfa, Fuji, Polaroid, Rollei; Ilford, Kodak), film emulations by
+  [Pat David](https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/), each with its own film code (file names
+  such as `TRIX0001.JPG`). Unlike on the GR IV Monochrome, whose sensor has no colour, each film keeps its own response to
+  colours (an orthochromatic film darkens reds, an infrared one lightens foliage) and its tone curve. The films' conversion
+  recognises a black-and-white LUT and stores it as one row of weights for the three channels: within about 1 ΔE of the LUT
+  on average (Rollei IR400, an infrared film, about 3).
+- A GR IV Monochrome recipe pack can be imported on the GR III / IIIx too: its recipes become films.
+- Ratio packs (`.grfratios`) import on every camera, as before.
+- Beta: checked by the tests and the conversion's measures, not yet tried on a camera.
 
 ## What is new in 1.3.5
 

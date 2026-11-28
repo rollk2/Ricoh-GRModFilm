@@ -27,7 +27,7 @@ reviewed; the maintainer then accepts it, asks for a change, or declines it.
   - *Fujifilm film simulations (abpy)*, GR III and GR IV: LUTs by abpy,
     [FujifilmCameraProfiles](https://github.com/abpy/FujifilmCameraProfiles), CC BY-NC-SA 4.0 (credit, same
     licence, never sold).
-  - *Black & white films* (two packs), GR IV Monochrome: film emulations by
+  - *Black & white films* (two packs for the GR IV Monochrome, two for the GR III / IIIx): film emulations by
     [Pat David](https://patdavid.net/2013/08/film-emulation-presets-in-gmic-gimp/), as shipped with
     [G'MIC](https://gmic.eu/), CC BY-SA 4.0 (credit, same licence).
 - **One pack per file**, with a clear title and description in English. File names: letters, digits, `.`, `_`,
